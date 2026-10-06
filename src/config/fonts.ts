@@ -1,4 +1,4 @@
-import { Inter, Outfit, Playfair_Display } from "next/font/google";
+import { Cairo, Inter, Outfit, Playfair_Display } from "next/font/google";
 
 /**
  * The reference design uses Inter (UI), Gilroy (display headings) and Denton
@@ -28,4 +28,10 @@ export const serifFont = Playfair_Display({
   display: "swap",
 });
 
-export const fontVariables = `${sansFont.variable} ${displayFont.variable} ${serifFont.variable}`;
+export const arabicFont = Cairo({
+  subsets: ["arabic", "latin"],
+  variable: "--font-arabic",
+  display: "swap",
+});
+
+export const fontVariables = `${sansFont.variable} ${displayFont.variable} ${serifFont.variable} ${arabicFont.variable}`;

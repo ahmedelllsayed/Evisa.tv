@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { googleAction, sendCodeAction, verifyCodeAction } from "@/app/actions/auth";
+import { t } from "@/lib/i18n";
 
-export function SignInForm({ next, googleEnabled }: { next: string; googleEnabled: boolean }) {
+export function SignInForm({ locale, next, googleEnabled }: { locale: string; next: string; googleEnabled: boolean }) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -21,8 +22,8 @@ export function SignInForm({ next, googleEnabled }: { next: string; googleEnable
             </svg>
           </span>
           <h1 className="font-display text-xl leading-snug font-semibold text-brand">
-            Visas on time
-            <span className="block">And sign up in no time.</span>
+            {t(locale, "signIn.title")}
+            <span className="block font-normal text-ink">{t(locale, "signIn.subtitle")}</span>
           </h1>
         </div>
         {!sent ? (
@@ -32,7 +33,7 @@ export function SignInForm({ next, googleEnabled }: { next: string; googleEnable
               e.preventDefault();
               setError(null);
               start(async () => {
-                const res = await sendCodeAction(email);
+                const res = await sendCodeAction(email, locale);
                 if (!res.ok) setError(res.error);
                 else {
                   setSent(true);
@@ -42,8 +43,7 @@ export function SignInForm({ next, googleEnabled }: { next: string; googleEnable
             }}
           >
             <label className="block text-sm font-medium">
-              Enter your email
-              <span className="mt-0.5 block font-normal text-xs text-muted-ink">We need this to send your approved visa</span>
+              {t(locale, "signIn.email")}
               <input
                 required
                 type="email"
@@ -55,7 +55,7 @@ export function SignInForm({ next, googleEnabled }: { next: string; googleEnable
             </label>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button disabled={pending} className="h-12 w-full rounded-xl bg-brand font-medium text-white disabled:opacity-60">
-              Continue
+              {t(locale, "signIn.send")}
             </button>
           </form>
         ) : (
@@ -65,12 +65,12 @@ export function SignInForm({ next, googleEnabled }: { next: string; googleEnable
               e.preventDefault();
               setError(null);
               start(async () => {
-                const res = await verifyCodeAction(email, code, next);
+                const res = await verifyCodeAction(email, code, next, locale);
                 if (res && !res.ok) setError(res.error);
               });
             }}
           >
-            <p className="text-sm text-body">Enter the 6-digit code we sent to {email}.</p>
+            <p className="text-sm text-body">{t(locale, "signIn.codeSent")}</p>
             {devCode && (
               <p className="rounded-xl bg-surface px-3 py-2 text-xs text-slate-ink">
                 Dev code: <span className="font-mono font-semibold">{devCode}</span>
@@ -87,14 +87,14 @@ export function SignInForm({ next, googleEnabled }: { next: string; googleEnable
             />
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button disabled={pending} className="h-12 w-full rounded-full bg-brand font-medium text-white disabled:opacity-60">
-              Verify
+              {t(locale, "signIn.verify")}
             </button>
             <button type="button" className="w-full text-sm text-muted-ink" onClick={() => setSent(false)}>
-              Use a different email
+              {t(locale, "signIn.different")}
             </button>
           </form>
         )}
-        <p className="my-5 text-center text-xs tracking-wide text-muted-ink uppercase">Or</p>
+        <p className="my-5 text-center text-xs tracking-wide text-muted-ink uppercase">{t(locale, "signIn.or")}</p>
         <button
           type="button"
           onClick={() => {
@@ -102,7 +102,7 @@ export function SignInForm({ next, googleEnabled }: { next: string; googleEnable
           }}
           className="mx-auto flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-line text-sm font-medium"
         >
-          Continue with Google
+          {t(locale, "signIn.google")}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import "server-only";
 import { siteConfig } from "@/config/site.config";
+import { countries } from "@/lib/countries";
 import { safePublicUrl } from "@/lib/safe-path";
 import { json, one, sql } from "./db";
 
@@ -69,6 +70,25 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     bookingUrl: String(row.booking_url || ""),
     logoUrl: String(row.logo_url || ""),
   };
+}
+
+const knownCountries = new Set(countries.map((country) => country.code));
+
+export function normalizeCitizenshipCodes(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : [];
+  return [...new Set(list.map((code) => String(code).toUpperCase()).filter((code) => knownCountries.has(code)))];
+}
+
+/** Empty means every country stays visible in the citizenship picker. */
+export async function getCitizenshipCodes(): Promise<string[]> {
+  const row = await one("select citizenship_codes from site_settings where id = 1");
+  if (!row) return [];
+  return normalizeCitizenshipCodes(row.citizenship_codes);
+}
+
+export async function saveCitizenshipCodes(codes: string[]) {
+  const clean = normalizeCitizenshipCodes(codes);
+  await sql(`update site_settings set citizenship_codes = $1::jsonb, updated_at = now() where id = 1`, [JSON.stringify(clean)]);
 }
 
 export async function saveSiteSettings(input: SiteSettings) {

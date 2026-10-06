@@ -1,15 +1,19 @@
+import { ContactForm } from "@/components/contact/contact-form";
 import { requirePageContent } from "@/lib/data/pages";
 import { getSiteSettings } from "@/lib/data/settings";
+import type { Page } from "@/lib/page";
 
 export const metadata = { title: "Contact" };
 
-export default async function ContactPage() {
+export default async function ContactPage({ params }: Page) {
+  const { locale } = await params;
   const [content, settings] = await Promise.all([requirePageContent("contact"), getSiteSettings()]);
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[#f7f8fa] px-6 py-16 lg:px-16">
       <div className="max-w-xl">
         <h1 className="font-sans text-4xl font-semibold tracking-tight">{content.title}</h1>
         <p className="mt-5 text-base leading-relaxed text-body">{content.intro}</p>
+        <ContactForm locale={locale} />
         <h2 className="mt-10 text-sm font-semibold tracking-[0.14em] uppercase">{content.supportHeading}</h2>
         <ul className="mt-4 space-y-4 text-sm">
           <li>

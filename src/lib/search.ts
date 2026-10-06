@@ -3,6 +3,7 @@ import type { Destination } from "@/lib/types";
 export type SearchHit = {
   slug: string;
   name: string;
+  nameAr?: string | null;
   code: string;
   visaRequired: boolean;
   visaType: Destination["visaType"];
@@ -19,6 +20,7 @@ export function toSearchHit(d: Destination): SearchHit {
   return {
     slug: d.slug,
     name: d.name,
+    nameAr: d.nameAr,
     code: d.code,
     visaRequired: d.visaRequired,
     visaType: d.visaType,
@@ -38,7 +40,10 @@ export function matchHits(hits: SearchHit[], query: string) {
   return hits
     .map((h) => {
       const city = h.cities.find((c) => c.toLowerCase().includes(q));
-      const nameHit = h.name.toLowerCase().includes(q) || h.code.toLowerCase().includes(q);
+      const nameHit =
+        h.name.toLowerCase().includes(q) ||
+        (h.nameAr?.toLowerCase().includes(q) ?? false) ||
+        h.code.toLowerCase().includes(q);
       if (!nameHit && !city) return null;
       return { hit: h, city: city ?? null, score: nameHit ? 0 : 1 };
     })

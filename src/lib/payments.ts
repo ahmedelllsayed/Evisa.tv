@@ -2,19 +2,37 @@ import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { siteConfig } from "@/config/site.config";
 import { getSiteSettings } from "@/lib/data/settings";
-import { createPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
+import { createPayment, findPendingPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
 import { getCurrentUser } from "@/lib/auth";
 import { env, serverEnv } from "@/lib/env";
 import { createPaymobIntention, paymobReady, refundPaymob } from "@/lib/paymob";
-import type { Application, User } from "@/lib/types";
+import type { Application, Payment, User } from "@/lib/types";
 
 function mockSign(payload: string) {
   return createHmac("sha256", serverEnv().authSecret).update(payload).digest("hex");
 }
 
+function reusableCheckoutUrl(payment: Payment, locale: string) {
+  if (payment.checkoutUrl) return payment.checkoutUrl;
+  if (payment.provider === "mock" && payment.providerRef) {
+    return `/${locale}/payment/mock?token=${encodeURIComponent(payment.providerRef)}`;
+  }
+  return null;
+}
+
 export async function createCheckout(application: Application, locale: string, customer: Pick<User, "fullName" | "email" | "phone">) {
   const fresh = await getApplication(application.id);
   if (!fresh) return { ok: false as const, error: "Application not found." };
+  if (fresh.status !== "draft" && fresh.status !== "payment_pending") {
+    return { ok: false as const, error: "This application can no longer be paid." };
+  }
+  const pending = await findPendingPayment(fresh.id);
+  if (pending) {
+    const sameAmount = Math.abs(pending.amount - fresh.totalAmount) < 0.01 && pending.currency.toUpperCase() === fresh.currency.toUpperCase();
+    const url = sameAmount ? reusableCheckoutUrl(pending, locale) : null;
+    if (url) return { ok: true as const, url };
+    return { ok: false as const, error: "A payment is already in progress for this application." };
+  }
   const settings = await getSiteSettings();
   const success = `${env.siteUrl}/${locale}/payment/success?app=${fresh.id}`;
   const cancel = `${env.siteUrl}/${locale}/apply/${fresh.id}`;
@@ -44,6 +62,7 @@ export async function createCheckout(application: Application, locale: string, c
       billingName: customer.fullName,
       billingEmail: customer.email,
       billingPhone: phone,
+      checkoutUrl: intention.url,
     });
     return { ok: true as const, url: intention.url };
   }
@@ -71,27 +90,32 @@ export async function createCheckout(application: Application, locale: string, c
         },
       ],
     });
+    const url = session.url;
+    if (!url) return { ok: false as const, error: "Could not start the payment." };
     await createPayment({
       applicationId: fresh.id,
       provider: "stripe",
       providerRef: session.id,
       amount: fresh.totalAmount,
       currency: fresh.currency,
+      checkoutUrl: url,
     });
-    return { ok: true as const, url: session.url! };
+    return { ok: true as const, url };
   }
   if (process.env.NODE_ENV === "production") {
     return { ok: false as const, error: "Payments are not configured." };
   }
   const token = `${fresh.id}.${mockSign(fresh.id)}`;
+  const url = `/${locale}/payment/mock?token=${encodeURIComponent(token)}`;
   await createPayment({
     applicationId: fresh.id,
     provider: "mock",
     providerRef: token,
     amount: fresh.totalAmount,
     currency: fresh.currency,
+    checkoutUrl: url,
   });
-  return { ok: true as const, url: `/${locale}/payment/mock?token=${encodeURIComponent(token)}` };
+  return { ok: true as const, url };
 }
 
 export async function completeMockCheckout(token: string) {

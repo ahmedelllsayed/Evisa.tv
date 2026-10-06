@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { href } from "@/lib/href";
+import { t } from "@/lib/i18n";
 import type { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -31,14 +32,14 @@ export function UserMenu({ user, locale, className }: { user: User | null; local
   );
   if (!user) {
     return (
-      <Link href={href("/sign-in", locale)} aria-label="Sign in" className={trigger}>
+      <Link href={href("/sign-in", locale)} aria-label={t(locale, "menu.signIn")} className={trigger}>
         <ProfileGlyph />
       </Link>
     );
   }
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger aria-label="Account" className={cn(trigger, "bg-brand-50 text-brand-600")}>
+      <DropdownMenuTrigger aria-label={t(locale, "menu.account")} className={cn(trigger, "bg-brand-50 text-brand-600")}>
         <span className="text-sm font-semibold">{(user.fullName || user.email || "?").trim().charAt(0).toUpperCase() || "?"}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -46,19 +47,19 @@ export function UserMenu({ user, locale, className }: { user: User | null; local
         <DropdownMenuLabel className="truncate text-xs text-muted-ink">{user.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link href={href("/account", locale)} />}>
-          <Plane /> My applications
+          <Plane /> {t(locale, "menu.applications")}
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link href={href("/account/profile", locale)} />}>
-          <UserIcon /> Profile
+          <UserIcon /> {t(locale, "menu.profile")}
         </DropdownMenuItem>
         {user.role === "admin" && (
           <DropdownMenuItem render={<Link href={href("/admin/queue", locale)} />}>
-            <LayoutDashboard /> Admin
+            <LayoutDashboard /> {t(locale, "menu.admin")}
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => signOutAction()}>
-          <LogOut /> Sign out
+          <LogOut /> {t(locale, "menu.signOut")}
         </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

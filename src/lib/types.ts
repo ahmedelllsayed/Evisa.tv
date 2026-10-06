@@ -5,14 +5,19 @@ export type Destination = {
   code: string;
   slug: string;
   name: string;
+  nameAr?: string | null;
   region: string | null;
   visaRequired: boolean;
   visaType: VisaType;
   validity: string | null;
+  validityAr?: string | null;
   stay: string | null;
+  stayAr?: string | null;
   entry: string | null;
+  entryAr?: string | null;
   acceptedAt: string | null;
   method: string | null;
+  methodAr?: string | null;
   govFee: number;
   serviceFee: number;
   currency: string;
@@ -28,7 +33,7 @@ export type Destination = {
   lng: number | null;
   cities: string[];
   sources: { label: string; url: string }[];
-  rejectionReasons: { title: string; body: string }[];
+  rejectionReasons: { title: string; body: string; titleAr?: string; bodyAr?: string }[];
   sortOrder: number;
   isActive: boolean;
   updatedAt: string;
@@ -39,8 +44,11 @@ export type Faq = {
   destinationId: string | null;
   scope: string;
   category: string;
+  categoryAr?: string | null;
   question: string;
+  questionAr?: string | null;
   answer: string;
+  answerAr?: string | null;
   sortOrder: number;
 };
 
@@ -51,7 +59,9 @@ export type Review = {
   author: string;
   location: string | null;
   title: string | null;
+  titleAr?: string | null;
   body: string;
+  bodyAr?: string | null;
   rating: number;
   product: string | null;
   url: string | null;
@@ -119,6 +129,7 @@ export type Application = {
   deliveredAt: string | null;
   assigneeId: string | null;
   assigneeEmail?: string | null;
+  locale?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -171,6 +182,9 @@ export type Payment = {
   status: "pending" | "paid" | "failed" | "refunded";
   createdAt: string;
   transactionId: string | null;
+  checkoutUrl: string | null;
+  merchantOrderId: string | null;
+  paymobOrderId: string | null;
 };
 
 export type User = {

@@ -1,37 +1,37 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { AskCatalog } from "@/components/layout/ask-catalog";
-import { siteConfig } from "@/config/site.config";
+import { LocaleSwitch } from "@/components/layout/locale-switch";
 import { unpublishedSlugs } from "@/lib/data/pages";
+import { publicReviewStats } from "@/lib/data/catalog";
 import { getSiteSettings } from "@/lib/data/settings";
 import { href } from "@/lib/href";
+import { t } from "@/lib/i18n";
 import { initials } from "@/lib/visa";
-
-const toolLinks = [
-  { href: "/tools/visa-requirements", label: "Visa Requirements Checker" },
-  { href: "/tools/visa-photo-maker", label: "Visa Photo Creator" },
-  { href: "/passport-index", label: "Passport Index" },
-  { href: "/emergency-care", label: "Emergency Helpline" },
-  { href: "/rejection-recovery", label: "Rejection Recovery" },
-];
-
-const companyLinks = [
-  { href: siteConfig.links.careers, label: "Careers", external: true },
-  { href: "/newsroom", label: "Newsroom" },
-  { href: "/contact", label: "Contact" },
-  { href: "/partners", label: "Partners" },
-  { href: "/transparency/status", label: "Security" },
-];
-
-const trustLinks = [
-  { href: "/on-time-guaranteed", label: "Visas On Time, Guaranteed" },
-  { href: "/transparency/refunds-policy", label: "Refunds Policy" },
-  { href: "/transparency/price-change-log", label: "Fee Change Audit" },
-  { href: "/transparency/status", label: "Status" },
-];
+import { siteConfig } from "@/config/site.config";
 
 export async function Footer({ locale }: { locale: string }) {
-  const [hidden, settings] = await Promise.all([unpublishedSlugs(), getSiteSettings()]);
+  const [hidden, settings, reviews] = await Promise.all([unpublishedSlugs(), getSiteSettings(), publicReviewStats()]);
+  const toolLinks = [
+    { href: "/tools/visa-requirements", label: t(locale, "footer.requirements") },
+    { href: "/tools/visa-photo-maker", label: t(locale, "footer.photo") },
+    { href: "/passport-index", label: t(locale, "footer.passport") },
+    { href: "/emergency-care", label: t(locale, "footer.emergency") },
+    { href: "/rejection-recovery", label: t(locale, "footer.rejection") },
+  ];
+  const companyLinks = [
+    { href: "/newsroom", label: t(locale, "footer.newsroom") },
+    { href: "/contact", label: t(locale, "footer.contact") },
+    { href: "/partners", label: t(locale, "footer.partners") },
+    { href: "/transparency/status", label: t(locale, "footer.security") },
+    { href: "/editorial-policy", label: t(locale, "footer.editorial") },
+  ];
+  const trustLinks = [
+    { href: "/on-time-guaranteed", label: t(locale, "footer.guarantee") },
+    { href: "/transparency/refunds-policy", label: t(locale, "footer.refunds") },
+    { href: "/transparency/price-change-log", label: t(locale, "footer.fees") },
+    { href: "/transparency/status", label: t(locale, "footer.status") },
+  ];
   const visible = (links: { href: string; label: string; external?: boolean }[]) =>
     links.filter((link) => link.external || /^https?:/.test(link.href) || !hidden.has(link.href.replace(/^\//, "")));
   const wallAvatars = ["P", "A", "R", "M"];
@@ -58,23 +58,20 @@ export async function Footer({ locale }: { locale: string }) {
             </span>
             <span>
               <span className="block text-sm font-medium">
-                Wall Of Love <span aria-hidden>↗</span>
+                {t(locale, "footer.wall")} <span aria-hidden>↗</span>
               </span>
-              <span className="text-xs text-muted-ink">{siteConfig.stats.reviewCount} reviews</span>
+              {reviews.reviewCount > 0 && (
+                <span className="text-xs text-muted-ink">
+                  {reviews.rating ? `${reviews.rating} · ` : ""}
+                  {reviews.reviewCount} {t(locale, "footer.reviews")}
+                </span>
+              )}
             </span>
           </Link>
-          <div className="mt-6 flex gap-3">
-            <a href={siteConfig.links.appStore} target="_blank" rel="noreferrer" className="rounded-lg bg-black px-3 py-2 text-[11px] text-white">
-              Download on the App Store
-            </a>
-            <a href={siteConfig.links.playStore} target="_blank" rel="noreferrer" className="rounded-lg bg-black px-3 py-2 text-[11px] text-white">
-              Get it on Google Play
-            </a>
-          </div>
         </div>
-        <FooterCol title="Tools" links={visible(toolLinks)} locale={locale} />
-        <FooterCol title="Company" links={visible(companyLinks)} locale={locale} />
-        <FooterCol title="Trust" links={visible(trustLinks)} locale={locale} />
+        <FooterCol title={t(locale, "footer.tools")} links={visible(toolLinks)} locale={locale} />
+        <FooterCol title={t(locale, "footer.company")} links={visible(companyLinks)} locale={locale} />
+        <FooterCol title={t(locale, "footer.trust")} links={visible(trustLinks)} locale={locale} />
       </div>
       <div className="mx-auto max-w-site px-5">
         <div className="h-px bg-line" />
@@ -89,12 +86,12 @@ export async function Footer({ locale }: { locale: string }) {
         <div className="h-px bg-line" />
         <div className="flex items-center justify-between gap-4 py-5 text-sm text-muted-ink">
           <p className="flex flex-wrap items-center gap-1">
-            © {settings.name}, All rights reserved
+            © {settings.name}, {t(locale, "common.rights")}
             {!hidden.has("privacy") && (
               <>
                 <Diamond />
                 <Link href={href("/privacy", locale)} className="hover:text-ink">
-                  Privacy
+                  {t(locale, "footer.privacy")}
                 </Link>
               </>
             )}
@@ -102,7 +99,7 @@ export async function Footer({ locale }: { locale: string }) {
               <>
                 <Diamond />
                 <Link href={href("/terms", locale)} className="hover:text-ink">
-                  Terms
+                  {t(locale, "footer.terms")}
                 </Link>
               </>
             )}
@@ -110,6 +107,7 @@ export async function Footer({ locale }: { locale: string }) {
           <Link href={href("/", locale)} aria-label={settings.name} className="shrink-0">
             <Logo name={settings.name} src={settings.logoUrl} />
           </Link>
+          <LocaleSwitch locale={locale} />
         </div>
       </div>
     </footer>

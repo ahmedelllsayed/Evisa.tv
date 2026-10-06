@@ -1,10 +1,23 @@
 import { siteConfig } from "@/config/site.config";
+import { isArabicLocale, t } from "@/lib/i18n";
 import type { Destination, VisaType } from "@/lib/types";
 
 const { market } = siteConfig;
 
-export function formatMoney(amount: number, currency: string = market.currency) {
-  const n = new Intl.NumberFormat(market.numberLocale, { maximumFractionDigits: 0 }).format(Math.round(amount));
+function numberLocale(locale?: string) {
+  return locale && isArabicLocale(locale) ? "ar-EG" : market.numberLocale;
+}
+
+function dateTag(locale?: string) {
+  return locale && isArabicLocale(locale) ? "ar-EG" : "en-GB";
+}
+
+function timeTag(locale?: string) {
+  return locale && isArabicLocale(locale) ? "ar-EG" : "en-US";
+}
+
+export function formatMoney(amount: number, currency: string = market.currency, locale?: string) {
+  const n = new Intl.NumberFormat(numberLocale(locale), { maximumFractionDigits: 0 }).format(Math.round(amount));
   return `${currency}\u00a0${n}`;
 }
 
@@ -16,47 +29,70 @@ export function guaranteedDate(hours: number, from: Date = new Date()) {
   return new Date(from.getTime() + hours * 36e5);
 }
 
-const dtf = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { timeZone: market.timeZone, ...opts });
+const dtf = (locale: string | undefined, opts: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat(dateTag(locale), { timeZone: market.timeZone, ...opts });
 
 /** "30 Sep 2026, 11:56 PM" */
-export function formatDateTime(date: Date | string) {
+export function formatDateTime(date: Date | string, locale?: string) {
   const d = typeof date === "string" ? new Date(date) : date;
-  const datePart = dtf({ day: "numeric", month: "short", year: "numeric" }).format(d);
-  const timePart = new Intl.DateTimeFormat("en-US", { timeZone: market.timeZone, hour: "numeric", minute: "2-digit" }).format(d);
+  const datePart = dtf(locale, { day: "numeric", month: "short", year: "numeric" }).format(d);
+  const timePart = new Intl.DateTimeFormat(timeTag(locale), { timeZone: market.timeZone, hour: "numeric", minute: "2-digit" }).format(d);
   return `${datePart}, ${timePart}`;
 }
 
 /** "6 Oct 2026" */
-export function formatDate(date: Date | string) {
+export function formatDate(date: Date | string, locale?: string) {
   const d = typeof date === "string" ? new Date(date) : date;
-  return dtf({ day: "numeric", month: "short", year: "numeric" }).format(d);
+  return dtf(locale, { day: "numeric", month: "short", year: "numeric" }).format(d);
 }
 
-/** "6th Oct, 07:09 pm" */
-export function formatOrdinalShort(date: Date | string) {
+/** "6th Oct, 07:09 pm" — Arabic drops the English ordinal suffix. */
+export function formatOrdinalShort(date: Date | string, locale?: string) {
   const d = typeof date === "string" ? new Date(date) : date;
-  const dayNum = Number(dtf({ day: "numeric" }).format(d));
-  const suffix = dayNum % 10 === 1 && dayNum !== 11 ? "st" : dayNum % 10 === 2 && dayNum !== 12 ? "nd" : dayNum % 10 === 3 && dayNum !== 13 ? "rd" : "th";
-  const month = dtf({ month: "short" }).format(d);
-  const time = new Intl.DateTimeFormat("en-US", { timeZone: market.timeZone, hour: "2-digit", minute: "2-digit", hour12: true })
+  const dayNum = Number(dtf(locale, { day: "numeric" }).format(d));
+  const suffix =
+    locale && isArabicLocale(locale)
+      ? ""
+      : dayNum % 10 === 1 && dayNum !== 11
+        ? "st"
+        : dayNum % 10 === 2 && dayNum !== 12
+          ? "nd"
+          : dayNum % 10 === 3 && dayNum !== 13
+            ? "rd"
+            : "th";
+  const month = dtf(locale, { month: "short" }).format(d);
+  const time = new Intl.DateTimeFormat(timeTag(locale), { timeZone: market.timeZone, hour: "2-digit", minute: "2-digit", hour12: true })
     .format(d)
     .toLowerCase();
   return `${dayNum}${suffix} ${month}, ${time}`;
 }
 
 /** "6 Oct 2026 at 07:07 PM" */
-export function formatAt(date: Date | string) {
+export function formatAt(date: Date | string, locale?: string) {
   const d = typeof date === "string" ? new Date(date) : date;
-  const time = new Intl.DateTimeFormat("en-US", { timeZone: market.timeZone, hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
-  return `${formatDate(d)} at ${time}`;
+  const time = new Intl.DateTimeFormat(timeTag(locale), { timeZone: market.timeZone, hour: "2-digit", minute: "2-digit", hour12: true }).format(d);
+  const join = locale && isArabicLocale(locale) ? "في" : "at";
+  return `${formatDate(d, locale)} ${join} ${time}`;
 }
 
-export function processingLabel(hours: number | null) {
+export function processingLabel(hours: number | null, locale?: string) {
   if (hours === null) return "—";
-  if (hours < 1) return "minutes";
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"}`;
+  const ar = Boolean(locale && isArabicLocale(locale));
+  if (hours < 1) return ar ? "دقائق" : "minutes";
+  if (hours < 24) return ar ? (hours === 1 ? "ساعة" : `${hours} ساعات`) : `${hours} hour${hours === 1 ? "" : "s"}`;
   const days = Math.ceil(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"}`;
+  return ar ? (days === 1 ? "يوم" : `${days} أيام`) : `${days} day${days === 1 ? "" : "s"}`;
+}
+
+const visaTypeKeys: Record<VisaType, "type.evisa" | "type.sticker" | "type.eta" | "type.free"> = {
+  "e-visa": "type.evisa",
+  sticker: "type.sticker",
+  eta: "type.eta",
+  "visa-free": "type.free",
+};
+
+export function visaTypeLabel(type: VisaType, locale: string) {
+  return t(locale, visaTypeKeys[type]);
 }
 
 export const visaTypeLabels: Record<VisaType, string> = {

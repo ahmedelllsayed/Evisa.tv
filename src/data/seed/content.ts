@@ -22,34 +22,34 @@ export const faqCategories = [
 ] as const;
 
 export const faqs: SeedFaq[] = [
-  { scope: "visa", category: "General Information", question: "Do Egyptian citizens need a visa for {country}?", answer: "Yes. Egyptian passport holders need a valid visa to enter {country}. Atlys shows the exact visa type, fee and the date we guarantee it by before you pay." },
+  { scope: "visa", category: "General Information", question: "Do Egyptian citizens need a visa for {country}?", answer: "Yes. Egyptian passport holders need a valid visa to enter {country}. This page shows the visa type, the fee, and the date we aim to finish by before you pay." },
   { scope: "visa", category: "General Information", question: "What type of {country} visa should I apply for?", answer: "For tourism and short visits, apply for the visa type listed on this page. If you are travelling for work, study or residence, talk to a visa expert on live video call to pick the right category." },
-  { scope: "visa", category: "General Information", question: "How much does the {country} visa cost?", answer: "The total shown on this page includes the government fee and the Atlys processing fee. There are no hidden charges, and every fee change is published in our fee change audit." },
-  { scope: "visa", category: "Eligibility & Requirements", question: "Which documents do I need for a {country} visa?", answer: "The required documents are listed on this page. Most applicants only need a passport valid for at least 6 months and a recent photo. Atlys checks every document before it is submitted." },
+  { scope: "visa", category: "General Information", question: "How much does the {country} visa cost?", answer: "The total shown on this page is the government fee plus our service fee. Fee changes made in the admin console are listed in the fee change audit." },
+  { scope: "visa", category: "Eligibility & Requirements", question: "Which documents do I need for a {country} visa?", answer: "The required documents are listed on this page. Most applicants need a passport and a recent photo. Our team checks the files after you pay. Nothing is sent to an authority automatically." },
   { scope: "visa", category: "Eligibility & Requirements", question: "How long must my passport be valid?", answer: "Your passport should be valid for at least 6 months from your date of arrival in {country} and have at least two blank pages." },
   { scope: "visa", category: "Eligibility & Requirements", question: "Can I apply for my family in one application?", answer: "Yes. Add every traveller to a single application. You upload once, pay once, and get one guaranteed date for the whole group." },
-  { scope: "visa", category: "Application Process", question: "How do I apply for a {country} visa online?", answer: "Pick your departure date, add travellers, upload the passport and photo, review, and pay. Atlys fills the government forms, checks your documents and submits the application for you." },
+  { scope: "visa", category: "Application Process", question: "How do I apply for a {country} visa online?", answer: "Pick your departure date, add travellers, upload the passport and photo, review, and pay. Our team then reviews the file. Filing with the authority is a manual step in the admin console, not an automatic government submission." },
   { scope: "visa", category: "Application Process", question: "How early should I apply?", answer: "Apply as soon as your travel dates are fixed. The guaranteed date is shown before you pay, so you can make sure your visa arrives before you fly." },
-  { scope: "visa", category: "Status Tracking", question: "How can I track my {country} visa application?", answer: "Sign in and open your application. Every step, from document checks to government processing, is shown live with a timestamp." },
+  { scope: "visa", category: "Status Tracking", question: "How can I track my {country} visa application?", answer: "Sign in and open your application. You will see the status our team sets, including document checks. There is no live feed from the government." },
   { scope: "visa", category: "Status Tracking", question: "Will I be notified when my visa is approved?", answer: "Yes. You receive an email the moment your visa is approved, and the visa is available to download from your account." },
-  { scope: "visa", category: "Refunds, Rejections & Reapplications", question: "What happens if my {country} visa is late?", answer: "If your visa arrives after the guaranteed date, the Atlys service fee is refunded in full. That is the On Time Guarantee." },
-  { scope: "visa", category: "Refunds, Rejections & Reapplications", question: "What if my {country} visa is rejected?", answer: "We build a free re-application strategy with you. If the route is covered and the visa is rejected again, you get every pound back." },
+  { scope: "visa", category: "Refunds, Rejections & Reapplications", question: "What happens if my {country} visa is late?", answer: "If the file is still open after the guaranteed date, request a refund from your account. A staff member reviews the request. It is not issued automatically." },
+  { scope: "visa", category: "Refunds, Rejections & Reapplications", question: "What if my {country} visa is rejected?", answer: "A refusal does not automatically refund the fee. Request a review from your account. Rejection notes appear on a destination only when they have been entered for that country." },
   { scope: "visa", category: "Visa Extension & Overstays", question: "Can I extend my {country} visa?", answer: "Extensions depend on the immigration rules of {country}. Contact support before your visa expires and our experts will guide you through the options." },
   { scope: "visa", category: "Visa Extension & Overstays", question: "What happens if I overstay?", answer: "Overstaying can lead to fines, deportation and future visa refusals. Always leave before the permitted length of stay ends." },
 
   { scope: "home", category: "General", question: "Do I need a visa for my destination?", answer: "Choose your passport and destination above. We instantly show whether you need a visa, an eTA or nothing at all, plus the fee and processing time." },
-  { scope: "home", category: "General", question: "What does “Visas on time, guaranteed” mean?", answer: "Every visa shows a guaranteed delivery date before you pay. If your visa arrives after that date, the Atlys service fee is refunded in full." },
+  { scope: "home", category: "General", question: "What does “Visas on time, guaranteed” mean?", answer: "Every visa shows a target date before you pay. If that date passes while the file is still open, you can request a refund from your account. Staff review the request." },
   { scope: "home", category: "General", question: "How long does it take to get my visa?", answer: "It depends on the destination: from minutes for an arrival card to a few days for most e-visas. The exact guaranteed date is shown on each visa before you start." },
-  { scope: "home", category: "General", question: "What happens if my visa is denied?", answer: "We build a free re-application strategy with you. If it is denied again, you get every pound back." },
+  { scope: "home", category: "General", question: "What happens if my visa is denied?", answer: "A refusal does not automatically refund the fee. You can request a review from your account, and a staff member decides." },
   { scope: "home", category: "General", question: "Can I apply for my whole family in one go?", answer: "Yes. Add every traveller to a single application: one upload, one payment and one guaranteed date for the whole group." },
-  { scope: "home", category: "General", question: "Which documents do I need?", answer: "For most e-visas, just your passport and a photo. Anything extra is listed on the visa page before you pay, and every document is checked before it is submitted." },
+  { scope: "home", category: "General", question: "Which documents do I need?", answer: "For most visas, a passport and a photo. Anything extra is listed on the visa page before you pay. Our team checks the files after payment." },
 
-  { scope: "refunds", category: "Refunds", question: "Do you give refunds?", answer: "Yes. Our refund policy is public and stage-by-stage. If your application has not been filed to the government yet, you are eligible for a 100% refund." },
-  { scope: "refunds", category: "Refunds", question: "Do I get a refund if my visa is rejected?", answer: "Yes, for all destinations covered by our rejection protection. If your application is rejected on an eligible route, you receive a 100% refund of the government and service fees." },
-  { scope: "refunds", category: "Refunds", question: "Can I get a refund if I cancel my application?", answer: "If your application has not been submitted to the government, you get a 100% refund as account credit, issued instantly. Once submitted, governments do not allow withdrawals, so refunds are no longer possible." },
-  { scope: "refunds", category: "Refunds", question: "What if you cancel my application?", answer: "If we cancel your application before it is filed (for example, due to insufficient documents), you receive a 100% refund." },
-  { scope: "refunds", category: "Refunds", question: "How long does a refund take?", answer: "Refunds are processed instantly. Credits appear immediately in your account; refunds to your card take up to 5 working days to reach your bank." },
-  { scope: "refunds", category: "Refunds", question: "Are there hidden fees?", answer: "No. Every charge is broken down before you pay: the government fee, the service fee and any taxes. If exchange rates drop before submission, we refund the difference." },
+  { scope: "refunds", category: "Refunds", question: "Do you give refunds?", answer: "You can request a refund from your account before the application is marked filed. A staff member approves or declines it. There is no automatic refund." },
+  { scope: "refunds", category: "Refunds", question: "Do I get a refund if my visa is rejected?", answer: "A rejection does not by itself refund the government or service fee. Request a review from your account and our team decides." },
+  { scope: "refunds", category: "Refunds", question: "Can I get a refund if I cancel my application?", answer: "Request a refund from your account before the application is marked filed. There is no instant account credit. After a person marks the file as filed, the fee is no longer refunded from this site." },
+  { scope: "refunds", category: "Refunds", question: "What if you cancel my application?", answer: "If we cancel the application before it is marked filed, you can request a refund and a staff member can send it back to the card." },
+  { scope: "refunds", category: "Refunds", question: "How long does a refund take?", answer: "After a staff member approves the request, a card refund depends on the payment provider and can take several working days. Nothing is credited instantly inside the account." },
+  { scope: "refunds", category: "Refunds", question: "Are there hidden fees?", answer: "The amount you pay is the government fee plus the service fee shown before checkout." },
 
   { scope: "emergency", category: "Emergency", question: "What is the emergency visa helpline?", answer: "A dedicated phone line for travellers facing urgent, time-sensitive visa situations that cannot wait for standard support channels." },
   { scope: "emergency", category: "Emergency", question: "When should I call the emergency helpline?", answer: "Call when you have imminent travel for a medical, family or work emergency and your visa is not yet in hand." },
@@ -128,10 +128,10 @@ export const defaultRejectionReasons = [
   { title: "Previous Visa Violations", body: "Having overstayed or violated the terms of a previous visa." },
 ];
 
-export const documentLabels: Record<string, { label: string; hint: string }> = {
-  passport: { label: "Passport", hint: "Upload or live scan. Auto-filled, no manual errors." },
-  photo: { label: "Photo", hint: "A recent photo on a plain, light background." },
-  bank_statements: { label: "Bank Statements", hint: "Last 6 months, stamped by your bank." },
-  income_tax_returns: { label: "Income Tax Returns", hint: "Most recent tax return or salary certificate." },
-  us_uk_schengen_visa: { label: "US/UK/Schengen Visa", hint: "A valid visa or residence permit from the US, UK or Schengen area." },
+export const documentLabels: Record<string, { label: string; hint: string; labelAr: string; hintAr: string }> = {
+  passport: { label: "Passport", hint: "The photo page of the passport.", labelAr: "جواز السفر", hintAr: "صفحة الصورة في الجواز." },
+  photo: { label: "Photo", hint: "A recent photo on a plain, light background.", labelAr: "صورة", hintAr: "صورة حديثة على خلفية فاتحة سادة." },
+  bank_statements: { label: "Bank Statements", hint: "Last 6 months, stamped by your bank.", labelAr: "كشوف الحساب", hintAr: "آخر 6 أشهر، مختومة من البنك." },
+  income_tax_returns: { label: "Income Tax Returns", hint: "Most recent tax return or salary certificate.", labelAr: "إقرارات ضريبية", hintAr: "أحدث إقرار أو شهادة راتب." },
+  us_uk_schengen_visa: { label: "US/UK/Schengen Visa", hint: "A valid visa or residence permit from the US, UK or Schengen area.", labelAr: "تأشيرة أمريكا أو بريطانيا أو شنغن", hintAr: "تأشيرة أو إقامة سارية من أمريكا أو بريطانيا أو شنغن." },
 };

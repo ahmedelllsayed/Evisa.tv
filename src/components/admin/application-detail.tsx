@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { adminAddEvent, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
+import { adminAddEvent, adminDeclineRefund, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
 import { AdminCard, AdminEmpty, AdminPage, adminGhostClass, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
 import { statusLabels } from "@/components/admin/status";
 import { documentGaps } from "@/lib/application-rules";
@@ -45,6 +45,7 @@ export function AdminApplicationDetail({
   documents,
   payments,
   assignees,
+  refundRequest = null,
 }: {
   locale: string;
   application: Application;
@@ -53,6 +54,7 @@ export function AdminApplicationDetail({
   documents: ApplicationDocument[];
   payments: Payment[];
   assignees: AccountRow[];
+  refundRequest?: { status: "open" | "approved" | "declined"; reason: string } | null;
 }) {
   const [pending, start] = useTransition();
   const [tab, setTab] = useState<Tab>("travelers");
@@ -282,6 +284,28 @@ export function AdminApplicationDetail({
                 </li>
               ))}
             </ul>
+          )}
+          {refundRequest && (
+            <div className="mt-4 rounded-xl border border-line px-4 py-3 text-sm">
+              <p className="font-medium">طلب استرداد · {refundRequest.status}</p>
+              <p className="mt-1 text-body">{refundRequest.reason}</p>
+              {refundRequest.status === "open" && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  className={`${adminGhostClass} mt-3`}
+                  onClick={() =>
+                    start(async () => {
+                      setError(null);
+                      await adminDeclineRefund(locale, application.id);
+                      setNote("رُفض طلب الاسترداد.");
+                    })
+                  }
+                >
+                  رفض طلب الاسترداد
+                </button>
+              )}
+            </div>
           )}
           {paid && application.status !== "refunded" && (
             <div className="mt-4 flex flex-wrap items-center gap-3">

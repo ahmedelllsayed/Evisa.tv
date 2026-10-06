@@ -10,6 +10,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!app || (app.userId !== user.id && user.role !== "admin")) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
-  const events = await listEvents(id);
+  const events = await listEvents(id, { publicOnly: user.role !== "admin" });
   return NextResponse.json({ application: app, events });
 }

@@ -1,6 +1,10 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PhotoMaker } from "@/components/tools/photo-maker";
+import { documentLabels } from "@/data/seed/content";
+import { getCurrentUser } from "@/lib/auth";
+import { listApplicationsForUser, listTravelers } from "@/lib/data/applications";
 import { requirePageContent } from "@/lib/data/pages";
+import type { Page } from "@/lib/page";
 
 export const metadata = { title: "Visa Photo Creator" };
 
@@ -27,8 +31,27 @@ const faqs = [
   ["Why was my upload rejected?", "Use a JPEG or PNG under a few megabytes, with your face clearly in frame."],
 ];
 
-export default async function VisaPhotoPage() {
+export default async function VisaPhotoPage({ params }: Page) {
+  const { locale } = await params;
   const content = await requirePageContent("tools/visa-photo-maker");
+  const user = await getCurrentUser();
+  const openApps = user
+    ? (await listApplicationsForUser(user.id)).filter((app) => app.status === "draft" || app.status === "payment_pending")
+    : [];
+  const targets = (
+    await Promise.all(
+      openApps.map(async (app) => {
+        const travelers = await listTravelers(app.id);
+        const spec = app.documentsRequired.includes("photo") ? documentLabels.photo.hint : null;
+        return travelers.map((traveler) => ({
+          applicationId: app.id,
+          travelerId: traveler.id,
+          label: `${app.destinationName} · ${traveler.firstName} ${traveler.lastName}`.trim(),
+          spec,
+        }));
+      }),
+    )
+  ).flat();
   return (
     <div className="bg-black text-white">
       <section className="mx-auto max-w-3xl px-4 pt-20 pb-12 text-center">
@@ -64,7 +87,7 @@ export default async function VisaPhotoPage() {
 
       <section id="photo-tool" className="mx-auto max-w-xl px-4 pb-16">
         <div className="rounded-3xl bg-white px-2 py-8 text-ink">
-          <PhotoMaker />
+          <PhotoMaker locale={locale} targets={targets} />
         </div>
       </section>
 

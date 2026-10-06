@@ -2,12 +2,15 @@
 
 import { Pencil } from "lucide-react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useLocale } from "@/components/providers";
 import { siteConfig } from "@/config/site.config";
-import { countries, countryName, flagUrl } from "@/lib/countries";
+import { citizenshipChoices, countryName, flagUrl } from "@/lib/countries";
+import { t, tf } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 function setCitizenshipCookie(code: string) {
@@ -28,28 +31,71 @@ export function Flag({ code, size = 20, className }: { code: string; size?: numb
   );
 }
 
-function CountryList({ value, onSelect }: { value: string; onSelect: (code: string) => void }) {
+function localePath(path: string, locale: "en-EG" | "ar-EG") {
+  const swapped = path.replace(/^\/[a-z]{2}-[A-Z]{2}(?=\/|$)/, `/${locale}`);
+  return swapped.startsWith(`/${locale}`) ? swapped : `/${locale}`;
+}
+
+function LangToggle({ locale }: { locale: string }) {
+  const path = usePathname() || `/${locale}`;
+  const active = locale.toLowerCase().startsWith("ar") ? "ar" : "en";
+  const choice = (id: "en" | "ar", label: string, target: "en-EG" | "ar-EG") => (
+    <Link
+      href={localePath(path, target)}
+      hrefLang={id === "ar" ? "ar" : "en"}
+      aria-current={active === id ? "page" : undefined}
+      className={cn("rounded-full px-3 py-1", active === id ? "bg-white text-black shadow-sm" : "text-muted-ink")}
+    >
+      {label}
+    </Link>
+  );
+  return (
+    <div className="mb-2 inline-flex rounded-full border border-line bg-[#f6f7f8] p-0.5 text-xs font-medium" role="group" aria-label="Language">
+      {choice("en", "English", "en-EG")}
+      {choice("ar", "العربية", "ar-EG")}
+    </div>
+  );
+}
+
+function CountryList({
+  value,
+  onSelect,
+  locale,
+  codes,
+}: {
+  value: string;
+  onSelect: (code: string) => void;
+  locale: string;
+  codes?: string[];
+}) {
   const [query, setQuery] = useState("");
+  const pool = useMemo(() => citizenshipChoices(codes, value), [codes, value]);
   const list = useMemo(
-    () => countries.filter((c) => c.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [query],
+    () =>
+      pool.filter((c) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return true;
+        return c.name.toLowerCase().includes(q) || countryName(c.code, "ar").toLowerCase().includes(q);
+      }),
+    [pool, query],
   );
   return (
     <div>
-      <p className="mb-2 text-sm font-medium">Enter a new citizenship</p>
+      <p className="mb-2 text-sm font-medium">{t(locale, "citizen.title")}</p>
       <label className="flex items-center gap-2 rounded-full border border-line px-3 py-2">
         <input
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search for a country"
+          placeholder={t(locale, "citizen.search")}
           className="w-full bg-transparent text-sm outline-none"
         />
       </label>
       <p className="mt-3 mb-2 flex items-center justify-between text-xs text-muted-ink">
-        <span>All citizenships</span>
-        <span>[{countries.length}]</span>
+        <span>{t(locale, "citizen.all")}</span>
+        <span>[{pool.length}]</span>
       </p>
+      <LangToggle locale={locale} />
       <div className="flex max-h-52 flex-wrap gap-2 overflow-y-auto">
         {list.map((c) => (
           <button
@@ -62,7 +108,7 @@ function CountryList({ value, onSelect }: { value: string; onSelect: (code: stri
             )}
           >
             <Flag code={c.code} size={16} />
-            {c.name}
+            {countryName(c.code, locale)}
           </button>
         ))}
       </div>
@@ -83,13 +129,14 @@ function useCitizenship(initial: string) {
 }
 
 /** Round flag button in the header that opens the citizenship list. */
-export function CitizenshipButton({ initial, className }: { initial: string; className?: string }) {
+export function CitizenshipButton({ initial, className, codes }: { initial: string; className?: string; codes?: string[] }) {
+  const locale = useLocale();
   const { value, select } = useCitizenship(initial);
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        aria-label="Change citizenship"
+        aria-label={t(locale, "citizen.change")}
         className={cn(
           "flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line bg-white",
           className,
@@ -98,12 +145,12 @@ export function CitizenshipButton({ initial, className }: { initial: string; cla
         <Flag code={value} size={20} />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[28rem] rounded-2xl p-4">
-        <p className="text-base font-semibold">Your citizenship</p>
-        <p className="text-xs text-slate-ink">
-          This is the nationality on your passport. It determines your visa requirements.
-        </p>
+        <p className="text-base font-semibold">{t(locale, "citizen.yours")}</p>
+        <p className="text-xs text-slate-ink">{t(locale, "citizen.note")}</p>
         <CountryList
           value={value}
+          locale={locale}
+          codes={codes}
           onSelect={(code) => {
             select(code);
             setOpen(false);
@@ -115,7 +162,8 @@ export function CitizenshipButton({ initial, className }: { initial: string; cla
 }
 
 /** First-visit modal on visa pages ("Your citizenship"). */
-export function CitizenshipDialog({ initial, defaultOpen }: { initial: string; defaultOpen: boolean }) {
+export function CitizenshipDialog({ initial, defaultOpen, codes }: { initial: string; defaultOpen: boolean; codes?: string[] }) {
+  const locale = useLocale();
   const { value, select } = useCitizenship(initial);
   const [open, setOpen] = useState(defaultOpen);
   const close = (next: boolean) => {
@@ -125,18 +173,15 @@ export function CitizenshipDialog({ initial, defaultOpen }: { initial: string; d
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-xl rounded-2xl p-5 sm:max-w-xl">
-        <DialogTitle className="text-lg font-semibold">Your citizenship</DialogTitle>
-        <DialogDescription className="text-slate-ink">
-          This is the nationality mentioned on your passport. It determines your visa requirements and where you can
-          travel visa-free
-        </DialogDescription>
-        <p className="mt-2 text-sm">I live in {siteConfig.market.countryName} and am a citizen of</p>
+        <DialogTitle className="text-lg font-semibold">{t(locale, "citizen.yours")}</DialogTitle>
+        <DialogDescription className="text-slate-ink">{t(locale, "citizen.note")}</DialogDescription>
+        <p className="mt-2 text-sm">{tf(locale, "citizen.live", { country: siteConfig.market.countryName })}</p>
         <span className="flex w-fit items-center gap-2 rounded-lg bg-[#E5F9E7] px-2.5 py-1.5 text-sm">
           <Flag code={value} size={16} />
-          {countryName(value)}
-          <Pencil className="ml-3 size-3.5 text-brand" />
+          {countryName(value, locale)}
+          <Pencil className="ms-3 size-3.5 text-brand" />
         </span>
-        <CountryList value={value} onSelect={select} />
+        <CountryList value={value} locale={locale} codes={codes} onSelect={select} />
       </DialogContent>
     </Dialog>
   );

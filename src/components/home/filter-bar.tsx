@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BoltBadge, ChevronIcon, DocBadge, PlaneBadge, UmbrellaBadge } from "@/components/brand/icons";
+import { t, type MessageKey } from "@/lib/i18n";
 import type { Holiday } from "@/lib/types";
 import type { Destination } from "@/lib/types";
 import {
@@ -27,6 +28,28 @@ function countDocs(destinations: Destination[], id: (typeof documentFilters)[num
   return destinations.filter((d) => d.visaRequired && f.test(d.documents)).length;
 }
 
+const deliveryKeys: Record<(typeof deliveryFilters)[number]["id"], MessageKey> = {
+  any: "filter.anyTime",
+  instant: "filter.instant",
+  "24h": "filter.h24",
+  "3-5": "filter.d35",
+  "6-7": "filter.d67",
+  "8-30": "filter.d830",
+};
+const typeKeys: Record<(typeof typeFilters)[number]["id"], MessageKey> = {
+  any: "filter.allTypes",
+  "e-visa": "filter.evisa",
+  sticker: "filter.sticker",
+  eta: "filter.eta",
+};
+const docKeys: Record<(typeof documentFilters)[number]["id"], MessageKey> = {
+  any: "filter.anyDocs",
+  passport: "filter.onlyPassport",
+  bank: "filter.bank",
+  itr: "filter.itr",
+  schengen: "filter.schengen",
+};
+
 function Pill({
   icon,
   label,
@@ -39,24 +62,26 @@ function Pill({
   open?: boolean;
 }) {
   return (
-    <span className="flex items-center gap-2.5 px-4 py-2.5 text-left">
+    <span className="flex items-center gap-2.5 px-4 py-2.5 text-start">
       {icon}
       <span className="leading-tight">
         <span className="block text-[11px] text-[#8b919a]">{label}</span>
         <span className="block max-w-40 truncate text-[13px] font-semibold text-[#1c1c1c]">{value}</span>
       </span>
-      <ChevronIcon open={open} className="ml-1 w-3.5 text-muted-ink" />
+      <ChevronIcon open={open} className="ms-1 w-3.5 text-muted-ink" />
     </span>
   );
 }
 
 export function FilterBar({
+  locale,
   filters,
   onChange,
   destinations,
   holidays,
   compact,
 }: {
+  locale: string;
   filters: HomeFilters;
   onChange: (next: HomeFilters) => void;
   destinations: Destination[];
@@ -64,9 +89,9 @@ export function FilterBar({
   compact?: boolean;
 }) {
   const visaDest = useMemo(() => destinations.filter((d) => d.visaRequired), [destinations]);
-  const deliveryLabel = deliveryFilters.find((x) => x.id === filters.delivery)!.label;
-  const typeLabel = typeFilters.find((x) => x.id === filters.type)!.label;
-  const docsLabel = documentFilters.find((x) => x.id === filters.documents)!.label;
+  const deliveryLabel = t(locale, deliveryKeys[filters.delivery]);
+  const typeLabel = t(locale, typeKeys[filters.type]);
+  const docsLabel = t(locale, docKeys[filters.documents]);
   const holidaySet = useMemo(() => new Set(holidays.map((h) => h.date)), [holidays]);
 
   return (
@@ -78,11 +103,11 @@ export function FilterBar({
     >
       <FilterMenu
         icon={<BoltBadge />}
-        label="Visa delivery:"
+        label={t(locale, "filter.delivery")}
         value={deliveryLabel}
         items={deliveryFilters.map((f) => ({
           id: f.id,
-          label: f.label,
+          label: t(locale, deliveryKeys[f.id]),
           count: countDelivery(visaDest, f.id),
         }))}
         selected={filters.delivery}
@@ -90,21 +115,22 @@ export function FilterBar({
       />
       <FilterMenu
         icon={<PlaneBadge />}
-        label="Type:"
+        label={t(locale, "filter.type")}
         value={typeLabel}
-        items={typeFilters.map((f) => ({ id: f.id, label: f.label, count: countType(visaDest, f.id) }))}
+        items={typeFilters.map((f) => ({ id: f.id, label: t(locale, typeKeys[f.id]), count: countType(visaDest, f.id) }))}
         selected={filters.type}
         onSelect={(id) => onChange({ ...filters, type: id as HomeFilters["type"] })}
       />
       <FilterMenu
         icon={<DocBadge />}
-        label="Documents:"
+        label={t(locale, "filter.documents")}
         value={docsLabel}
-        items={documentFilters.map((f) => ({ id: f.id, label: f.label, count: countDocs(visaDest, f.id) }))}
+        items={documentFilters.map((f) => ({ id: f.id, label: t(locale, docKeys[f.id]), count: countDocs(visaDest, f.id) }))}
         selected={filters.documents}
         onSelect={(id) => onChange({ ...filters, documents: id as HomeFilters["documents"] })}
       />
       <HolidayPicker
+        locale={locale}
         value={filters.before}
         holidays={holidays}
         holidaySet={holidaySet}
@@ -164,11 +190,13 @@ function FilterMenu({
 }
 
 function HolidayPicker({
+  locale,
   value,
   holidays,
   holidaySet,
   onSelect,
 }: {
+  locale: string;
   value: string | null;
   holidays: Holiday[];
   holidaySet: Set<string>;
@@ -176,16 +204,17 @@ function HolidayPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Date | undefined>(value ? new Date(value) : undefined);
+  const dateLocale = locale.startsWith("ar") ? "ar-EG" : "en-GB";
   const label = value
-    ? new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-    : "Select Dates";
+    ? new Date(value).toLocaleDateString(dateLocale, { day: "numeric", month: "short" })
+    : t(locale, "filter.selectDates");
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="cursor-pointer">
-        <Pill icon={<UmbrellaBadge />} label="Holidays:" value={label} open={open} />
+        <Pill icon={<UmbrellaBadge />} label={t(locale, "filter.holidays")} value={label} open={open} />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-auto rounded-2xl p-4">
-        <p className="mb-2 text-sm font-medium">Guaranteed visas before a date</p>
+        <p className="mb-2 text-sm font-medium">{t(locale, "filter.before")}</p>
         <Calendar
           mode="single"
           selected={draft}
@@ -210,7 +239,7 @@ function HolidayPicker({
               setOpen(false);
             }}
           >
-            Clear
+            {t(locale, "common.clear")}
           </button>
           <button
             type="button"
@@ -222,7 +251,7 @@ function HolidayPicker({
               setOpen(false);
             }}
           >
-            Select
+            {t(locale, "common.select")}
           </button>
         </div>
       </PopoverContent>

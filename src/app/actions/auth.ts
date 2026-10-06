@@ -4,12 +4,12 @@ import { redirect } from "next/navigation";
 import { googleSignInUrl, sendEmailCode, verifyEmailCode } from "@/lib/auth";
 import { safeNextPath } from "@/lib/safe-path";
 
-export async function sendCodeAction(email: string) {
-  return sendEmailCode(email);
+export async function sendCodeAction(email: string, locale = "en-EG") {
+  return sendEmailCode(email, locale);
 }
 
-export async function verifyCodeAction(email: string, code: string, next: string) {
-  const result = await verifyEmailCode(email, code);
+export async function verifyCodeAction(email: string, code: string, next: string, locale = "en-EG") {
+  const result = await verifyEmailCode(email, code, locale);
   if (!result.ok) return result;
   redirect(safeNextPath(next, "/"));
 }

@@ -10,10 +10,10 @@ export const siteConfig = {
   shortTagline: "Visas On Time",
   tagline: "Visas On Time Guaranteed",
   description: "Atlys helps you plan, apply, and track visas seamlessly across the world.",
-  seoTitle: "Get Visas On Time to 120+ Destinations, Guaranteed",
+  seoTitle: "Visa applications for Egyptian passports",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
 
-  locales: ["en-EG"] as const,
+  locales: ["en-EG", "ar-EG"] as const,
   defaultLocale: "en-EG",
 
   /** Market the site is served for: passport & residence shown by default. */
@@ -67,18 +67,18 @@ export const siteConfig = {
   },
 
   stats: {
-    reviewCount: "20K+",
-    rating: "4.6",
-    approvalRate: "98.9%",
-    visasDelivered: "1M+",
-    countries: "120+",
+    reviewCount: "",
+    rating: "",
+    approvalRate: "",
+    visasDelivered: "",
+    countries: "",
   },
 
   links: {
-    appStore: "https://apps.apple.com/app/atlys-visa/id1601735913",
-    playStore: "https://play.google.com/store/apps/details?id=com.atlys.app",
-    trustpilot: "https://www.trustpilot.com/review/atlys.com",
-    careers: "https://jobs.atlys.com",
+    appStore: "",
+    playStore: "",
+    trustpilot: "",
+    careers: "",
     security: "/transparency/status",
   },
 

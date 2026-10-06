@@ -2,7 +2,7 @@
 
 import { ChevronUp, LayoutGrid, Map as MapIcon, Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "@/components/brand/logo";
 import { PassportIcon, SearchIcon, ShieldCheckIcon, TicketsIcon } from "@/components/brand/icons";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -15,6 +15,8 @@ import { UserMenu } from "@/components/layout/user-menu";
 import { CountrySearchOverlay } from "@/components/search/country-search";
 import { siteConfig } from "@/config/site.config";
 import { href } from "@/lib/href";
+import { t, tf } from "@/lib/i18n";
+import { useLocale } from "@/components/providers";
 import type { SearchHit } from "@/lib/search";
 import type { Destination, Holiday, TravelEvent, User } from "@/lib/types";
 import { matchesFilters, type HomeFilters } from "@/lib/visa";
@@ -32,6 +34,7 @@ export function HomeShell({
   hits,
   brandName,
   logoUrl,
+  citizenshipCodes = [],
 }: {
   locale: string;
   user: User | null;
@@ -42,6 +45,7 @@ export function HomeShell({
   hits: SearchHit[];
   brandName: string;
   logoUrl: string;
+  citizenshipCodes?: string[];
 }) {
   const [tab, setTab] = useState<"explore" | "events">("explore");
   const [view, setView] = useState<"grid" | "map">("grid");
@@ -50,6 +54,9 @@ export function HomeShell({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(false);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [mapHeight, setMapHeight] = useState("calc(100dvh - 4.75rem)");
+  const mapOpen = view === "map" && tab === "explore";
 
   useEffect(() => {
     const onScroll = () => setCompact(window.scrollY > 40);
@@ -58,6 +65,28 @@ export function HomeShell({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!mapOpen) return;
+    document.documentElement.dataset.homeMap = "on";
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.scrollTo(0, 0);
+    const fit = () => {
+      const top = stageRef.current?.getBoundingClientRect().top ?? 0;
+      setMapHeight(`${Math.max(280, Math.round(window.innerHeight - top))}px`);
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    if (stageRef.current?.previousElementSibling) observer.observe(stageRef.current.previousElementSibling);
+    window.addEventListener("resize", fit);
+    return () => {
+      delete document.documentElement.dataset.homeMap;
+      document.body.style.overflow = previousOverflow;
+      observer.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  }, [mapOpen]);
+
   const filtered = useMemo(
     () => destinations.filter((d) => matchesFilters(d, filters)),
     [destinations, filters],
@@ -65,140 +94,177 @@ export function HomeShell({
 
   return (
     <>
-      <header className={cn("sticky top-0 z-40 bg-white", compact && "shadow-[0_8px_24px_rgba(17,24,39,0.06)]")}>
-        <div className="mx-auto hidden max-w-site items-start gap-4 px-8 pt-5 pb-2 lg:grid lg:grid-cols-[1fr_auto_1fr]">
+      <header className={cn("sticky top-0 z-40 bg-white", (compact || mapOpen) && "shadow-[0_8px_24px_rgba(17,24,39,0.06)]")}>
+        <div className={cn("mx-auto hidden gap-4 px-8 lg:grid lg:grid-cols-[1fr_auto_1fr]", mapOpen ? "max-w-none items-center py-3" : "max-w-site items-start pt-5 pb-2")}>
           <div className="flex items-center gap-3">
             <Link href={href("/", locale)} aria-label={brandName}>
               <Logo name={brandName} src={logoUrl} />
             </Link>
-            <Link href={href("/on-time-guaranteed", locale)} className="ml-2 flex items-center gap-2">
+            <Link href={href("/on-time-guaranteed", locale)} className="ms-2 flex items-center gap-2">
               <span className="flex size-9 items-center justify-center rounded-full border border-dashed border-[#d5d8de]">
                 <ShieldCheckIcon className="text-brand" />
               </span>
               <span className="text-[11px] leading-[1.15] font-semibold">
-                Visas On Time
-                <span className="block font-medium text-[#3c4048]">Guaranteed</span>
+                {t(locale, "home.visasOnTime")}
+                <span className="block font-medium text-[#3c4048]">{t(locale, "home.guaranteed")}</span>
               </span>
             </Link>
           </div>
           <div className="flex justify-center">
-            {compact && tab === "explore" ? (
-              <FilterBar filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} compact />
+            {mapOpen ? (
+              <button
+                type="button"
+                aria-label={t(locale, "home.searchCountry")}
+                onClick={() => setSearchOpen(true)}
+                className="flex h-10 w-[4.5rem] items-center justify-center rounded-2xl border border-[#e4e4e4] text-muted-ink"
+              >
+                <SearchIcon />
+              </button>
+            ) : compact && tab === "explore" ? (
+              <FilterBar locale={locale} filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} compact />
             ) : (
               <ExploreTabs tab={tab} onTab={setTab} />
             )}
           </div>
           <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setSearchOpen(true)}
-              className={cn(
-                "flex items-center gap-2 text-sm text-muted-ink",
-                compact ? "size-10 justify-center rounded-full border border-[#e6e6e6]" : "h-10 rounded-full border border-[#e4e4e4] px-4",
-              )}
-            >
-              <SearchIcon />
-              {!compact && "Search Country"}
-            </button>
-            <CitizenshipButton initial={citizenship} className="border-0" />
+            {!mapOpen && (
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                className={cn(
+                  "flex items-center gap-2 text-sm text-muted-ink",
+                  compact ? "size-10 justify-center rounded-full border border-[#e6e6e6]" : "h-10 rounded-full border border-[#e4e4e4] px-4",
+                )}
+              >
+                <SearchIcon />
+                {!compact && t(locale, "home.searchCountry")}
+              </button>
+            )}
+            <CitizenshipButton initial={citizenship} codes={citizenshipCodes} className="border-0" />
             <UserMenu user={user} locale={locale} className="border-0" />
           </div>
         </div>
-        {!compact && tab === "explore" && (
+        {!mapOpen && !compact && tab === "explore" && (
           <div className="mx-auto hidden justify-center px-6 pt-8 pb-6 lg:flex">
-            <FilterBar filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} />
+            <FilterBar locale={locale} filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} />
           </div>
         )}
 
         <div className="px-4 py-3 lg:hidden">
-          {!compact && (
-            <>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Link href={href("/", locale)} aria-label={brandName}>
-                    <Logo name={brandName} src={logoUrl} />
-                  </Link>
-                  <span className="text-[11px] font-semibold tracking-[0.08em]">VISAS ON TIME</span>
-                </div>
-                <CitizenshipButton initial={citizenship} />
+          {mapOpen ? (
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Link href={href("/", locale)} aria-label={brandName}>
+                  <Logo name={brandName} src={logoUrl} />
+                </Link>
+                <span className="text-[11px] font-semibold tracking-[0.08em]">{t(locale, "home.visasOnTime")}</span>
               </div>
-              <div className="mt-3">
-                <ExploreTabs tab={tab} onTab={setTab} />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label={t(locale, "home.searchCountry")}
+                  onClick={() => setSearchOpen(true)}
+                  className="flex size-10 items-center justify-center rounded-2xl border border-[#e4e4e4] text-muted-ink"
+                >
+                  <SearchIcon />
+                </button>
+                <CitizenshipButton initial={citizenship} codes={citizenshipCodes} />
+              </div>
+            </div>
+          ) : (
+            <>
+              {!compact && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Link href={href("/", locale)} aria-label={brandName}>
+                        <Logo name={brandName} src={logoUrl} />
+                      </Link>
+                      <span className="text-[11px] font-semibold tracking-[0.08em]">{t(locale, "home.visasOnTime")}</span>
+                    </div>
+                    <CitizenshipButton initial={citizenship} codes={citizenshipCodes} />
+                  </div>
+                  <div className="mt-3">
+                    <ExploreTabs tab={tab} onTab={setTab} />
+                  </div>
+                </>
+              )}
+              <div className={cn("flex items-center gap-2", !compact && "mt-3")}>
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen(true)}
+                  className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-line text-sm text-muted-ink"
+                >
+                  <Search className="size-4" /> {t(locale, "home.searchCountry")}
+                </button>
+                <button
+                  type="button"
+                  aria-label={t(locale, "home.filters")}
+                  onClick={() => setFiltersOpen(true)}
+                  className="flex size-12 items-center justify-center rounded-full border border-line"
+                >
+                  <SlidersHorizontal className="size-4" />
+                </button>
               </div>
             </>
           )}
-          <div className={cn("flex items-center gap-2", !compact && "mt-3")}>
-            <button
-              type="button"
-              onClick={() => setSearchOpen(true)}
-              className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-line text-sm text-muted-ink"
-            >
-              <Search className="size-4" /> Search Country
-            </button>
-            <button
-              type="button"
-              aria-label="Filters"
-              onClick={() => setFiltersOpen(true)}
-              className="flex size-12 items-center justify-center rounded-full border border-line"
-            >
-              <SlidersHorizontal className="size-4" />
-            </button>
-          </div>
         </div>
       </header>
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="rounded-t-3xl p-5">
           <SheetHeader>
-            <SheetTitle>Filters</SheetTitle>
+            <SheetTitle>{t(locale, "home.filters")}</SheetTitle>
           </SheetHeader>
-          <FilterBar filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} />
+          <FilterBar locale={locale} filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} />
         </SheetContent>
       </Sheet>
 
       {citizenship !== siteConfig.market.countryCode && (
         <p className="bg-brand-50 px-4 py-2 text-center text-sm text-brand-700">
-          Visa data is currently shown for {siteConfig.market.demonym} passports. Requirements for {citizenship} may differ.
+          {tf(locale, "home.passportNote", { demonym: siteConfig.market.demonym, code: citizenship })}
         </p>
       )}
 
-      <div className="relative pb-8">
+      <div ref={stageRef} className={cn("relative", mapOpen ? "overflow-hidden bg-white" : "pb-8")} style={mapOpen ? { height: mapHeight } : undefined}>
         {tab === "explore" ? (
           <>
             {view === "grid" ? (
               <DestinationGrid destinations={filtered} locale={locale} />
             ) : (
-              <MapView destinations={filtered} locale={locale} />
+              <MapView destinations={filtered} locale={locale} onShowGrid={() => setView("grid")} />
             )}
-            {siteConfig.features.mapView && (
+            {siteConfig.features.mapView && view === "grid" && (
               <div className="pointer-events-none fixed bottom-32 left-1/2 z-20 -translate-x-1/2 lg:bottom-8">
                 <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white px-1.5 py-1 shadow-[0_10px_28px_rgba(17,24,39,0.18)]">
                   <button
                     type="button"
-                    aria-label="Grid"
+                    aria-label={t(locale, "home.grid")}
                     onClick={() => setView("grid")}
-                    className={cn("flex size-9 items-center justify-center rounded-full", view === "grid" ? "text-black" : "text-[#b0b6be]")}
+                    className="flex size-9 items-center justify-center rounded-full text-black"
                   >
                     <LayoutGrid className="size-[18px]" strokeWidth={2.4} />
                   </button>
                   <button
                     type="button"
-                    aria-label="Map"
+                    aria-label={t(locale, "home.map")}
                     onClick={() => setView("map")}
-                    className={cn("flex size-9 items-center justify-center rounded-full", view === "map" ? "text-black" : "text-[#b0b6be]")}
+                    className="flex size-9 items-center justify-center rounded-full text-[#b0b6be]"
                   >
                     <MapIcon className="size-[18px]" strokeWidth={2.2} />
                   </button>
                 </div>
               </div>
             )}
+            {view === "grid" && (
             <button
               type="button"
-              aria-label="Back to top"
+              aria-label={t(locale, "home.top")}
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
               className="fixed right-3 bottom-32 z-20 flex size-11 items-center justify-center rounded-full bg-white shadow-float lg:hidden"
             >
               <ChevronUp className="size-5" />
             </button>
+            )}
           </>
         ) : (
           <div className="pt-6">
@@ -220,10 +286,11 @@ export function HomeShell({
 }
 
 function ExploreTabs({ tab, onTab }: { tab: "explore" | "events"; onTab: (t: "explore" | "events") => void }) {
+  const locale = useLocale();
   if (!siteConfig.features.events) return null;
   const items = [
-    { id: "explore" as const, label: "Explore", icon: <PassportIcon className="size-9" />, bubble: "bg-linear-to-b from-[#F4F4F4] to-white" },
-    { id: "events" as const, label: "Events", icon: <TicketsIcon className="size-9" />, bubble: "bg-linear-to-b from-[#F6F1E6] to-[#fff8ee]" },
+    { id: "explore" as const, label: t(locale, "home.explore"), icon: <PassportIcon className="size-9" />, bubble: "bg-linear-to-b from-[#F4F4F4] to-white" },
+    { id: "events" as const, label: t(locale, "home.events"), icon: <TicketsIcon className="size-9" />, bubble: "bg-linear-to-b from-[#F6F1E6] to-[#fff8ee]" },
   ];
   return (
     <div className="flex items-start justify-center gap-8">

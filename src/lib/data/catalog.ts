@@ -12,14 +12,19 @@ function toDestination(r: Row): Destination {
     code: String(r.code).trim(),
     slug: String(r.slug),
     name: String(r.name),
+    nameAr: (r.name_ar as string) ?? null,
     region: (r.region as string) ?? null,
     visaRequired: Boolean(r.visa_required),
     visaType: r.visa_type as VisaType,
     validity: (r.validity as string) ?? null,
+    validityAr: (r.validity_ar as string) ?? null,
     stay: (r.stay as string) ?? null,
+    stayAr: (r.stay_ar as string) ?? null,
     entry: (r.entry as string) ?? null,
+    entryAr: (r.entry_ar as string) ?? null,
     acceptedAt: (r.accepted_at as string) ?? null,
     method: (r.method as string) ?? null,
+    methodAr: (r.method_ar as string) ?? null,
     govFee: num(r.gov_fee),
     serviceFee: num(r.service_fee),
     currency: String(r.currency).trim(),
@@ -65,8 +70,11 @@ function toFaq(r: Row): Faq {
     destinationId: (r.destination_id as string) ?? null,
     scope: String(r.scope),
     category: String(r.category),
+    categoryAr: (r.category_ar as string) ?? null,
     question: String(r.question),
+    questionAr: (r.question_ar as string) ?? null,
     answer: String(r.answer),
+    answerAr: (r.answer_ar as string) ?? null,
     sortOrder: num(r.sort_order),
   };
 }
@@ -85,25 +93,33 @@ export async function listAllFaqs() {
   return (await sql("select * from faqs order by scope, sort_order")).map(toFaq);
 }
 
-export async function searchHelp(query: string) {
+export async function searchHelp(query: string, locale = "en-EG") {
   const term = `%${query.trim().toLowerCase()}%`;
+  const arabic = locale.toLowerCase().startsWith("ar");
   const [faqs, destinations] = await Promise.all([
     sql(
-      `select question, answer from faqs
+      `select question, answer, question_ar, answer_ar from faqs
        where lower(question) like $1 or lower(answer) like $1
+          or lower(coalesce(question_ar, '')) like $1 or lower(coalesce(answer_ar, '')) like $1
        order by sort_order limit 5`,
       [term],
     ),
     sql(
-      `select name, slug from destinations
-       where is_active and (lower(name) like $1 or lower(slug) like $1)
+      `select name, slug, name_ar from destinations
+       where is_active and (lower(name) like $1 or lower(slug) like $1 or lower(coalesce(name_ar, '')) like $1)
        order by sort_order limit 5`,
       [term],
     ),
   ]);
   return {
-    faqs: faqs.map((row) => ({ question: String(row.question), answer: String(row.answer) })),
-    destinations: destinations.map((row) => ({ name: String(row.name), slug: String(row.slug) })),
+    faqs: faqs.map((row) => ({
+      question: arabic && row.question_ar ? String(row.question_ar) : String(row.question),
+      answer: arabic && row.answer_ar ? String(row.answer_ar) : String(row.answer),
+    })),
+    destinations: destinations.map((row) => ({
+      name: arabic && row.name_ar ? String(row.name_ar) : String(row.name),
+      slug: String(row.slug),
+    })),
   };
 }
 
@@ -115,7 +131,9 @@ function toReview(r: Row): Review {
     author: String(r.author),
     location: (r.location as string) ?? null,
     title: (r.title as string) ?? null,
+    titleAr: (r.title_ar as string) ?? null,
     body: String(r.body),
+    bodyAr: (r.body_ar as string) ?? null,
     rating: num(r.rating),
     product: (r.product as string) ?? null,
     url: (r.url as string) ?? null,
@@ -256,16 +274,21 @@ export async function listFeeChanges(): Promise<FeeChange[]> {
 
 export type DestinationInput = {
   name: string;
+  nameAr: string | null;
   slug: string;
   code: string;
   region: string | null;
   visaRequired: boolean;
   visaType: VisaType;
   validity: string | null;
+  validityAr: string | null;
   stay: string | null;
+  stayAr: string | null;
   entry: string | null;
+  entryAr: string | null;
   acceptedAt: string | null;
   method: string | null;
+  methodAr: string | null;
   govFee: number;
   serviceFee: number;
   processingHours: number | null;
@@ -277,7 +300,7 @@ export type DestinationInput = {
   flag: string | null;
   videoUrl: string | null;
   cities: string[];
-  rejectionReasons: { title: string; body: string }[];
+  rejectionReasons: { title: string; body: string; titleAr?: string; bodyAr?: string }[];
   sources: { label: string; url: string }[];
   sortOrder: number;
   isActive: boolean;
@@ -286,14 +309,14 @@ export type DestinationInput = {
 export async function updateDestination(id: string, input: DestinationInput) {
   const before = await getDestinationById(id);
   await sql(
-    `update destinations set name=$2, slug=$3, code=$4, region=$5, visa_required=$6, visa_type=$7, validity=$8, stay=$9,
-       entry=$10, accepted_at=$11, method=$12, gov_fee=$13, service_fee=$14, processing_hours=$15, express_hours=$16,
-       express_fee=$17, documents=$18::jsonb, image=$19, hero_image=$20, flag=$21, cities=$22::jsonb,
-       rejection_reasons=$23::jsonb, sources=$24::jsonb, sort_order=$25, is_active=$26, video_url=$27, updated_at=now()
+    `update destinations set name=$2, name_ar=$3, slug=$4, code=$5, region=$6, visa_required=$7, visa_type=$8, validity=$9, validity_ar=$10, stay=$11, stay_ar=$12,
+       entry=$13, entry_ar=$14, accepted_at=$15, method=$16, method_ar=$17, gov_fee=$18, service_fee=$19, processing_hours=$20, express_hours=$21,
+       express_fee=$22, documents=$23::jsonb, image=$24, hero_image=$25, flag=$26, cities=$27::jsonb,
+       rejection_reasons=$28::jsonb, sources=$29::jsonb, sort_order=$30, is_active=$31, video_url=$32, updated_at=now()
      where id=$1`,
     [
-      id, input.name, input.slug, input.code, input.region, input.visaRequired, input.visaType, input.validity, input.stay,
-      input.entry, input.acceptedAt, input.method, input.govFee, input.serviceFee, input.processingHours, input.expressHours,
+      id, input.name, input.nameAr, input.slug, input.code, input.region, input.visaRequired, input.visaType, input.validity, input.validityAr, input.stay, input.stayAr,
+      input.entry, input.entryAr, input.acceptedAt, input.method, input.methodAr, input.govFee, input.serviceFee, input.processingHours, input.expressHours,
       input.expressFee, JSON.stringify(input.documents), input.image, input.heroImage, input.flag,
       JSON.stringify(input.cities), JSON.stringify(input.rejectionReasons), JSON.stringify(input.sources), input.sortOrder, input.isActive,
       input.videoUrl,
@@ -326,14 +349,14 @@ export async function deleteDestination(id: string) {
   return { ok: true as const };
 }
 
-export async function upsertFaq(input: { id?: string; scope: string; category: string; question: string; answer: string; destinationId: string | null; sortOrder: number }) {
+export async function upsertFaq(input: { id?: string; scope: string; category: string; categoryAr?: string | null; question: string; questionAr?: string | null; answer: string; answerAr?: string | null; destinationId: string | null; sortOrder: number }) {
   if (input.id) {
-    await sql("update faqs set scope=$2, category=$3, question=$4, answer=$5, destination_id=$6, sort_order=$7 where id=$1", [
-      input.id, input.scope, input.category, input.question, input.answer, input.destinationId, input.sortOrder,
+    await sql("update faqs set scope=$2, category=$3, category_ar=$4, question=$5, question_ar=$6, answer=$7, answer_ar=$8, destination_id=$9, sort_order=$10 where id=$1", [
+      input.id, input.scope, input.category, input.categoryAr ?? null, input.question, input.questionAr ?? null, input.answer, input.answerAr ?? null, input.destinationId, input.sortOrder,
     ]);
   } else {
-    await sql("insert into faqs (scope, category, question, answer, destination_id, sort_order) values ($1,$2,$3,$4,$5,$6)", [
-      input.scope, input.category, input.question, input.answer, input.destinationId, input.sortOrder,
+    await sql("insert into faqs (scope, category, category_ar, question, question_ar, answer, answer_ar, destination_id, sort_order) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)", [
+      input.scope, input.category, input.categoryAr ?? null, input.question, input.questionAr ?? null, input.answer, input.answerAr ?? null, input.destinationId, input.sortOrder,
     ]);
   }
 }
@@ -342,18 +365,41 @@ export async function deleteFaq(id: string) {
   await sql("delete from faqs where id = $1", [id]);
 }
 
-export async function upsertReview(input: { id?: string; scope: string; author: string; location: string | null; title: string | null; body: string; rating: number; product: string | null; destinationId: string | null }) {
+export async function upsertReview(input: { id?: string; scope: string; author: string; location: string | null; title: string | null; titleAr?: string | null; body: string; bodyAr?: string | null; rating: number; product: string | null; destinationId: string | null }) {
   if (input.id) {
-    await sql("update reviews set scope=$2, author=$3, location=$4, title=$5, body=$6, rating=$7, product=$8, destination_id=$9 where id=$1", [
-      input.id, input.scope, input.author, input.location, input.title, input.body, input.rating, input.product, input.destinationId,
+    await sql("update reviews set scope=$2, author=$3, location=$4, title=$5, title_ar=$6, body=$7, body_ar=$8, rating=$9, product=$10, destination_id=$11 where id=$1", [
+      input.id, input.scope, input.author, input.location, input.title, input.titleAr ?? null, input.body, input.bodyAr ?? null, input.rating, input.product, input.destinationId,
     ]);
   } else {
-    await sql("insert into reviews (scope, author, location, title, body, rating, product, destination_id) values ($1,$2,$3,$4,$5,$6,$7,$8)", [
-      input.scope, input.author, input.location, input.title, input.body, input.rating, input.product, input.destinationId,
+    await sql("insert into reviews (scope, author, location, title, title_ar, body, body_ar, rating, product, destination_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [
+      input.scope, input.author, input.location, input.title, input.titleAr ?? null, input.body, input.bodyAr ?? null, input.rating, input.product, input.destinationId,
     ]);
   }
 }
 
 export async function deleteReview(id: string) {
   await sql("delete from reviews where id = $1", [id]);
+}
+
+export async function publicReviewStats() {
+  const row = await one<{ reviews: number; rating: string | null }>(
+    "select count(*)::int as reviews, round(avg(rating)::numeric, 1)::text as rating from reviews",
+  );
+  const reviews = row?.reviews ?? 0;
+  return { reviewCount: reviews, rating: reviews > 0 && row?.rating ? row.rating : null };
+}
+
+/** Share of decided applications that were approved. Hidden until at least one decision exists. */
+export async function computedApprovalRate(): Promise<number | null> {
+  const row = await one<{ approved: number; rejected: number }>(
+    `select
+       count(*) filter (where status = 'approved')::int as approved,
+       count(*) filter (where status = 'rejected')::int as rejected
+     from applications`,
+  );
+  const approved = row?.approved ?? 0;
+  const rejected = row?.rejected ?? 0;
+  const decided = approved + rejected;
+  if (!decided) return null;
+  return Math.round((approved / decided) * 1000) / 10;
 }

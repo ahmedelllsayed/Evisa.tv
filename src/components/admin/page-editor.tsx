@@ -45,7 +45,10 @@ export function PageEditor({ locale, pages }: { locale: string; pages: ManagedPa
           setMessage(null);
           const nextTemplate = (current?.template ?? String(fd.get("template"))) as CmsTemplate;
           const nextContent: Record<string, string> = {};
-          for (const field of templateFields(nextTemplate)) nextContent[field.key] = String(fd.get(`field.${field.key}`) ?? "");
+          for (const field of templateFields(nextTemplate)) {
+            nextContent[field.key] = String(fd.get(`field.${field.key}`) ?? "");
+            nextContent[`${field.key}Ar`] = String(fd.get(`field.${field.key}Ar`) ?? "");
+          }
           start(() =>
             adminSavePage(locale, {
               id: current?.id,
@@ -96,6 +99,12 @@ export function PageEditor({ locale, pages }: { locale: string; pages: ManagedPa
               <textarea name={`field.${field.key}`} defaultValue={content[field.key] ?? ""} className={adminTextareaClass} />
             ) : (
               <input name={`field.${field.key}`} defaultValue={content[field.key] ?? ""} className={adminInputClass} />
+            )}
+            <span className="mt-2 block text-xs text-muted-ink">العربية</span>
+            {field.multiline ? (
+              <textarea name={`field.${field.key}Ar`} defaultValue={content[`${field.key}Ar`] ?? ""} className={adminTextareaClass} dir="rtl" />
+            ) : (
+              <input name={`field.${field.key}Ar`} defaultValue={content[`${field.key}Ar`] ?? ""} className={adminInputClass} dir="rtl" />
             )}
           </label>
         ))}

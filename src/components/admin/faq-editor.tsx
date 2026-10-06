@@ -46,8 +46,11 @@ export function FaqEditor({ locale, faqs }: { locale: string; faqs: Faq[] }) {
                   id: current?.id,
                   scope: String(fd.get("scope")),
                   category: String(fd.get("category")),
+                  categoryAr: String(fd.get("categoryAr") || "") || null,
                   question: String(fd.get("question")),
+                  questionAr: String(fd.get("questionAr") || "") || null,
                   answer: String(fd.get("answer")),
+                  answerAr: String(fd.get("answerAr") || "") || null,
                   destinationId: current?.destinationId ?? null,
                   sortOrder: current?.sortOrder ?? 99,
                 }),
@@ -56,8 +59,11 @@ export function FaqEditor({ locale, faqs }: { locale: string; faqs: Faq[] }) {
           >
             <input required name="scope" defaultValue={current?.scope ?? ""} placeholder="النطاق: visa أو home" className={adminInputClass} />
             <input required name="category" defaultValue={current?.category ?? ""} placeholder="التصنيف" className={adminInputClass} />
+            <input name="categoryAr" defaultValue={current?.categoryAr ?? ""} placeholder="التصنيف بالعربية" dir="rtl" className={adminInputClass} />
             <input required name="question" defaultValue={current?.question ?? ""} placeholder="السؤال" className={adminInputClass} />
+            <input name="questionAr" defaultValue={current?.questionAr ?? ""} placeholder="السؤال بالعربية" dir="rtl" className={adminInputClass} />
             <textarea required name="answer" defaultValue={current?.answer ?? ""} placeholder="الإجابة" className={adminTextareaClass} />
+            <textarea name="answerAr" defaultValue={current?.answerAr ?? ""} placeholder="الإجابة بالعربية" dir="rtl" className={adminTextareaClass} />
             <button disabled={pending} className={adminPrimaryClass}>
               {current ? "حفظ" : "إضافة سؤال"}
             </button>

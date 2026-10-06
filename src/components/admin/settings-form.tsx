@@ -48,8 +48,9 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
           <Field name="pressEmail" label="بريد الإعلام" defaultValue={settings.pressEmail} />
           <Field name="partnershipsEmail" label="بريد الشراكات" defaultValue={settings.partnershipsEmail} />
           <Field name="whatsapp" label="واتساب" defaultValue={settings.whatsapp} />
-          <Field name="approvalRate" label="نسبة الموافقة على الموقع" type="number" step="0.1" min="0" max="100" defaultValue={String(settings.approvalRate)} />
-          <Field name="approvalOverall" label="نسبة الموافقة العامة" type="number" step="0.1" min="0" max="100" defaultValue={String(settings.approvalOverall)} />
+          <p className="text-sm text-muted-ink sm:col-span-2">
+            نسبة الموافقة الظاهرة للزائر تُحسب من الطلبات التي حُسمت بالموافقة أو الرفض. لا تُدخل نسبة يدوية.
+          </p>
           <Field name="bookingUrl" label="رابط حجز مكالمة الفيديو" defaultValue={settings.bookingUrl} />
           <label className="text-sm sm:col-span-2">
             المكاتب (سطر: المدينة | العنوان)

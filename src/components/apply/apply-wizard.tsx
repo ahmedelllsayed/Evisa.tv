@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
@@ -9,19 +10,21 @@ import {
   startPaymentAction,
   uploadDocumentAction,
 } from "@/app/actions/apply";
-import { documentLabels } from "@/data/seed/content";
 import { documentGaps } from "@/lib/application-rules";
-import { countries } from "@/lib/countries";
+import { countries, countryName } from "@/lib/countries";
+import { href } from "@/lib/href";
+import { t, tf } from "@/lib/i18n";
+import { docHint, docLabel } from "@/lib/localize";
 import type { ProfileVault } from "@/lib/profile";
 import type { Application, ApplicationDocument, ApplicationStep, Traveler } from "@/lib/types";
 import { formatMoney, formatOrdinalShort } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
-const steps: { id: ApplicationStep; label: string }[] = [
-  { id: "travelers", label: "Travellers" },
-  { id: "documents", label: "Documents" },
-  { id: "review", label: "Review" },
-  { id: "payment", label: "Payment" },
+const steps: { id: ApplicationStep; label: "apply.travelers" | "apply.documents" | "apply.review" | "apply.payment" }[] = [
+  { id: "travelers", label: "apply.travelers" },
+  { id: "documents", label: "apply.documents" },
+  { id: "review", label: "apply.review" },
+  { id: "payment", label: "apply.payment" },
 ];
 
 type Draft = {
@@ -67,12 +70,14 @@ export function ApplyWizard({
   travelers,
   documents,
   profile,
+  countLocked = false,
 }: {
   locale: string;
   application: Application;
   travelers: Traveler[];
   documents: ApplicationDocument[];
   profile: ProfileVault | null;
+  countLocked?: boolean;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<ApplicationStep>(application.step === "done" ? "review" : application.step);
@@ -85,13 +90,32 @@ export function ApplyWizard({
   const gaps = documentGaps(required, people, documents);
   const savedKinds = new Set(profile?.documents.map((doc) => doc.kind) ?? []);
   const profilePassport = profile?.passportNumber.trim().toLowerCase() ?? "";
+  const editable = application.status === "draft" || application.status === "payment_pending";
+
+  if (!editable) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <p className="text-sm text-muted-ink">
+          {application.destinationName} · {application.reference}
+        </p>
+        <h1 className="mt-1 font-display text-3xl font-semibold">{t(locale, "apply.lockedTitle")}</h1>
+        <p className="mt-3 text-body">{t(locale, "apply.lockedBody")}</p>
+        <Link
+          href={href(`/account/applications/${application.id}`, locale)}
+          className="mt-6 inline-flex h-12 items-center rounded-full bg-brand px-6 font-medium text-white"
+        >
+          {t(locale, "account.track")}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <p className="text-sm text-muted-ink">
         {application.destinationName} · {application.reference}
       </p>
-      <h1 className="mt-1 font-display text-3xl font-semibold">Complete your application</h1>
+      <h1 className="mt-1 font-display text-3xl font-semibold">{t(locale, "apply.title")}</h1>
       <ol className="mt-6 flex gap-2 overflow-x-auto scrollbar-none">
         {steps.map((s, i) => (
           <li key={s.id}>
@@ -103,7 +127,7 @@ export function ApplyWizard({
                 step === s.id ? "bg-black text-white" : "bg-surface text-muted-ink",
               )}
             >
-              {i + 1}. {s.label}
+              {i + 1}. {t(locale, s.label)}
             </button>
           </li>
         ))}
@@ -113,21 +137,24 @@ export function ApplyWizard({
         <section className="mt-8 space-y-6">
           {drafts.map((t, i) => (
             <TravelerForm
+              locale={locale}
               key={t.id ?? i}
               index={i}
               value={t}
               fromProfile={i === 0 && Boolean(profilePassport) && t.passportNumber.trim().toLowerCase() === profilePassport}
               onChange={(next) => setDrafts((all) => all.map((x, j) => (j === i ? next : x)))}
-              onRemove={drafts.length > 1 ? () => setDrafts((all) => all.filter((_, j) => j !== i)) : undefined}
+              onRemove={countLocked || drafts.length <= 1 ? undefined : () => setDrafts((all) => all.filter((_, j) => j !== i))}
             />
           ))}
-          <button
-            type="button"
-            className="text-sm font-medium text-brand"
-            onClick={() => setDrafts((all) => [...all, toDraft()])}
-          >
-            + Add traveller
-          </button>
+          {!countLocked && (
+            <button
+              type="button"
+              className="text-sm font-medium text-brand"
+              onClick={() => setDrafts((all) => [...all, toDraft()])}
+            >
+              {t(locale, "apply.addTraveller")}
+            </button>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
@@ -145,7 +172,7 @@ export function ApplyWizard({
               })
             }
           >
-            Continue to documents
+            {t(locale, "apply.continueDocuments")}
           </button>
         </section>
       )}
@@ -153,29 +180,29 @@ export function ApplyWizard({
       {step === "documents" && (
         <section className="mt-8 space-y-6">
           {profile && savedKinds.size > 0 && (
-            <p className="text-sm text-muted-ink">Files already on your profile are attached when the passport number matches.</p>
+            <p className="text-sm text-muted-ink">{t(locale, "apply.profileFiles")}</p>
           )}
-          {(travelers.length ? travelers : drafts).map((t, i) => (
-            <div key={t.id ?? i} className="rounded-2xl border border-line p-4">
+          {(travelers.length ? travelers : drafts).map((traveller, i) => (
+            <div key={traveller.id ?? i} className="rounded-2xl border border-line p-4">
               <p className="font-medium">
-                {t.firstName} {t.lastName}
+                {traveller.firstName} {traveller.lastName}
               </p>
               <ul className="mt-3 space-y-3">
                 {required.map((kind) => {
-                  const doc = documents.find((d) => d.kind === kind && d.travelerId === (t.id ?? null));
+                  const doc = documents.find((d) => d.kind === kind && d.travelerId === (traveller.id ?? null));
                   const rejected = doc?.status === "rejected";
                   return (
                     <li key={kind} className="flex items-center justify-between gap-3 rounded-xl bg-surface p-3">
                       <span>
-                        <span className="block text-sm font-medium">{documentLabels[kind]?.label ?? kind}</span>
+                        <span className="block text-sm font-medium">{docLabel(kind, locale)}</span>
                         <span className="text-xs text-muted-ink">
                           {doc && !rejected
-                            ? `${doc.fileName}${savedKinds.has(kind) ? " · Saved on your profile" : ""}`
-                            : documentLabels[kind]?.hint ?? "Upload a file"}
+                            ? `${doc.fileName}${savedKinds.has(kind) ? ` · ${t(locale, "apply.savedProfile")}` : ""}`
+                            : docHint(kind, locale) || t(locale, "apply.uploadFile")}
                         </span>
                         {rejected && (
                           <span className="mt-1 block text-xs text-red-600">
-                            Rejected{doc.rejectReason ? `: ${doc.rejectReason}` : ""}. Upload a new file.
+                            {t(locale, "apply.rejected")}{doc.rejectReason ? `: ${doc.rejectReason}` : ""}. {t(locale, "apply.rejectedNew")}
                           </span>
                         )}
                       </span>
@@ -185,27 +212,28 @@ export function ApplyWizard({
                           className="text-xs text-red-600"
                           onClick={() =>
                             start(async () => {
-                              await deleteDocumentAction(locale, application.id, doc.id);
+                              const removed = await deleteDocumentAction(locale, application.id, doc.id);
+                              if (!removed.ok) setError(removed.error);
                               router.refresh();
                             })
                           }
                         >
-                          Remove
+                          {t(locale, "common.remove")}
                         </button>
                       ) : (
                         <label className="cursor-pointer rounded-full bg-white px-3 py-1 text-xs font-medium">
-                          Upload
+                          {t(locale, "common.upload")}
                           <input
                             type="file"
                             className="hidden"
                             accept="image/*,application/pdf"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (!file || !t.id) return;
+                              if (!file || !traveller.id) return;
                               const fd = new FormData();
                               fd.set("locale", locale);
                               fd.set("applicationId", application.id);
-                              fd.set("travelerId", t.id);
+                              fd.set("travelerId", traveller.id);
                               fd.set("kind", kind);
                               fd.set("file", file);
                               start(async () => {
@@ -224,7 +252,7 @@ export function ApplyWizard({
             </div>
           ))}
           {gaps.length > 0 && (
-            <p className="text-sm text-red-600">Upload every required document before you continue. Rejected files need a new upload.</p>
+            <p className="text-sm text-red-600">{t(locale, "apply.missingDocs")}</p>
           )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
@@ -234,12 +262,16 @@ export function ApplyWizard({
             onClick={() =>
               start(async () => {
                 if (gaps.length > 0) return;
-                await goToStepAction(locale, application.id, "review");
+                const moved = await goToStepAction(locale, application.id, "review");
+                if (!moved.ok) {
+                  setError(moved.error);
+                  return;
+                }
                 setStep("review");
               })
             }
           >
-            Continue to review
+            {t(locale, "apply.continueReview")}
           </button>
         </section>
       )}
@@ -247,22 +279,22 @@ export function ApplyWizard({
       {step === "review" && (
         <section className="mt-8 space-y-4">
           <div className="rounded-2xl border border-line p-5">
-            <p className="text-sm text-muted-ink">Guaranteed by</p>
+            <p className="text-sm text-muted-ink">{t(locale, "apply.targetBy")}</p>
             <p className="font-display text-xl font-semibold">
-              {application.guaranteedAt ? formatOrdinalShort(application.guaranteedAt) : "—"}
+              {application.guaranteedAt ? formatOrdinalShort(application.guaranteedAt, locale) : "—"}
             </p>
             <dl className="mt-4 space-y-1 text-sm">
               <div className="flex justify-between">
-                <dt>Government fees</dt>
-                <dd>{formatMoney(application.govFee, application.currency)}</dd>
+                <dt>{t(locale, "apply.govFee")}</dt>
+                <dd>{formatMoney(application.govFee, application.currency, locale)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt>Processing fees</dt>
-                <dd>{formatMoney(application.serviceFee, application.currency)}</dd>
+                <dt>{t(locale, "apply.serviceFee")}</dt>
+                <dd>{formatMoney(application.serviceFee, application.currency, locale)}</dd>
               </div>
               <div className="flex justify-between font-semibold">
-                <dt>Total</dt>
-                <dd>{formatMoney(application.totalAmount, application.currency)}</dd>
+                <dt>{t(locale, "apply.total")}</dt>
+                <dd>{formatMoney(application.totalAmount, application.currency, locale)}</dd>
               </div>
             </dl>
           </div>
@@ -285,14 +317,14 @@ export function ApplyWizard({
               })
             }
           >
-            Pay {formatMoney(application.totalAmount, application.currency)}
+            {t(locale, "apply.pay")} {formatMoney(application.totalAmount, application.currency, locale)}
           </button>
         </section>
       )}
 
       {step === "payment" && (
         <section className="mt-8 text-center">
-          <p className="text-body">Finish payment to submit your application.</p>
+          <p className="text-body">{t(locale, "apply.finish")}</p>
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
           <button
             type="button"
@@ -305,7 +337,7 @@ export function ApplyWizard({
               })
             }
           >
-            Continue to payment
+            {t(locale, "apply.continuePayment")}
           </button>
         </section>
       )}
@@ -314,12 +346,14 @@ export function ApplyWizard({
 }
 
 function TravelerForm({
+  locale,
   index,
   value,
   fromProfile,
   onChange,
   onRemove,
 }: {
+  locale: string;
   index: number;
   value: Draft;
   fromProfile?: boolean;
@@ -327,27 +361,30 @@ function TravelerForm({
   onRemove?: () => void;
 }) {
   const set = (k: keyof Draft, v: string) => onChange({ ...value, [k]: v });
-  const fields: [keyof Draft, string, string][] = [
-    ["firstName", "First name", "text"],
-    ["lastName", "Last name", "text"],
-    ["dateOfBirth", "Date of birth", "date"],
-    ["passportNumber", "Passport number", "text"],
-    ["passportExpiry", "Passport expiry", "date"],
+  const fields: [keyof Draft, "apply.firstName" | "apply.lastName" | "apply.dob" | "apply.passportNo" | "apply.passportExp", string][] = [
+    ["firstName", "apply.firstName", "text"],
+    ["lastName", "apply.lastName", "text"],
+    ["dateOfBirth", "apply.dob", "date"],
+    ["passportNumber", "apply.passportNo", "text"],
+    ["passportExpiry", "apply.passportExp", "date"],
   ];
   return (
     <div className="rounded-2xl border border-line p-4">
       <div className="flex items-center justify-between">
-        <p className="font-medium">Traveller {index + 1}{fromProfile ? " · from your profile" : ""}</p>
+        <p className="font-medium">
+          {tf(locale, "apply.travellerN", { n: index + 1 })}
+          {fromProfile ? ` · ${t(locale, "apply.fromProfile")}` : ""}
+        </p>
         {onRemove && (
           <button type="button" onClick={onRemove} className="text-xs text-red-600">
-            Remove
+            {t(locale, "common.remove")}
           </button>
         )}
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {fields.map(([key, label, type]) => (
           <label key={key} className="text-sm">
-            {label}
+            {t(locale, label)}
             <input
               required
               type={type}
@@ -358,26 +395,25 @@ function TravelerForm({
           </label>
         ))}
         <label className="text-sm">
-          Sex
+          {t(locale, "apply.sex")}
           <select value={value.sex} onChange={(e) => set("sex", e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-line px-3">
-            <option value="">Select</option>
-            <option value="female">Female</option>
-            <option value="male">Male</option>
-            <option value="other">Other / unspecified</option>
+            <option value="">{t(locale, "common.select")}</option>
+            <option value="female">{t(locale, "apply.female")}</option>
+            <option value="male">{t(locale, "apply.male")}</option>
+            <option value="other">{t(locale, "apply.other")}</option>
           </select>
         </label>
         <label className="text-sm">
-          Nationality
+          {t(locale, "apply.nationality")}
           <select
             value={value.nationality}
             onChange={(e) => set("nationality", e.target.value)}
             className="mt-1 h-10 w-full rounded-lg border border-line px-3"
-            translate="no"
           >
-            <option value="">Select</option>
+            <option value="">{t(locale, "common.select")}</option>
             {countries.map((c) => (
               <option key={c.code} value={c.code}>
-                {c.name}
+                {countryName(c.code, locale)}
               </option>
             ))}
           </select>

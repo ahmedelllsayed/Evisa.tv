@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { siteConfig } from "@/config/site.config";
+import { isLocale, siteConfig } from "@/config/site.config";
 
 const localePattern = /^\/[a-z]{2}-[A-Z]{2}(\/|$)/;
 
@@ -14,7 +14,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  let response = NextResponse.next({ request });
+  const segment = pathname.split("/")[1] ?? "";
+  const locale = isLocale(segment) ? segment : siteConfig.defaultLocale;
+  const forward = () => {
+    const headers = new Headers(request.headers);
+    headers.set("x-locale", locale);
+    const cookie = request.cookies.getAll().map((item) => `${item.name}=${item.value}`).join("; ");
+    if (cookie) headers.set("cookie", cookie);
+    return NextResponse.next({ request: { headers } });
+  };
+  let response = forward();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -26,7 +35,7 @@ export async function proxy(request: NextRequest) {
         },
         setAll(toSet) {
           toSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = forward();
           toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
         },
       },

@@ -15,16 +15,21 @@ type Picked = { url: string; name: string };
 
 const empty: DestinationInput = {
   name: "",
+  nameAr: "",
   slug: "",
   code: "",
   region: "",
   visaRequired: true,
   visaType: "e-visa",
   validity: "",
+  validityAr: "",
   stay: "",
+  stayAr: "",
   entry: "Single",
+  entryAr: "",
   acceptedAt: "All Ports of Entry",
   method: "Paperless",
+  methodAr: "",
   govFee: 0,
   serviceFee: 0,
   processingHours: 96,
@@ -45,16 +50,21 @@ const empty: DestinationInput = {
 function fromDestination(d: Destination): DestinationInput {
   return {
     name: d.name,
+    nameAr: d.nameAr ?? "",
     slug: d.slug,
     code: d.code,
     region: d.region,
     visaRequired: d.visaRequired,
     visaType: d.visaType,
     validity: d.validity,
+    validityAr: d.validityAr ?? "",
     stay: d.stay,
+    stayAr: d.stayAr ?? "",
     entry: d.entry,
+    entryAr: d.entryAr ?? "",
     acceptedAt: d.acceptedAt,
     method: d.method,
+    methodAr: d.methodAr ?? "",
     govFee: d.govFee,
     serviceFee: d.serviceFee,
     processingHours: d.processingHours,
@@ -233,6 +243,7 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
 
             <div className={tab === "basics" ? "mt-4 grid gap-3 sm:grid-cols-2" : "hidden"}>
               <Field name="name" label="الاسم" defaultValue={initial.name} />
+              <Field name="nameAr" label="الاسم بالعربية" defaultValue={initial.nameAr ?? ""} />
               <Field name="slug" label="الرابط" defaultValue={initial.slug} />
               <Field name="code" label="رمز الدولة" defaultValue={initial.code} />
               <Field name="region" label="المنطقة" defaultValue={initial.region ?? ""} />
@@ -247,10 +258,14 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
                 </select>
               </label>
               <Field name="stay" label="مدة الإقامة" defaultValue={initial.stay ?? ""} />
+              <Field name="stayAr" label="مدة الإقامة بالعربية" defaultValue={initial.stayAr ?? ""} />
               <Field name="validity" label="الصلاحية" defaultValue={initial.validity ?? ""} />
+              <Field name="validityAr" label="الصلاحية بالعربية" defaultValue={initial.validityAr ?? ""} />
               <Field name="entry" label="الدخول" defaultValue={initial.entry ?? ""} />
+              <Field name="entryAr" label="الدخول بالعربية" defaultValue={initial.entryAr ?? ""} />
               <Field name="acceptedAt" label="منافذ الدخول" defaultValue={initial.acceptedAt ?? ""} />
               <Field name="method" label="طريقة التقديم" defaultValue={initial.method ?? ""} />
+              <Field name="methodAr" label="طريقة التقديم بالعربية" defaultValue={initial.methodAr ?? ""} />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="visaRequired" defaultChecked={initial.visaRequired} /> التأشيرة مطلوبة
               </label>
@@ -327,10 +342,10 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
                 <textarea name="sources" defaultValue={initial.sources.map((source) => `${source.label} | ${source.url}`).join("\n")} className={adminTextareaClass} />
               </label>
               <label className="text-sm">
-                أسباب الرفض (سطر: العنوان | التفاصيل)
+                أسباب الرفض (سطر: العنوان | التفاصيل | العنوان بالعربية | التفاصيل بالعربية)
                 <textarea
                   name="rejectionReasons"
-                  defaultValue={initial.rejectionReasons.map((reason) => `${reason.title} | ${reason.body}`).join("\n")}
+                  defaultValue={initial.rejectionReasons.map((reason) => [reason.title, reason.body, reason.titleAr ?? "", reason.bodyAr ?? ""].filter((part, index) => part || index < 2).join(" | ")).join("\n")}
                   className={adminTextareaClass}
                 />
               </label>

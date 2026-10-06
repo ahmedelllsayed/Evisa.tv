@@ -20,21 +20,26 @@ const paths = [
   "/newsroom",
   "/privacy",
   "/terms",
+  "/editorial-policy",
   "/emergency-care",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const locale = siteConfig.defaultLocale;
-  const staticEntries = paths.map((p) => ({
-    url: `${siteConfig.url}/${locale}${p}`,
-    lastModified: new Date(),
-  }));
+  const locales = siteConfig.locales;
+  const staticEntries = locales.flatMap((locale) =>
+    paths.map((path) => ({
+      url: `${siteConfig.url}/${locale}${path}`,
+      lastModified: new Date(),
+    })),
+  );
   try {
     const destinations = await listDestinations();
-    const visas = destinations.map((destination) => ({
-      url: `${siteConfig.url}/${locale}/visa/${destination.slug}`,
-      lastModified: new Date(destination.updatedAt),
-    }));
+    const visas = locales.flatMap((locale) =>
+      destinations.map((destination) => ({
+        url: `${siteConfig.url}/${locale}/visa/${destination.slug}`,
+        lastModified: new Date(destination.updatedAt),
+      })),
+    );
     return [...staticEntries, ...visas];
   } catch {
     return staticEntries;

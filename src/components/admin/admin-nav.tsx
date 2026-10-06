@@ -12,6 +12,7 @@ const groups = [
       { href: "/admin", label: "نظرة عامة" },
       { href: "/admin/queue", label: "الطابور", badge: true },
       { href: "/admin/applications", label: "الطلبات" },
+      { href: "/admin/messages", label: "الرسائل" },
     ],
   },
   {
@@ -25,6 +26,7 @@ const groups = [
       { href: "/admin/reviews", label: "التقييمات" },
       { href: "/admin/users", label: "المستخدمون" },
       { href: "/admin/settings", label: "الإعدادات" },
+      { href: "/admin/citizenships", label: "الجنسيات" },
       { href: "/admin/fees", label: "سجل الرسوم" },
     ],
   },

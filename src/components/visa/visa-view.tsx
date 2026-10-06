@@ -7,10 +7,11 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { StarRow, WhatsAppIcon } from "@/components/brand/icons";
+import { useT } from "@/components/providers";
 import { StartApplication } from "@/components/visa/start-application";
-import { documentLabels, faqCategories } from "@/data/seed/content";
 import { siteConfig } from "@/config/site.config";
 import { href, visaHref } from "@/lib/href";
+import { categoryLabel, docHint, docLabel, localizeFaq, localizeReview, localizedDestinationName, localizedPhrase } from "@/lib/localize";
 import type { Destination, Faq, Review } from "@/lib/types";
 import {
   fillTemplate,
@@ -21,7 +22,7 @@ import {
   initials,
   processingLabel,
   totalFee,
-  visaTypeLabels,
+  visaTypeLabel,
 } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +36,6 @@ export function VisaView({
   applyOpen,
   nowIso,
   approvalRate,
-  approvalOverall,
   brandName,
   whatsapp,
 }: {
@@ -47,8 +47,7 @@ export function VisaView({
   existingId?: string | null;
   applyOpen?: boolean;
   nowIso: string;
-  approvalRate: number;
-  approvalOverall: number;
+  approvalRate: number | null;
   brandName: string;
   whatsapp: string;
 }) {
@@ -57,8 +56,8 @@ export function VisaView({
   const hours = express && destination.expressHours ? destination.expressHours : destination.processingHours ?? 72;
   const due = guaranteedDate(hours, now);
   const fee = totalFee(destination) + (express ? (destination.expressFee ?? 0) : 0);
-  const country = destination.name;
-  const typeName = destination.visaType === "e-visa" ? "E-Visa" : visaTypeLabels[destination.visaType];
+  const country = localizedDestinationName(destination, locale);
+  const typeName = visaTypeLabel(destination.visaType, locale);
   const daysSooner =
     destination.expressHours && destination.processingHours
       ? Math.max(1, Math.round((destination.processingHours - destination.expressHours) / 24))
@@ -70,12 +69,14 @@ export function VisaView({
       <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div>
           <InfoGrid destination={destination} typeName={typeName} />
-          <GuaranteeBlock destination={destination} express={express} onExpress={setExpress} typeName={typeName} now={now} brandName={brandName} />
-          {destination.visaRequired && <ApprovalBlock name={country} approvalRate={approvalRate} approvalOverall={approvalOverall} brandName={brandName} />}
+          <GuaranteeBlock destination={destination} express={express} onExpress={setExpress} typeName={typeName} now={now} />
+          {destination.visaRequired && approvalRate != null && (
+            <ApprovalBlock name={country} approvalRate={approvalRate} brandName={brandName} />
+          )}
           <ReviewsBlock reviews={reviews} country={country} />
           <ProcessBlock destination={destination} due={due} typeName={typeName} brandName={brandName} />
-          {destination.visaRequired && <ChancesBlock typeName={typeName} approvalRate={approvalRate} brandName={brandName} />}
-          <RejectionBlock destination={destination} typeName={typeName} />
+          {destination.visaRequired && <ChancesBlock typeName={typeName} />}
+          {destination.rejectionReasons.length > 0 && <RejectionBlock destination={destination} typeName={typeName} />}
           <FaqBlock faqs={faqs} country={country} />
           <NearbyBlock nearby={nearby} locale={locale} name={country} />
           <SourcesBlock destination={destination} locale={locale} brandName={brandName} />
@@ -110,8 +111,10 @@ function SectionHeading({ children }: { children: ReactNode }) {
 }
 
 function Hero({ destination, hours, typeName }: { destination: Destination; hours: number; typeName: string }) {
+  const { locale, t, tf } = useT();
   const [docsOpen, setDocsOpen] = useState(false);
   const demonym = siteConfig.market.demonym;
+  const name = localizedDestinationName(destination, locale);
   const poster = destination.heroImage || destination.image || undefined;
   return (
     <section className="relative h-[420px] overflow-hidden rounded-[16px] bg-neutral-900 lg:h-[600px]">
@@ -126,39 +129,39 @@ function Hero({ destination, hours, typeName }: { destination: Destination; hour
       />
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-gradient-to-b from-black/70 via-black/40 to-black/70 px-6 text-center text-white">
         <h1 className="font-sans text-4xl font-semibold lg:text-[48px] lg:leading-[56px]">
-          {destination.name} Visa for {demonym}s
+          {tf("visa.for", { name, demonym })}
         </h1>
         {destination.visaRequired ? (
           <>
             <p className="inline-flex items-center gap-2 rounded-full bg-black/55 px-4 py-1.5 text-sm backdrop-blur-md">
               <ShieldCheck className="size-4" />
-              {typeName} in {processingLabel(hours)}
+              {typeName} · {processingLabel(hours, locale)}
             </p>
             <button
               type="button"
               onClick={() => setDocsOpen(true)}
               className="h-10 w-[350px] rounded-[12px] bg-brand text-base font-medium text-white shadow-md"
             >
-              Check Required Documents
+              {t("visa.docsTitle")}
             </button>
           </>
         ) : (
-          <p className="text-sm">No visa required</p>
+          <p className="text-sm">{t("card.noVisa")}</p>
         )}
       </div>
       <Dialog open={docsOpen} onOpenChange={setDocsOpen}>
         <DialogContent className="max-w-md rounded-2xl p-5">
-          <DialogTitle>Check Required Documents</DialogTitle>
+          <DialogTitle>{t("visa.docsTitle")}</DialogTitle>
           <ul className="mt-3 space-y-3">
             {destination.documents.map((kind) => (
               <li key={kind}>
-                <p className="text-sm font-medium">{documentLabels[kind]?.label ?? kind}</p>
-                <p className="text-xs text-muted-ink">{documentLabels[kind]?.hint}</p>
+                <p className="text-sm font-medium">{docLabel(kind, locale)}</p>
+                <p className="text-xs text-muted-ink">{docHint(kind, locale)}</p>
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-sm font-medium">That&apos;s it.</p>
-          <p className="text-xs text-muted-ink">Just {Math.max(destination.documents.length, 1)} steps and we&apos;ll process your visa.</p>
+          <p className="mt-4 text-sm font-medium">{t("visa.thatsIt")}</p>
+          <p className="text-xs text-muted-ink">{tf("visa.justSteps", { n: Math.max(destination.documents.length, 1) })}</p>
         </DialogContent>
       </Dialog>
     </section>
@@ -166,16 +169,17 @@ function Hero({ destination, hours, typeName }: { destination: Destination; hour
 }
 
 function InfoGrid({ destination, typeName }: { destination: Destination; typeName: string }) {
+  const { locale, t, tf } = useT();
   const items = [
-    { icon: Smartphone, label: "Type:", value: typeName, tint: "bg-[#eef0fb] text-brand" },
-    { icon: CalendarDays, label: "Length of Stay:", value: destination.stay, tint: "bg-[#e7f6ff] text-[#1d7bbf]", line: true },
-    { icon: Clock, label: "Validity:", value: destination.validity, tint: "bg-[#e8f8ee] text-[#1f9d55]", line: true, mark: "check" },
-    { icon: FileText, label: "Entry:", value: destination.entry, tint: "bg-[#2f2f9a] text-white" },
-    { icon: Folder, label: "Method:", value: destination.method, tint: "bg-[#eef0fb] text-brand" },
+    { icon: Smartphone, label: t("visa.infoType"), value: typeName, tint: "bg-[#eef0fb] text-brand" },
+    { icon: CalendarDays, label: t("visa.infoStay"), value: localizedPhrase(destination.stay, locale, destination.stayAr), tint: "bg-[#e7f6ff] text-[#1d7bbf]", line: true },
+    { icon: Clock, label: t("visa.infoValidity"), value: localizedPhrase(destination.validity, locale, destination.validityAr), tint: "bg-[#e8f8ee] text-[#1f9d55]", line: true, mark: "check" },
+    { icon: FileText, label: t("visa.infoEntry"), value: localizedPhrase(destination.entry, locale, destination.entryAr), tint: "bg-[#2f2f9a] text-white" },
+    { icon: Folder, label: t("visa.infoMethod"), value: localizedPhrase(destination.method, locale, destination.methodAr), tint: "bg-[#eef0fb] text-brand" },
   ];
   return (
     <section>
-      <SectionHeading>{typeName} Information</SectionHeading>
+      <SectionHeading>{tf("visa.infoHeading", { type: typeName })}</SectionHeading>
       <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
         {items.map((item) => (
           <div key={item.label} className="flex items-start gap-3">
@@ -192,8 +196,6 @@ function InfoGrid({ destination, typeName }: { destination: Destination; typeNam
     </section>
   );
 }
-
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function zonedYmd(date: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -225,33 +227,22 @@ function monthCells(year: number, month: number) {
   return cells;
 }
 
-function ArrivalTimeline({ due, brandName }: { due: Date; brandName: string }) {
+function ArrivalTimeline({ due }: { due: Date }) {
+  const { locale, t } = useT();
   const arrival = zonedYmd(due);
   const cells = monthCells(arrival.year, arrival.month);
-  const title = new Intl.DateTimeFormat("en-GB", {
+  const title = new Intl.DateTimeFormat(locale.startsWith("ar") ? "ar-EG" : "en-GB", {
     timeZone: siteConfig.market.timeZone,
     month: "long",
     year: "numeric",
   }).format(due);
+  const weekdayFmt = new Intl.DateTimeFormat(locale.startsWith("ar") ? "ar-EG" : "en-GB", { weekday: "short" });
+  const monday = new Date(Date.UTC(2026, 0, 5));
+  const weekdays = Array.from({ length: 7 }, (_, i) => weekdayFmt.format(new Date(monday.getTime() + i * 86400000)));
   const notes = [
-    {
-      icon: CreditCard,
-      tint: "bg-[#e7f0ff] text-[#3d6fd4]",
-      title: `${brandName} on your Visa!`,
-      body: `${brandName} works with the authorities to get your visa on time!`,
-    },
-    {
-      icon: Flag,
-      tint: "bg-[#fde8ea] text-[#e15d6c]",
-      title: "Public Holidays",
-      body: "We take into account public holidays observed in the country you are traveling to.",
-    },
-    {
-      icon: Bed,
-      tint: "bg-[#f8f1dc] text-[#c4a15a]",
-      title: "Weekends",
-      body: "Embassies are shut on Saturday & Sunday. Your visa cannot be processed then.",
-    },
+    { icon: CreditCard, tint: "bg-[#e7f0ff] text-[#3d6fd4]", title: t("visa.noteTarget"), body: t("visa.noteTargetBody") },
+    { icon: Flag, tint: "bg-[#fde8ea] text-[#e15d6c]", title: t("visa.noteHolidays"), body: t("visa.noteHolidaysBody") },
+    { icon: Bed, tint: "bg-[#f8f1dc] text-[#c4a15a]", title: t("visa.noteWeekends"), body: t("visa.noteWeekendsBody") },
   ];
   return (
     <div className="mt-4 overflow-visible rounded-2xl border border-[#ececf3]">
@@ -259,7 +250,7 @@ function ArrivalTimeline({ due, brandName }: { due: Date; brandName: string }) {
         <div className="px-4 pt-8 pb-4">
           <p className="text-base font-semibold text-black">{title}</p>
           <div className="mt-4 grid grid-cols-7 text-center text-[11px] text-[#9aa1ab]">
-            {WEEKDAYS.map((day) => (
+            {weekdays.map((day) => (
               <span key={day}>{day}</span>
             ))}
           </div>
@@ -270,7 +261,7 @@ function ArrivalTimeline({ due, brandName }: { due: Date; brandName: string }) {
                 <span key={cell.key} className="relative flex h-10 items-center justify-center">
                   {selected && (
                     <span className="absolute bottom-[calc(100%-4px)] left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-md bg-white px-2 py-1 text-[10px] font-semibold tracking-wide text-[#5b63e6] shadow-[0_4px_16px_rgba(17,24,39,0.12)]">
-                      <Clock className="size-3" /> VISA ARRIVAL
+                      <Clock className="size-3" /> {t("visa.arrival")}
                       <span className="absolute top-full left-1/2 -translate-x-1/2 border-x-[5px] border-t-[5px] border-x-transparent border-t-white" />
                     </span>
                   )}
@@ -288,8 +279,8 @@ function ArrivalTimeline({ due, brandName }: { due: Date; brandName: string }) {
             })}
           </div>
         </div>
-        <aside className="border-t border-[#ececf3] bg-[#f6f7fb] px-4 py-5 sm:border-t-0 sm:border-l">
-          <p className="border-b border-dashed border-[#e1e3ea] pb-3 text-[11px] font-semibold tracking-[0.14em] text-[#8b919a]">GOOD TO KNOW</p>
+        <aside className="border-t border-[#ececf3] bg-[#f6f7fb] px-4 py-5 sm:border-t-0 sm:border-s">
+          <p className="border-b border-dashed border-[#e1e3ea] pb-3 text-[11px] font-semibold tracking-[0.14em] text-[#8b919a]">{t("visa.goodToKnow")}</p>
           <ul className="mt-4 space-y-5">
             {notes.map((note) => (
               <li key={note.title} className="flex gap-3">
@@ -315,34 +306,33 @@ function DateChoice({
   onSelect,
   icon,
   sooner,
-  brandName,
 }: {
   due: Date;
   selected: boolean;
   onSelect: () => void;
   icon: "shield" | "bolt";
-  sooner?: number | null;
-  brandName: string;
+  sooner?: number;
 }) {
+  const { locale, t, tf } = useT();
   const [timeline, setTimeline] = useState(false);
   return (
     <div
       className={cn(
-        "relative rounded-2xl border p-5 pt-6 pl-4",
+        "relative rounded-2xl border p-5 pt-6 ps-4",
         selected ? "z-[2] border-brand/40 bg-white shadow-xl" : "mt-6 border-transparent bg-[#f8fafc]",
       )}
     >
       {sooner ? (
         <p
           className={cn(
-            "absolute top-0 left-4 -translate-y-1/2 rounded-full px-3 py-1.5 text-xs font-medium",
+            "absolute top-0 start-4 -translate-y-1/2 rounded-full px-3 py-1.5 text-xs font-medium",
             selected ? "bg-[#2026A6] text-white" : "bg-[#EFF0FF] text-brand",
           )}
         >
-          {sooner} days sooner
+          {tf("visa.daysSooner", { days: sooner })}
         </p>
       ) : null}
-      <div className="flex items-center justify-between gap-3 pl-2">
+      <div className="flex items-center justify-between gap-3 ps-2">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold">
             {icon === "shield" ? (
@@ -352,10 +342,10 @@ function DateChoice({
             ) : (
               <Zap className="size-4 fill-black text-black" />
             )}
-            {formatAt(due)}
+            {formatAt(due, locale)}
           </p>
-          <button type="button" onClick={() => setTimeline((v) => !v)} className="mt-1 ml-9 inline-flex items-center gap-1 text-xs text-[#6b7cff]">
-            <Clock className="size-3.5" /> View Timeline <ChevronDown className={cn("size-3", timeline && "rotate-180")} />
+          <button type="button" onClick={() => setTimeline((v) => !v)} className="mt-1 ms-9 inline-flex items-center gap-1 text-xs text-[#6b7cff]">
+            <Clock className="size-3.5" /> {t("visa.viewTimeline")} <ChevronDown className={cn("size-3", timeline && "rotate-180")} />
           </button>
         </div>
         <button
@@ -367,10 +357,10 @@ function DateChoice({
           )}
         >
           {selected && <Check className="size-3.5" />}
-          {selected ? "Selected" : "Select"}
+          {selected ? t("visa.selected") : t("visa.select")}
         </button>
       </div>
-      {timeline && <ArrivalTimeline due={due} brandName={brandName} />}
+      {timeline && <ArrivalTimeline due={due} />}
     </div>
   );
 }
@@ -381,15 +371,14 @@ function GuaranteeBlock({
   onExpress,
   typeName,
   now,
-  brandName,
 }: {
   destination: Destination;
   express: boolean;
   onExpress: (v: boolean) => void;
   typeName: string;
   now: Date;
-  brandName: string;
 }) {
+  const { tf } = useT();
   if (!destination.visaRequired) return null;
   const standardDue = guaranteedDate(destination.processingHours ?? 72, now);
   const expressDue = destination.expressHours ? guaranteedDate(destination.expressHours, now) : null;
@@ -398,14 +387,14 @@ function GuaranteeBlock({
       ? Math.max(1, Math.round((destination.processingHours - destination.expressHours) / 24))
       : null;
   return (
-    <section className="relative mt-10 pl-6">
-      <span className="absolute top-2.5 left-0 size-2.5 rounded-full bg-brand" />
-      <span className="absolute top-6 bottom-0 left-[4px] w-px bg-[#e6e6f2]" />
-      <SectionHeading>Get a Guaranteed {typeName} on</SectionHeading>
+    <section className="relative mt-10 ps-6">
+      <span className="absolute top-2.5 start-0 size-2.5 rounded-full bg-brand" />
+      <span className="absolute top-6 bottom-0 start-[4px] w-px bg-[#e6e6f2]" />
+      <SectionHeading>{tf("visa.targetHeading", { type: typeName })}</SectionHeading>
       <div className="mt-5">
-        <DateChoice due={standardDue} selected={!express} onSelect={() => onExpress(false)} icon="shield" brandName={brandName} />
+        <DateChoice due={standardDue} selected={!express} onSelect={() => onExpress(false)} icon="shield" />
         {expressDue && daysSooner && (
-          <DateChoice due={expressDue} selected={express} onSelect={() => onExpress(true)} icon="bolt" sooner={daysSooner} brandName={brandName} />
+          <DateChoice due={expressDue} selected={express} onSelect={() => onExpress(true)} icon="bolt" sooner={daysSooner} />
         )}
       </div>
     </section>
@@ -416,63 +405,15 @@ function formatRate(value: number) {
   return `${Number(value).toFixed(1)}%`;
 }
 
-function ApprovalBlock({ name, approvalRate, approvalOverall, brandName }: { name: string; approvalRate: number; approvalOverall: number; brandName: string }) {
-  const rows = [
-    ["Documents", "Consistent and Upto date", "Often vague and mismatched"],
-    ["Itinerary", "Accurate", "Unclear and not verifiable"],
-    ["Checks", "AI + Human reviewed", "Manual process - Prone to error"],
-  ];
+function ApprovalBlock({ name, approvalRate, brandName }: { name: string; approvalRate: number; brandName: string }) {
+  const { t, tf } = useT();
   return (
     <section className="relative mt-12">
-      <div className="pointer-events-none absolute -top-1 right-0 z-10 w-[92px]">
-        <img src="/brand/clp/ribbon.svg" alt="" className="h-auto w-full" />
-        <p className="absolute inset-x-2 top-3 text-center text-[11px] leading-[1.15] font-bold">
-          <span className="block text-[#3dff8a]">Higher</span>
-          <span className="mt-0.5 block text-[10px] font-semibold text-white">approval chances</span>
-        </p>
-      </div>
-      <div className="pr-24">
-        <h2 className="flex items-center gap-2 font-sans text-[26px] leading-tight font-semibold text-black">
-          <img src="/brand/clp/guarantee.svg" alt="" className="size-6" />
-          Your Approval is Guaranteed on {brandName}
-        </h2>
-        <span className="mt-2 block h-[3px] w-10 rounded-full bg-brand" />
-      </div>
+      <h2 className="font-sans text-[26px] leading-tight font-semibold text-black">{tf("visa.decided", { name })}</h2>
+      <span className="mt-2 block h-[3px] w-10 rounded-full bg-brand" />
       <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-[#4b5563]">
-        Applying for a {name} visa is tedious and often gets rejected due to manual errors in most cases. {brandName} however combines a manual expert review with AI review to ensure <span className="font-extrabold text-black">ZERO</span> mistakes.
+        {tf("visa.decidedBody", { rate: formatRate(approvalRate), name, brand: brandName })}
       </p>
-      <div className="mt-6 overflow-hidden rounded-[24px] border border-[#e7e9ee] bg-white shadow-[0_8px_28px_rgba(16,24,40,0.06)]">
-        <div className="relative grid grid-cols-2 gap-4 px-4 pt-4 pb-2">
-          <div className="rounded-[18px] border border-[#b7ebc6] bg-[#f3fbf6] px-4 py-7 text-center">
-            <img src="/brand/clp/check.svg" alt="" className="mx-auto size-7" />
-            <p className="mt-3 text-[40px] leading-none font-extrabold tracking-tight text-black">{formatRate(approvalRate)}</p>
-            <p className="mt-3 text-[11px] font-bold tracking-[0.04em] text-[#12B76A] uppercase">Approval on {brandName}</p>
-          </div>
-          <div className="rounded-[18px] border border-[#f3c3c3] bg-[#fdf4f4] px-4 py-7 text-center">
-            <img src="/brand/clp/warning.svg" alt="" className="mx-auto size-7" />
-            <p className="mt-3 text-[40px] leading-none font-extrabold tracking-tight text-black">{formatRate(approvalOverall)}</p>
-            <p className="mt-3 text-[11px] font-bold tracking-[0.04em] text-[#E93E33] uppercase">Approval overall</p>
-          </div>
-          <span className="absolute top-[46%] left-1/2 z-10 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black text-[10px] font-bold text-white shadow-sm">
-            VS
-          </span>
-        </div>
-        {rows.map(([label, good, bad]) => (
-          <div key={label} className="grid grid-cols-[92px_1fr_1.15fr] items-center gap-3 border-t border-[#eceff3] px-5 py-3.5 text-sm">
-            <span className="font-bold text-black">{label}</span>
-            <span className={cn("inline-flex items-center justify-end gap-1.5 text-right text-black", label === "Checks" && "font-bold")}>
-              {good} <img src="/brand/clp/check.svg" alt="" className="size-4 shrink-0" />
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[#667085]">
-              {bad} <img src="/brand/clp/warning.svg" alt="" className="size-4 shrink-0" />
-            </span>
-          </div>
-        ))}
-        <p className="flex items-center justify-center gap-2 bg-[linear-gradient(90deg,#c9eed8_0%,#f4fbf7_42%,#d7f3e3_100%)] px-4 py-3.5 text-center text-sm font-semibold text-black">
-          <img src="/brand/clp/check.svg" alt="" className="size-4" />
-          Your approval is guaranteed, or your visa fees back!
-        </p>
-      </div>
     </section>
   );
 }
@@ -502,9 +443,10 @@ function FeeCard({
   now: Date;
   whatsapp: string;
 }) {
+  const { t, tf } = useT();
   if (!destination.visaRequired) return null;
   const standardDue = guaranteedDate(destination.processingHours ?? 72, now);
-  const otherDay = formatOrdinalShort(standardDue).split(",")[0];
+  const otherDay = formatOrdinalShort(standardDue, locale).split(",")[0];
   return (
     <div className="select-none">
       <div className="relative z-[1] -mb-2 flex items-end pb-2">
@@ -512,25 +454,25 @@ function FeeCard({
           <button
             type="button"
             onClick={() => onExpress(false)}
-            className="relative mb-1 mr-1 flex h-9 items-center gap-1 rounded-t-2xl px-2 text-xs font-semibold text-[#2026A6]"
+            className="relative mb-1 me-1 flex h-9 items-center gap-1 rounded-t-2xl px-2 text-xs font-semibold text-[#2026A6]"
           >
             <Clock className="size-3.5" />
             {otherDay}
           </button>
         )}
-        <div className="relative flex h-11 items-center gap-1.5 rounded-t-3xl bg-[#e6e8f0] px-3.5 pr-5 text-xs font-semibold text-[#2026A6]">
+        <div className="relative flex h-11 items-center gap-1.5 rounded-t-3xl bg-[#e6e8f0] px-3.5 pe-5 text-xs font-semibold text-[#2026A6]">
           <span className="pointer-events-none absolute top-0 -right-2 block h-full w-5 skew-x-[27deg] rounded-tr-2xl bg-[#e6e8f0]" />
           {express ? <Zap className="relative size-3.5 fill-[#2026A6] text-[#2026A6]" /> : <ShieldCheck className="relative size-4" />}
-          <span className="relative">Guaranteed by {formatOrdinalShort(due)}</span>
+          <span className="relative">{tf("visa.feeTarget", { date: formatOrdinalShort(due, locale) })}</span>
         </div>
         {!express && daysSooner && (
           <button
             type="button"
             onClick={() => onExpress(true)}
-            className="relative ml-3 flex h-11 items-center gap-1.5 px-2 text-xs font-semibold text-black"
+            className="relative ms-3 flex h-11 items-center gap-1.5 px-2 text-xs font-semibold text-black"
           >
             <Zap className="size-3.5 fill-black" />
-            {daysSooner} days faster
+            {tf("visa.faster", { days: daysSooner })}
           </button>
         )}
       </div>
@@ -538,16 +480,16 @@ function FeeCard({
         <div className="rounded-3xl border border-gray-300 bg-white p-5">
           <dl className="text-sm">
             <div className="flex items-center justify-between gap-2 border-b border-line py-3">
-              <dt className="flex items-center gap-2 font-semibold"><Landmark className="size-4" /> Government Fees</dt>
-              <dd className="font-semibold">{formatMoney(destination.govFee, destination.currency)}</dd>
+              <dt className="flex items-center gap-2 font-semibold"><Landmark className="size-4" /> {t("visa.gov")}</dt>
+              <dd className="font-semibold">{formatMoney(destination.govFee, destination.currency, locale)}</dd>
             </div>
             <div className="flex items-center justify-between gap-2 border-b border-line py-3">
-              <dt className="flex items-center gap-2 font-semibold"><Zap className="size-4 text-brand" /> Processing Fees</dt>
-              <dd className="font-semibold">{formatMoney(destination.serviceFee + (express ? (destination.expressFee ?? 0) : 0), destination.currency)}</dd>
+              <dt className="flex items-center gap-2 font-semibold"><Zap className="size-4 text-brand" /> {t("visa.service")}</dt>
+              <dd className="font-semibold">{formatMoney(destination.serviceFee + (express ? (destination.expressFee ?? 0) : 0), destination.currency, locale)}</dd>
             </div>
             <div className="flex items-center justify-between gap-2 py-3 font-semibold">
-              <dt className="flex items-center gap-2"><CreditCard className="size-4" /> Total Amount</dt>
-              <dd>{formatMoney(fee, destination.currency)}</dd>
+              <dt className="flex items-center gap-2"><CreditCard className="size-4" /> {t("visa.total")}</dt>
+              <dd>{formatMoney(fee, destination.currency, locale)}</dd>
             </div>
           </dl>
           <div className="mt-2">
@@ -558,8 +500,8 @@ function FeeCard({
       {whatsapp ? (
       <a href={whatsapp} target="_blank" rel="noreferrer" className="mt-4 flex items-center justify-between px-1">
         <span>
-          <span className="block text-sm font-semibold text-[#282828]">Have Queries?</span>
-          <span className="text-xs text-muted-ink">Documents, process, price, etc.</span>
+          <span className="block text-sm font-semibold text-[#282828]">{t("visa.queries")}</span>
+          <span className="text-xs text-muted-ink">{t("visa.queriesBody")}</span>
         </span>
         <span className="flex size-9 items-center justify-center rounded-full border border-[#25d366] text-[#25d366]">
           <WhatsAppIcon className="size-5" />
@@ -579,17 +521,19 @@ function Laurel({ flip = false }: { flip?: boolean }) {
 }
 
 function ReviewsBlock({ reviews, country }: { reviews: Review[]; country: string }) {
+  const { locale, t, tf } = useT();
   const [i, setI] = useState(0);
-  if (!reviews.length) return null;
-  const slice = reviews.slice(i, i + 3);
+  const rows = reviews.map((r) => localizeReview(r, locale));
+  if (!rows.length) return null;
+  const slice = rows.slice(i, i + 3);
   return (
     <section className="mt-12">
-      <SectionHeading>Reviews</SectionHeading>
+      <SectionHeading>{t("visa.reviews")}</SectionHeading>
       <div className="mt-8 text-center">
         <p className="flex items-center justify-center gap-3 font-sans text-3xl font-medium">
-          <Laurel /> Top rated across all platforms <Laurel flip />
+          <Laurel /> {t("visa.topRated")} <Laurel flip />
         </p>
-        <p className="mt-2 text-sm text-muted-ink">Trusted by thousands of travellers in the {siteConfig.market.countryName}</p>
+        <p className="mt-2 text-sm text-muted-ink">{tf("visa.trusted", { country: siteConfig.market.countryName })}</p>
         <div className="mt-3 flex items-center justify-center gap-3 text-sm text-slate-ink">
           <span className="font-medium text-[#00b67a]">★ Trustpilot</span>
           <span className="text-line">|</span>
@@ -619,54 +563,46 @@ function ReviewsBlock({ reviews, country }: { reviews: Review[]; country: string
         ))}
       </div>
       <div className="mt-4 flex items-center justify-center gap-2">
-        <button type="button" aria-label="Previous" onClick={() => setI((n) => Math.max(0, n - 1))} className="flex size-9 items-center justify-center rounded-full border border-line">
-          <ChevronLeft className="size-4" />
+        <button type="button" aria-label={t("visa.prev")} onClick={() => setI((n) => Math.max(0, n - 1))} className="flex size-9 items-center justify-center rounded-full border border-line">
+          <ChevronLeft className="size-4 rtl:rotate-180" />
         </button>
-        <button type="button" aria-label="Next" onClick={() => setI((n) => Math.min(Math.max(0, reviews.length - 3), n + 1))} className="flex size-9 items-center justify-center rounded-full border border-line">
-          <ChevronRight className="size-4" />
+        <button type="button" aria-label={t("visa.next")} onClick={() => setI((n) => Math.min(Math.max(0, rows.length - 3), n + 1))} className="flex size-9 items-center justify-center rounded-full border border-line">
+          <ChevronRight className="size-4 rtl:rotate-180" />
         </button>
       </div>
     </section>
   );
 }
 
-function stepWhen(due: Date) {
-  const day = new Intl.DateTimeFormat("en-GB", { timeZone: siteConfig.market.timeZone, day: "2-digit", month: "short" }).format(due);
-  const time = new Intl.DateTimeFormat("en-US", { timeZone: siteConfig.market.timeZone, hour: "2-digit", minute: "2-digit", hour12: true }).format(due);
+function stepWhen(due: Date, locale?: string) {
+  const tag = locale?.startsWith("ar") ? "ar-EG" : "en-GB";
+  const day = new Intl.DateTimeFormat(tag, { timeZone: siteConfig.market.timeZone, day: "2-digit", month: "short" }).format(due);
+  const time = new Intl.DateTimeFormat(locale?.startsWith("ar") ? "ar-EG" : "en-US", { timeZone: siteConfig.market.timeZone, hour: "2-digit", minute: "2-digit", hour12: true }).format(due);
   return `${day}, ${time}`;
 }
 
 function ProcessBlock({ destination, due, typeName, brandName }: { destination: Destination; due: Date; typeName: string; brandName: string }) {
+  const { locale, t, tf } = useT();
+  const name = localizedDestinationName(destination, locale);
+  const when = stepWhen(due, locale);
   const steps = [
-    { n: 1, title: `Apply on ${brandName}`, body: `Submit your documents on ${brandName} — only pay government fee.` },
-    { n: 2, title: "Your Documents Are Verified", body: `${brandName} verifies your documents and submits to Immigration` },
-    { n: 3, title: `Your ${typeName} Gets Processed`, body: `We work with Immigration to ensure you get your ${typeName} on time.` },
-    { n: 4, title: `Get Your ${typeName} on ${stepWhen(due)}`, body: "" },
+    { n: 1, title: tf("visa.step1", { name: brandName }), body: t("visa.step1Body") },
+    { n: 2, title: t("visa.step2"), body: tf("visa.step2Body", { name: brandName }) },
+    { n: 3, title: t("visa.step3"), body: tf("visa.step3Body", { country: name }) },
+    { n: 4, title: tf("visa.step4", { date: when }), body: t("visa.step4Body") },
   ];
   return (
     <section className="mt-12">
-      <SectionHeading>How {typeName} Process Works</SectionHeading>
-      <ol className="relative mt-6 space-y-4 pl-6">
-        <span className="absolute top-3 bottom-3 left-[5px] w-px bg-[#d9d6f5]" />
+      <SectionHeading>{tf("visa.process", { type: typeName })}</SectionHeading>
+      <ol className="relative mt-6 space-y-4 ps-6">
+        <span className="absolute top-3 bottom-3 start-[5px] w-px bg-[#d9d6f5]" />
         {steps.map((s) => (
           <li key={s.n} className="relative">
-            <span className="absolute top-5 -left-[22px] size-2.5 rounded-full bg-brand" />
+            <span className="absolute top-5 -start-[22px] size-2.5 rounded-full bg-brand" />
             <div className="rounded-2xl border border-line bg-white px-4 py-4">
-              <p className="text-sm font-medium text-brand">Step {s.n}</p>
+              <p className="text-sm font-medium text-brand">{tf("visa.step", { n: s.n })}</p>
               <p className={cn("font-semibold", s.n === 4 && "text-brand")}>{s.title}</p>
               {s.body && <p className="text-sm text-body">{s.body}</p>}
-              {s.n === 3 && (
-                <ul className="mt-3 space-y-3 rounded-xl border border-line border-l-2 border-l-brand px-3 py-3 text-sm">
-                  {["Application has been sent to the immigration supervisor", "Application has been sent to internal intelligence"].map((t) => (
-                    <li key={t} className="list-disc ml-4">
-                      <p>{t}</p>
-                      <p className="text-xs text-muted-ink">
-                        8 Jan, 5:45 AM <span className="ml-1 rounded-full bg-[#35cc6d] px-1.5 py-0.5 text-[10px] font-semibold text-white">ON TIME</span>
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           </li>
         ))}
@@ -675,72 +611,12 @@ function ProcessBlock({ destination, due, typeName, brandName }: { destination: 
   );
 }
 
-function productLabel(typeName: string) {
-  return typeName.replace(/e-visa/i, "E-visa");
-}
-
-function ApprovalGauge() {
-  const ticks = Array.from({ length: 28 }, (_, index) => {
-    const deg = 206 - (232 * index) / 27;
-    const rad = (deg * Math.PI) / 180;
-    const inner = 26;
-    const outer = index % 2 === 0 ? 34 : 31;
-    const x1 = (46 + inner * Math.cos(rad)).toFixed(2);
-    const y1 = (44 - inner * Math.sin(rad)).toFixed(2);
-    const x2 = (46 + outer * Math.cos(rad)).toFixed(2);
-    const y2 = (44 - outer * Math.sin(rad)).toFixed(2);
-    const hot = index < 8;
-    return (
-      <line
-        key={index}
-        x1={x1}
-        y1={y1}
-        x2={x2}
-        y2={y2}
-        stroke={hot ? "#5057ea" : "#d5d8e6"}
-        strokeWidth={index % 2 === 0 ? 2.2 : 1.4}
-        strokeLinecap="round"
-      />
-    );
-  });
-  return (
-    <div className="flex w-[108px] shrink-0 flex-col items-center">
-      <svg viewBox="0 0 92 78" className="h-[78px] w-[108px]" aria-hidden>
-        {ticks}
-        <text x="46" y="50" textAnchor="middle" fill="#111" fontSize="15" fontWeight="700">
-          100%
-        </text>
-      </svg>
-      <span className="-mt-2 rounded-full bg-[#e4e7fb] px-3 py-1 text-[11px] font-medium text-[#5057ea]">Takes 5 seconds</span>
-    </div>
-  );
-}
-
-function ChancesBlock({ typeName, approvalRate, brandName }: { typeName: string; approvalRate: number; brandName: string }) {
-  const [open, setOpen] = useState(false);
-  const product = productLabel(typeName);
+function ChancesBlock({ typeName }: { typeName: string }) {
+  const { t, tf } = useT();
   return (
     <section className="mt-12">
-      <SectionHeading>Want to know if your {product} will be approved?</SectionHeading>
-      <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl bg-[#f4f5fb] px-6 py-5">
-        <div>
-          <p className="text-[15px] leading-tight text-black">Learn Your</p>
-          <p className="text-lg leading-tight font-bold text-black">Chances of Approval</p>
-          <p className="mt-1 text-sm text-[#8b919a]">Answer 6 questions to know your chances</p>
-          <button type="button" onClick={() => setOpen(true)} className="mt-3 text-sm font-medium text-brand">
-            Evaluate my chances <span aria-hidden>›</span>
-          </button>
-        </div>
-        <ApprovalGauge />
-      </div>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md rounded-2xl p-5">
-          <DialogTitle>Chances of approval</DialogTitle>
-          <p className="text-sm text-body">
-            A complete passport, a clear photo and matching travel dates are the checks that decide a {typeName}. With those in place, approval on {brandName} is {formatRate(approvalRate)}.
-          </p>
-        </DialogContent>
-      </Dialog>
+      <SectionHeading>{tf("visa.checks", { type: typeName })}</SectionHeading>
+      <p className="mt-4 max-w-2xl text-sm leading-relaxed text-body">{t("visa.checksBody")}</p>
     </section>
   );
 }
@@ -761,26 +637,17 @@ function rejectionIcon(title: string) {
 }
 
 function RejectionBlock({ destination, typeName }: { destination: Destination; typeName: string }) {
-  const product = productLabel(typeName);
-  const reasons = (destination.rejectionReasons.length
-    ? destination.rejectionReasons
-    : [
-        { title: "Expired Passport", body: "Applying with a passport that has expired or expires within 6 months" },
-        { title: "Criminal Record", body: "Having a criminal history that disqualifies you from obtaining a visa." },
-        { title: "Previous Visa Violations", body: "Having overstayed or violated the terms of a previous visa." },
-      ]
-  ).map((reason) => ({
-    ...reason,
-    title: /previous/i.test(reason.title) && /violation/i.test(reason.title) ? `Previous ${product} Violations` : reason.title,
-  }));
+  const { locale, t, tf } = useT();
+  const name = localizedDestinationName(destination, locale);
+  const reasons = destination.rejectionReasons;
   return (
     <section className="mt-12">
-      <SectionHeading>
-        {destination.name} {product} Rejection Reasons
-      </SectionHeading>
-      <p className="mt-4 text-sm text-black">Factors that can get your {product} rejected</p>
+      <SectionHeading>{tf("visa.rejection", { name, type: typeName })}</SectionHeading>
+      <p className="mt-4 text-sm text-black">{tf("visa.factors", { type: typeName })}</p>
       <ul className="mt-2 divide-y divide-[#ececf1]">
         {reasons.map((reason) => {
+          const title = locale.startsWith("ar") && reason.titleAr ? reason.titleAr : reason.title;
+          const body = locale.startsWith("ar") && reason.bodyAr ? reason.bodyAr : reason.body;
           const Icon = rejectionIcon(reason.title);
           return (
             <li key={reason.title} className="flex items-start gap-3 py-4">
@@ -788,8 +655,8 @@ function RejectionBlock({ destination, typeName }: { destination: Destination; t
                 <Icon className="size-4" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-black">{reason.title}</p>
-                <p className="text-sm text-[#69727b]">{reason.body}</p>
+                <p className="text-sm font-semibold text-black">{title}</p>
+                <p className="text-sm text-[#69727b]">{body}</p>
               </div>
             </li>
           );
@@ -800,19 +667,21 @@ function RejectionBlock({ destination, typeName }: { destination: Destination; t
 }
 
 function FaqBlock({ faqs, country }: { faqs: Faq[]; country: string }) {
+  const { locale, t } = useT();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<string | null>(null);
-  const cats = useMemo(() => faqCategories.filter((c) => faqs.some((f) => f.category === c)), [faqs]);
+  const rows = faqs.map((f) => localizeFaq(f, locale));
+  const cats = useMemo(() => [...new Set(rows.map((f) => f.category))], [rows]);
   const visible = cat ? cats.filter((c) => c === cat) : cats;
   return (
     <section className="mt-12">
-      <SectionHeading>Frequently Asked Questions</SectionHeading>
+      <SectionHeading>{t("visa.faq")}</SectionHeading>
       <label className="mt-4 flex items-center gap-2 rounded-full border border-line bg-[#f7f7f8] px-4 py-2.5">
         <Search className="size-4 text-muted-ink" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Smart AI; Ask me anything..."
+          placeholder={t("visa.search")}
           suppressHydrationWarning
           className="w-full bg-transparent text-sm outline-none"
         />
@@ -825,13 +694,13 @@ function FaqBlock({ faqs, country }: { faqs: Faq[]; country: string }) {
             onClick={() => setCat((current) => (current === c ? null : c))}
             className={cn("rounded-full border px-3 py-1.5 text-xs", cat === c ? "border-brand bg-brand-50 text-brand" : "border-line text-slate-ink")}
           >
-            {c}
+            {categoryLabel(c, locale)}
           </button>
         ))}
       </div>
       <Accordion className="mt-6">
         {visible.map((c) => {
-          const items = faqs.filter((f) => {
+          const items = rows.filter((f) => {
             if (f.category !== c) return false;
             if (!q.trim()) return true;
             return `${f.question} ${f.answer}`.toLowerCase().includes(q.toLowerCase());
@@ -839,8 +708,8 @@ function FaqBlock({ faqs, country }: { faqs: Faq[]; country: string }) {
           if (!items.length) return null;
           return (
             <AccordionItem key={c} value={c}>
-              <AccordionTrigger className="text-base font-medium text-brand [&_svg]:hidden">
-                {c}
+              <AccordionTrigger className="text-start text-base font-medium text-brand [&_svg]:hidden">
+                {categoryLabel(c, locale)}
                 <Plus className="size-4 text-black" />
               </AccordionTrigger>
               <AccordionContent>
@@ -862,17 +731,18 @@ function FaqBlock({ faqs, country }: { faqs: Faq[]; country: string }) {
 }
 
 function NearbyBlock({ nearby, locale, name }: { nearby: Destination[]; locale: string; name: string }) {
+  const { tf } = useT();
   if (!nearby.length) return null;
   return (
     <section className="mt-12">
-      <h2 className="font-display text-2xl font-semibold">Nearby countries to {name}</h2>
+      <h2 className="font-display text-2xl font-semibold">{tf("visa.nearby", { name })}</h2>
       <div className="mt-4 flex gap-3 overflow-x-auto pb-2 scrollbar-none">
         {nearby.map((d) => (
           <Link key={d.id} href={visaHref(d.slug, locale)} className="w-40 shrink-0">
             <div className="relative aspect-4/5 overflow-hidden rounded-2xl bg-neutral-200">
-              {d.image && <Image src={d.image} alt={d.name} fill className="object-cover" sizes="160px" />}
+              {d.image && <Image src={d.image} alt={localizedDestinationName(d, locale)} fill className="object-cover" sizes="160px" />}
             </div>
-            <p className="mt-2 text-sm font-medium">{d.name}</p>
+            <p className="mt-2 text-sm font-medium">{localizedDestinationName(d, locale)}</p>
           </Link>
         ))}
       </div>
@@ -881,28 +751,30 @@ function NearbyBlock({ nearby, locale, name }: { nearby: Destination[]; locale: 
 }
 
 function SourcesBlock({ destination, locale, brandName }: { destination: Destination; locale: string; brandName: string }) {
+  const { t, tf } = useT();
   const [tab, setTab] = useState<"sources" | "history">("sources");
   const sources = destination.sources.filter((source) => /^https?:\/\//.test(source.url));
+  const reviewed = new Date(destination.updatedAt).toLocaleDateString(locale.startsWith("ar") ? "ar-EG" : "en-GB", { day: "numeric", month: "long", year: "numeric" });
   return (
     <section className="mt-12">
       <h2 className="font-sans text-2xl font-semibold tracking-tight text-black">
-        How We Reviewed This Page
+        {t("visa.reviewed")}
         <span className="mt-2 block h-[3px] w-10 rounded-full bg-brand" />
       </h2>
       <div className="mt-5 flex gap-6 border-b border-[#ececf1] text-sm font-semibold tracking-wide">
         <button type="button" onClick={() => setTab("sources")} className={cn("inline-flex items-center gap-2 border-b-2 pb-2", tab === "sources" ? "border-brand text-brand" : "border-transparent text-muted-ink")}>
-          <FileText className="size-4" /> SOURCES
+          <FileText className="size-4" /> {t("visa.sources")}
         </button>
         <button type="button" onClick={() => setTab("history")} className={cn("inline-flex items-center gap-2 border-b-2 pb-2", tab === "history" ? "border-brand text-brand" : "border-transparent text-muted-ink")}>
-          <Clock className="size-4" /> HISTORY
+          <Clock className="size-4" /> {t("visa.history")}
         </button>
       </div>
       {tab === "sources" ? (
         <div className="mt-5 text-sm leading-relaxed text-black">
           <p>
-            {brandName} has strict sourcing guidelines and relies on official government websites. We avoid using tertiary references. You can learn more about how we ensure our content is accurate and current by reading our{" "}
+            {tf("visa.sourcesBody", { brand: brandName })}{" "}
             <Link href={href("/editorial-policy", locale)} className="text-brand underline">
-              editorial policy
+              {t("visa.policy")}
             </Link>
             .
           </p>
@@ -921,9 +793,7 @@ function SourcesBlock({ destination, locale, brandName }: { destination: Destina
           </ul>
         </div>
       ) : (
-        <p className="mt-5 text-sm text-body">
-          Last reviewed {new Date(destination.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} against the official pages listed under Sources.
-        </p>
+        <p className="mt-5 text-sm text-body">{tf("visa.lastReviewed", { date: reviewed })}</p>
       )}
     </section>
   );

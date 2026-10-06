@@ -48,7 +48,9 @@ export function ReviewEditor({ locale, reviews }: { locale: string; reviews: Rev
                   author: String(fd.get("author")),
                   location: String(fd.get("location") || "") || null,
                   title: String(fd.get("title") || "") || null,
+                  titleAr: String(fd.get("titleAr") || "") || null,
                   body: String(fd.get("body")),
+                  bodyAr: String(fd.get("bodyAr") || "") || null,
                   rating: Number(fd.get("rating") || 5),
                   product: String(fd.get("product") || "") || null,
                   destinationId: current?.destinationId ?? null,
@@ -59,10 +61,12 @@ export function ReviewEditor({ locale, reviews }: { locale: string; reviews: Rev
             <input required name="author" defaultValue={current?.author ?? ""} placeholder="الاسم" className={adminInputClass} />
             <input name="location" defaultValue={current?.location ?? ""} placeholder="المدينة" className={adminInputClass} />
             <input name="title" defaultValue={current?.title ?? ""} placeholder="العنوان" className={adminInputClass} />
+            <input name="titleAr" defaultValue={current?.titleAr ?? ""} placeholder="العنوان بالعربية" dir="rtl" className={adminInputClass} />
             <input name="product" defaultValue={current?.product ?? ""} placeholder="المنتج، مثل تأشيرة المغرب" className={adminInputClass} />
             <input name="scope" defaultValue={current?.scope ?? "wall"} placeholder="النطاق" className={adminInputClass} />
             <input name="rating" type="number" min={1} max={5} defaultValue={current?.rating ?? 5} className={adminInputClass} />
             <textarea required name="body" defaultValue={current?.body ?? ""} placeholder="نص التقييم" className={adminTextareaClass} />
+            <textarea name="bodyAr" defaultValue={current?.bodyAr ?? ""} placeholder="النص بالعربية" dir="rtl" className={adminTextareaClass} />
             <button disabled={pending} className={adminPrimaryClass}>
               {current ? "حفظ" : "إضافة تقييم"}
             </button>

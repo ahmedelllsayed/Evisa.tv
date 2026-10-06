@@ -174,19 +174,6 @@ export async function seed(db: Db, { force = false, log = (_: string) => {} } = 
         [h.country, h.date, h.name],
       );
     }
-
-    const [{ n }] = await tx.query<{ n: number }>("select count(*)::int as n from fee_changes");
-    if (n === 0) {
-      const sample = (destinationsSeed as SeedDestination[]).filter((d) => d.visaRequired).slice(0, 12);
-      for (const [i, d] of sample.entries()) {
-        const total = d.govFee + d.serviceFee;
-        const old = Math.round(total * (i % 3 === 0 ? 1.06 : 0.95));
-        await tx.query(
-          "insert into fee_changes (destination_id, old_total, new_total, reason, changed_at) values ($1,$2,$3,$4, now() - ($5 || ' days')::interval)",
-          [ids.get(d.code), old, total, old > total ? "Government fee reduced" : "Exchange rate update", String(3 + i * 6)],
-        );
-      }
-    }
   });
   log(`seeded ${destinationsSeed.length} destinations`);
 }

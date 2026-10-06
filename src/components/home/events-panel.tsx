@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { tf, t } from "@/lib/i18n";
+import { localizedDestinationName } from "@/lib/localize";
 import type { Destination, TravelEvent } from "@/lib/types";
 import { visaHref } from "@/lib/href";
 import { formatDate } from "@/lib/visa";
@@ -30,13 +32,13 @@ export function EventsPanel({
             <div className="p-4">
               <p className="text-xs tracking-wide text-muted-ink uppercase">{e.city}</p>
               <h3 className="mt-1 font-display text-lg font-semibold">{e.name}</h3>
-              <p className="mt-1 text-sm text-slate-ink">{formatDate(e.startsOn)}</p>
+              <p className="mt-1 text-sm text-slate-ink">{formatDate(e.startsOn, locale)}</p>
               {dest?.visaRequired ? (
                 <Link href={visaHref(dest.slug, locale)} className="mt-3 inline-block text-sm font-medium text-brand">
-                  Get {dest.name} visa →
+                  {tf(locale, "event.get", { name: localizedDestinationName(dest, locale) })}
                 </Link>
               ) : dest ? (
-                <p className="mt-3 text-sm text-success">No visa required</p>
+                <p className="mt-3 text-sm text-success">{t(locale, "card.noVisa")}</p>
               ) : null}
             </div>
           </article>

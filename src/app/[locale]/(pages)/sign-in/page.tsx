@@ -8,5 +8,5 @@ export default async function SignInPage({ params, searchParams }: Page) {
   const { locale } = await params;
   const sp = await searchParams;
   const next = typeof sp.next === "string" ? sp.next : `/${locale}/account`;
-  return <SignInForm next={next} googleEnabled={supabaseEnabled} />;
+  return <SignInForm locale={locale} next={next} googleEnabled={supabaseEnabled} />;
 }

@@ -125,6 +125,7 @@ export async function attachProfileDocuments(userId: string, applicationId: stri
   if (!primary || !samePerson(profile, primary)) return;
   const existing = await listDocuments(applicationId);
   for (const doc of profile.documents) {
+    if (doc.kind === "issued_visa") continue;
     const already = existing.find((item) => item.travelerId === primary.id && item.kind === doc.kind && item.status !== "rejected");
     if (already) continue;
     const storagePath = await copyStoredFile(userId, applicationId, doc.storagePath, doc.fileName, doc.mimeType);

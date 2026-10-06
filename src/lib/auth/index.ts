@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { t, tf } from "@/lib/i18n";
 import { cache } from "react";
 import { siteConfig } from "@/config/site.config";
 import { sendMail } from "@/lib/email";
@@ -104,7 +105,7 @@ export async function requireAdmin(locale: string): Promise<User> {
 
 export type OtpResult = { ok: true; devCode?: string } | { ok: false; error: string };
 
-export async function sendEmailCode(email: string): Promise<OtpResult> {
+export async function sendEmailCode(email: string, locale = "en-EG"): Promise<OtpResult> {
   const normalized = email.trim().toLowerCase();
   if (supabaseEnabled) {
     const supabase = await createSupabaseServerClient();
@@ -115,7 +116,7 @@ export async function sendEmailCode(email: string): Promise<OtpResult> {
     "select expires_at > now() + interval '9 minutes' as too_soon from local_otps where email = $1",
     [normalized],
   );
-  if (recent?.too_soon) return { ok: false, error: "Wait a minute before requesting another code." };
+  if (recent?.too_soon) return { ok: false, error: t(locale, "err.wait") };
   const code = String(randomInt(100000, 1000000));
   await sql(
     `insert into local_otps (email, code_hash, attempts, expires_at) values ($1, $2, 0, now() + interval '10 minutes')
@@ -125,36 +126,37 @@ export async function sendEmailCode(email: string): Promise<OtpResult> {
   const settings = await getSiteSettings();
   const mailed = await sendMail({
     to: normalized,
-    subject: `Your ${settings.name} sign-in code`,
-    text: `Your sign-in code is ${code}. It expires in 10 minutes.`,
-    idempotencyKey: `otp/${normalized}/${code}`,
+    subject: tf(locale, "mail.codeSubject", { name: settings.name }),
+    text: tf(locale, "mail.codeBody", { code }),
+    idempotencyKey: `otp/${normalized}/${hashCode(normalized, code)}`,
   });
   if (process.env.RESEND_API_KEY && !mailed.sent) {
-    return { ok: false, error: "Could not send the sign-in code. Try again." };
+    return { ok: false, error: t(locale, "err.sendCode") };
   }
   if (process.env.NODE_ENV !== "production") console.info(`[auth] sign-in code for ${normalized}: ${code}`);
   return { ok: true, devCode: process.env.NODE_ENV === "production" ? undefined : code };
 }
 
-export async function verifyEmailCode(email: string, code: string): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
+export async function verifyEmailCode(email: string, code: string, locale = "en-EG"): Promise<{ ok: true; user: User } | { ok: false; error: string }> {
   const normalized = email.trim().toLowerCase();
   if (supabaseEnabled) {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.verifyOtp({ email: normalized, token: code.trim(), type: "email" });
-    if (error || !data.user?.email) return { ok: false, error: error?.message ?? "Invalid code" };
+    if (error || !data.user?.email) return { ok: false, error: error?.message ?? t(locale, "err.invalidCode") };
     return { ok: true, user: await syncProfile(data.user.id, data.user.email) };
   }
-  const row = await one<{ code_hash: string; attempts: number; expired: boolean }>(
-    "select code_hash, attempts, expires_at < now() as expired from local_otps where email = $1",
+  const row = await one<{ code_hash: string }>(
+    `update local_otps set attempts = attempts + 1
+     where email = $1 and attempts < 5 and expires_at >= now()
+     returning code_hash`,
     [normalized],
   );
-  if (!row || row.expired || row.attempts >= 5) return { ok: false, error: "This code has expired. Request a new one." };
+  if (!row) return { ok: false, error: t(locale, "err.invalidCode") };
   const expected = hashCode(normalized, code.trim());
   const left = Buffer.from(row.code_hash);
   const right = Buffer.from(expected);
   if (left.length !== right.length || !timingSafeEqual(left, right)) {
-    await sql("update local_otps set attempts = attempts + 1 where email = $1", [normalized]);
-    return { ok: false, error: "Incorrect code. Please try again." };
+    return { ok: false, error: t(locale, "err.invalidCode") };
   }
   await sql("delete from local_otps where email = $1", [normalized]);
   const user = await syncProfile(null, normalized);

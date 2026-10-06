@@ -6,16 +6,17 @@ import { getCurrentUser } from "@/lib/auth";
 import { listDestinations } from "@/lib/data/catalog";
 import type { Layout } from "@/lib/page";
 import { getCitizenship } from "@/lib/preferences";
-import { getSiteSettings } from "@/lib/data/settings";
+import { getCitizenshipCodes, getSiteSettings } from "@/lib/data/settings";
 import { toSearchHit } from "@/lib/search";
 
 export default async function PagesLayout({ children, params }: Layout) {
   const { locale } = await params;
-  const [user, citizenship, destinations, settings] = await Promise.all([
+  const [user, citizenship, destinations, settings, citizenshipCodes] = await Promise.all([
     getCurrentUser(),
     getCitizenship(),
     listDestinations(),
     getSiteSettings(),
+    getCitizenshipCodes(),
   ]);
   return (
     <>
@@ -27,6 +28,7 @@ export default async function PagesLayout({ children, params }: Layout) {
         brandName={settings.name}
         logoUrl={settings.logoUrl}
         whatsapp={settings.whatsapp}
+        citizenshipCodes={citizenshipCodes}
       />
       <main className="flex-1">{children}</main>
       <FooterGate>

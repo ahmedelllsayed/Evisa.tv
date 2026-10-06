@@ -91,23 +91,24 @@ export async function handlePaymobWebhook(rawBody: string, hmac: string | null) 
   const obj = body.obj;
   if (!obj || !sameHex(paymobHmac(obj).toLowerCase(), hmac.toLowerCase())) return { ok: false, status: 401 };
   const order = obj.order && typeof obj.order === "object" ? (obj.order as Record<string, unknown>) : {};
+  const paymobOrderId = text(order.id) || (typeof obj.order === "number" || typeof obj.order === "string" ? text(obj.order) : "");
   const merchantOrderId = text(order.merchant_order_id) || text(obj.merchant_order_id) || text(obj.special_reference);
   const amountCents = Number(obj.amount_cents);
-  if (!merchantOrderId || !Number.isFinite(amountCents)) return { ok: false, status: 400 };
+  const currency = text(obj.currency).trim().toUpperCase();
+  if (!paymobOrderId || !Number.isFinite(amountCents)) return { ok: false, status: 400 };
   const source = obj.source_data && typeof obj.source_data === "object" ? (obj.source_data as Record<string, unknown>) : {};
   const result = await applyPaymobCallback({
     merchantOrderId,
-    paymobOrderId: text(order.id) || null,
+    paymobOrderId,
     transactionId: text(obj.id),
     amountCents,
+    currency,
     success: obj.success === true || obj.success === "true",
     pending: obj.pending === true || obj.pending === "true",
     refunded: obj.is_refunded === true || obj.is_refunded === "true",
     method: text(source.type) || null,
   });
-  if (!result.ok && result.reason === "amount") {
-    console.error("[paymob] amount mismatch", merchantOrderId);
-  }
+  if (!result.ok) return { ok: false, status: result.reason === "missing" ? 404 : 409 };
   return { ok: true, status: 200 };
 }
 

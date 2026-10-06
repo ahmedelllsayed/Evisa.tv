@@ -1,7 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
-import { env, supabaseEnabled } from "@/lib/env";
+import { env, supabaseEnabled } from "@/lib/public-env";
 
 let client: ReturnType<typeof createBrowserClient> | null = null;
 

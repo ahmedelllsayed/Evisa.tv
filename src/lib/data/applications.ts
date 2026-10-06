@@ -10,6 +10,7 @@ import type {
   Traveler,
 } from "@/lib/types";
 import { documentGaps } from "@/lib/application-rules";
+import { t, tf, type MessageKey } from "@/lib/i18n";
 import { sendMail } from "@/lib/email";
 import { formatAt, guaranteedDate } from "@/lib/visa";
 import { getDestinationById } from "./catalog";
@@ -52,6 +53,7 @@ function toApplication(r: Row): Application {
     deliveredAt: isoOrNull(r.delivered_at),
     assigneeId: (r.assignee_id as string) ?? null,
     assigneeEmail: (r.assignee_email as string) ?? null,
+    locale: String(r.locale ?? "en-EG"),
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
   };
@@ -67,6 +69,7 @@ export async function createApplication(input: {
   destinationId: string;
   departureDate: string | null;
   express: boolean;
+  locale?: string;
 }) {
   const d = await getDestinationById(input.destinationId);
   if (!d || !d.isActive || !d.visaRequired) throw new Error("This destination is not available for applications");
@@ -75,11 +78,11 @@ export async function createApplication(input: {
   const serviceFee = d.serviceFee + (express ? (d.expressFee ?? 0) : 0);
   const row = await one<{ id: string }>(
     `insert into applications (reference, user_id, destination_id, departure_date, express, guaranteed_at,
-       gov_fee, service_fee, total_amount, currency)
-     values ($1,$2,$3,$4::date,$5,$6::timestamptz,$7,$8,$9,$10) returning id`,
+       gov_fee, service_fee, total_amount, currency, locale)
+     values ($1,$2,$3,$4::date,$5,$6::timestamptz,$7,$8,$9,$10,$11) returning id`,
     [
       newReference(), input.userId, d.id, input.departureDate, express, guaranteedDate(hours).toISOString(),
-      d.govFee, serviceFee, d.govFee + serviceFee, d.currency,
+      d.govFee, serviceFee, d.govFee + serviceFee, d.currency, input.locale || "en-EG",
     ],
   );
   await addEvent(row!.id, { status: "draft", title: "Application started", description: `${d.name} visa application created` });
@@ -135,6 +138,8 @@ export async function listAllApplications(filter: { status?: string; q?: string;
         or (a.assignee_id is null and a.status <> 'draft')
         or exists (select 1 from documents doc where doc.application_id = a.id and doc.status in ('uploaded', 'rejected') and doc.kind <> 'issued_visa')
         or (a.paid_at is not null and a.status = 'submitted')
+        or ${paymentReviewSql}
+        or ${refundRequestSql}
       )`,
     );
   }
@@ -153,7 +158,11 @@ export async function applicationStats() {
 }
 
 export async function setStep(id: string, step: ApplicationStep) {
-  await sql("update applications set step = $2, updated_at = now() where id = $1", [id, step]);
+  const rows = await sql(
+    `update applications set step = $2, updated_at = now() where id = $1 and status in ${editableStatusSql} returning id`,
+    [id, step],
+  );
+  return rows.length > 0;
 }
 
 const statusMail: Record<string, string> = {
@@ -161,7 +170,7 @@ const statusMail: Record<string, string> = {
   payment_pending: "Awaiting payment",
   submitted: "Submitted",
   in_review: "In review",
-  filed: "Filed with the government",
+  filed: "Ready for manual filing",
   approved: "Approved",
   rejected: "Rejected",
   cancelled: "Cancelled",
@@ -186,11 +195,13 @@ export async function setStatus(id: string, status: ApplicationStatus, event?: {
   if (event) await addEvent(id, { status, ...event });
   const app = await getApplication(id);
   if (app?.userEmail) {
-    const when = app.guaranteedAt ? formatAt(app.guaranteedAt) : "—";
+    const locale = app.locale || "en-EG";
+    const statusLabel = t(locale, `status.${status}` as MessageKey);
+    const when = app.guaranteedAt ? formatAt(app.guaranteedAt, locale) : "—";
     await sendMail({
       to: app.userEmail,
-      subject: `${app.reference}: ${statusMail[status] ?? status}`,
-      text: `Application ${app.reference}\nStatus: ${statusMail[status] ?? status}\nGuaranteed by: ${when}`,
+      subject: tf(locale, "mail.statusSubject", { ref: app.reference, status: statusLabel }),
+      text: tf(locale, "mail.statusBody", { ref: app.reference, status: statusLabel, date: when }),
     });
   }
   return { ok: true as const };
@@ -201,6 +212,15 @@ export async function setAssignee(id: string, assigneeId: string | null) {
 }
 
 const closedSql = "('approved', 'rejected', 'cancelled', 'refunded')";
+const paymentReviewSql = `exists (
+  select 1 from application_events ev
+  where ev.application_id = a.id and ev.internal = true and ev.title = 'Payment needs review'
+)`;
+const refundRequestSql = `exists (
+  select 1 from refund_requests rr
+  where rr.application_id = a.id and rr.status = 'open'
+)`;
+const editableStatusSql = "('draft', 'payment_pending')";
 
 export type QueueFilter = "attention" | "mine" | "unassigned" | "late" | "documents" | "paid_review";
 
@@ -239,6 +259,8 @@ export async function opsCounts() {
            or (a.assignee_id is null and a.status <> 'draft')
            or exists (select 1 from documents d where d.application_id = a.id and d.status in ('uploaded', 'rejected') and d.kind <> 'issued_visa')
            or (a.paid_at is not null and a.status = 'submitted')
+           or ${paymentReviewSql}
+           or ${refundRequestSql}
          )`,
     ),
   ]);
@@ -269,10 +291,36 @@ export async function listTravelers(applicationId: string) {
 export type TravelerInput = Omit<Traveler, "id" | "applicationId" | "sortOrder"> & { id?: string };
 
 /** Replaces the traveler list, keeping ids (and their documents) for travelers that still exist. */
-export async function saveTravelers(applicationId: string, travelers: TravelerInput[]) {
+export async function saveTravelers(
+  applicationId: string,
+  travelers: TravelerInput[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = await getDb();
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
+    const [current] = await tx.query<{ status: string; traveler_count: number }>(
+      "select status, traveler_count from applications where id = $1 for update",
+      [applicationId],
+    );
+    if (!current) return { ok: false as const, error: "Application not found." };
+    if (current.status !== "draft" && current.status !== "payment_pending") {
+      return { ok: false as const, error: "This application can no longer be edited." };
+    }
+    const [charge] = await tx.query(
+      "select 1 from payments where application_id = $1 and status in ('pending', 'paid') limit 1",
+      [applicationId],
+    );
+    if (charge && travelers.length !== num(current.traveler_count)) {
+      return { ok: false as const, error: "The number of travellers is locked because a payment has already been started." };
+    }
     const keep = travelers.map((t) => t.id).filter(Boolean) as string[];
+    if (charge) {
+      const existing = await tx.query<{ id: string }>("select id from travelers where application_id = $1", [applicationId]);
+      const existingIds = new Set(existing.map((row) => String(row.id)));
+      const samePeople = keep.length === travelers.length && keep.length === existingIds.size && keep.every((id) => existingIds.has(id));
+      if (!samePeople) {
+        return { ok: false as const, error: "The number of travellers is locked because a payment has already been started." };
+      }
+    }
     await tx.query(
       `delete from travelers where application_id = $1 ${keep.length ? "and not (id = any($2::uuid[]))" : ""}`,
       keep.length ? [applicationId, `{${keep.join(",")}}`] : [applicationId],
@@ -295,17 +343,20 @@ export async function saveTravelers(applicationId: string, travelers: TravelerIn
         );
       }
     }
-    const a = await tx.query<{ gov_fee: string; service_fee: string; traveler_count: number }>(
-      "select gov_fee, service_fee, traveler_count from applications where id = $1",
-      [applicationId],
-    );
-    const count = Math.max(1, travelers.length);
-    const perTravelerGov = num(a[0].gov_fee) / Math.max(1, a[0].traveler_count);
-    const perTravelerService = num(a[0].service_fee) / Math.max(1, a[0].traveler_count);
-    await tx.query(
-      `update applications set traveler_count = $2, gov_fee = $3, service_fee = $4, total_amount = $3::numeric + $4::numeric, updated_at = now() where id = $1`,
-      [applicationId, count, perTravelerGov * count, perTravelerService * count],
-    );
+    if (!charge) {
+      const a = await tx.query<{ gov_fee: string; service_fee: string; traveler_count: number }>(
+        "select gov_fee, service_fee, traveler_count from applications where id = $1",
+        [applicationId],
+      );
+      const count = Math.max(1, travelers.length);
+      const perTravelerGov = num(a[0].gov_fee) / Math.max(1, a[0].traveler_count);
+      const perTravelerService = num(a[0].service_fee) / Math.max(1, a[0].traveler_count);
+      await tx.query(
+        `update applications set traveler_count = $2, gov_fee = $3, service_fee = $4, total_amount = $3::numeric + $4::numeric, updated_at = now() where id = $1`,
+        [applicationId, count, perTravelerGov * count, perTravelerService * count],
+      );
+    }
+    return { ok: true as const };
   });
 }
 
@@ -336,7 +387,16 @@ export async function getDocument(id: string) {
   return r ? toDocument(r) : null;
 }
 
-export async function addDocument(input: Omit<ApplicationDocument, "id" | "status" | "createdAt" | "rejectReason">) {
+export async function addDocument(input: Omit<ApplicationDocument, "id" | "status" | "createdAt" | "rejectReason"> & { issuedByAdmin?: boolean }) {
+  if (input.kind === "issued_visa" && !input.issuedByAdmin) {
+    throw new Error("That document is issued by our team.");
+  }
+  if (input.kind !== "issued_visa") {
+    const app = await one<{ status: string }>("select status from applications where id = $1", [input.applicationId]);
+    if (!app || (app.status !== "draft" && app.status !== "payment_pending")) {
+      throw new Error("This application can no longer be edited.");
+    }
+  }
   await sql(
     `delete from documents where application_id = $1 and kind = $2 and traveler_id is not distinct from $3::uuid`,
     [input.applicationId, input.kind, input.travelerId],
@@ -349,7 +409,15 @@ export async function addDocument(input: Omit<ApplicationDocument, "id" | "statu
   return toDocument(r!);
 }
 
-export async function deleteDocument(id: string) {
+export async function deleteDocument(id: string, opts?: { allowIssuedVisa?: boolean }) {
+  const doc = await getDocument(id);
+  if (!doc) return;
+  const app = await one<{ status: string }>("select status from applications where id = $1", [doc.applicationId]);
+  if (doc.kind === "issued_visa") {
+    if (!opts?.allowIssuedVisa) throw new Error("That document is issued by our team.");
+  } else if (!app || (app.status !== "draft" && app.status !== "payment_pending")) {
+    throw new Error("This application can no longer be edited.");
+  }
   await sql("delete from documents where id = $1", [id]);
 }
 
@@ -406,6 +474,9 @@ function toPayment(r: Row): Payment {
     status: r.status as Payment["status"],
     createdAt: iso(r.created_at),
     transactionId: (r.transaction_id as string) ?? null,
+    checkoutUrl: (r.checkout_url as string) ?? null,
+    merchantOrderId: (r.merchant_order_id as string) ?? null,
+    paymobOrderId: (r.paymob_order_id as string) ?? null,
   };
 }
 
@@ -421,11 +492,12 @@ export async function createPayment(input: {
   billingName?: string | null;
   billingEmail?: string | null;
   billingPhone?: string | null;
+  checkoutUrl?: string | null;
 }) {
   await sql(
     `insert into payments (
-       application_id, provider, provider_ref, amount, currency, merchant_order_id, paymob_order_id, method, billing_name, billing_email, billing_phone
-     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       application_id, provider, provider_ref, amount, currency, merchant_order_id, paymob_order_id, method, billing_name, billing_email, billing_phone, checkout_url
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
      on conflict (provider, provider_ref) do update set
        amount = excluded.amount,
        currency = excluded.currency,
@@ -434,12 +506,14 @@ export async function createPayment(input: {
        method = coalesce(excluded.method, payments.method),
        billing_name = coalesce(excluded.billing_name, payments.billing_name),
        billing_email = coalesce(excluded.billing_email, payments.billing_email),
-       billing_phone = coalesce(excluded.billing_phone, payments.billing_phone)
+       billing_phone = coalesce(excluded.billing_phone, payments.billing_phone),
+       checkout_url = coalesce(excluded.checkout_url, payments.checkout_url)
      where payments.status = 'pending'`,
     [
       input.applicationId, input.provider, input.providerRef, input.amount, input.currency,
       input.merchantOrderId ?? null, input.paymobOrderId ?? null, input.method ?? null,
       input.billingName ?? null, input.billingEmail ?? null, input.billingPhone ?? null,
+      input.checkoutUrl ?? null,
     ],
   );
   await sql("update applications set status = 'payment_pending', step = 'payment', updated_at = now() where id = $1 and status = 'draft'", [
@@ -449,6 +523,14 @@ export async function createPayment(input: {
 
 export async function listPayments(applicationId: string) {
   return (await sql("select * from payments where application_id = $1 order by created_at desc", [applicationId])).map(toPayment);
+}
+
+export async function findPendingPayment(applicationId: string) {
+  const row = await one(
+    "select * from payments where application_id = $1 and status = 'pending' order by created_at desc limit 1",
+    [applicationId],
+  );
+  return row ? toPayment(row) : null;
 }
 
 export async function getPaymentByMerchantOrder(merchantOrderId: string) {
@@ -488,26 +570,68 @@ export async function markPaid(provider: string, providerRef: string, expectedAm
   });
 }
 
+const PAYMENT_REVIEW_TITLE = "Payment needs review";
+
+type Queryable = { query: <T = Row>(text: string, params?: unknown[]) => Promise<T[]> };
+
+async function notePaymentReview(tx: Queryable, applicationId: string, description: string) {
+  await tx.query(
+    `insert into application_events (application_id, title, description, on_time, internal)
+     select $1, $2, $3, false, true
+     where not exists (
+       select 1 from application_events
+       where application_id = $1 and internal = true and title = $2 and description = $3
+     )`,
+    [applicationId, PAYMENT_REVIEW_TITLE, description],
+  );
+}
+
 export async function applyPaymobCallback(input: {
   merchantOrderId: string;
   paymobOrderId: string | null;
   transactionId: string;
   amountCents: number;
+  currency: string;
   success: boolean;
   pending: boolean;
   refunded: boolean;
   method: string | null;
 }) {
+  if (!input.paymobOrderId) return { ok: false as const, reason: "order" as const };
   const db = await getDb();
   return db.transaction(async (tx) => {
     const [existing] = await tx.query<Row>(
-      "select * from payments where provider = 'paymob' and (merchant_order_id = $1 or provider_ref = $1) limit 1",
-      [input.merchantOrderId],
+      "select * from payments where provider = 'paymob' and paymob_order_id = $1 limit 1",
+      [input.paymobOrderId],
     );
     if (!existing) return { ok: false as const, reason: "missing" as const };
     const payment = toPayment(existing);
+    if (input.merchantOrderId && payment.merchantOrderId && input.merchantOrderId !== payment.merchantOrderId) {
+      await notePaymentReview(
+        tx,
+        payment.applicationId,
+        `Paymob order ${input.paymobOrderId} arrived with merchant reference ${input.merchantOrderId}, which does not match the stored reference. The application was not marked paid.`,
+      );
+      return { ok: false as const, reason: "order" as const };
+    }
+    const currency = input.currency.trim().toUpperCase();
+    if (!currency || currency !== payment.currency.toUpperCase()) {
+      await notePaymentReview(
+        tx,
+        payment.applicationId,
+        `Paymob reported currency ${currency || "unknown"} for order ${input.paymobOrderId}; the stored currency is ${payment.currency}. The application was not marked paid.`,
+      );
+      return { ok: false as const, reason: "currency" as const };
+    }
     const expected = Math.round(payment.amount * 100);
-    if (expected !== input.amountCents) return { ok: false as const, reason: "amount" as const };
+    if (expected !== input.amountCents) {
+      await notePaymentReview(
+        tx,
+        payment.applicationId,
+        `Paymob reported ${input.amountCents} cents for order ${input.paymobOrderId}; the stored amount is ${expected} cents. The application was not marked paid.`,
+      );
+      return { ok: false as const, reason: "amount" as const };
+    }
     if (payment.transactionId && payment.transactionId === input.transactionId && (payment.status === "paid" || payment.status === "refunded" || payment.status === "failed")) {
       return { ok: true as const, reason: "duplicate" as const };
     }
@@ -533,7 +657,14 @@ export async function applyPaymobCallback(input: {
     }
     const [app] = await tx.query<Row>("select status from applications where id = $1", [payment.applicationId]);
     const status = String(app?.status ?? "");
-    if (status !== "draft" && status !== "payment_pending") return { ok: true as const, reason: "ignored" as const };
+    if (status !== "draft" && status !== "payment_pending") {
+      await notePaymentReview(
+        tx,
+        payment.applicationId,
+        `Paymob charged transaction ${input.transactionId} for order ${input.paymobOrderId}, but the application is ${status}. It was not marked paid.`,
+      );
+      return { ok: true as const, reason: "ignored" as const };
+    }
     const paidRows = await tx.query(
       `update payments set status = 'paid', transaction_id = $2, paymob_order_id = coalesce($3, paymob_order_id), method = coalesce($4, method), processed_at = now()
        where id = $1 and status = 'pending' returning id`,

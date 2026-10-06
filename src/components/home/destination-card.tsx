@@ -2,20 +2,22 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { documentLabels } from "@/data/seed/content";
 import { visaHref } from "@/lib/href";
+import { tf, t } from "@/lib/i18n";
+import { docLabel, localizedDestinationName, localizedPhrase } from "@/lib/localize";
 import type { Destination } from "@/lib/types";
-import { formatDateTime, formatMoney, guaranteedDate, totalFee, visaTypeLabels } from "@/lib/visa";
+import { formatDate, formatMoney, guaranteedDate, totalFee, visaTypeLabel } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
-function docsLabel(docs: string[]) {
-  return docs.map((d) => documentLabels[d]?.label ?? d).join(", ");
+function docsLabel(docs: string[], locale: string) {
+  return docs.map((d) => docLabel(d, locale)).join(", ");
 }
 
 export function DestinationCard({ d, locale }: { d: Destination; locale: string }) {
   const due = d.processingHours != null ? guaranteedDate(d.processingHours) : null;
+  const name = localizedDestinationName(d, locale);
   return (
-    <Link href={visaHref(d.slug, locale)} className="group block w-full" aria-label={`Apply for ${d.name} Visa`}>
+    <Link href={visaHref(d.slug, locale)} className="group block w-full" aria-label={tf(locale, "card.apply", { name })}>
       <div className="relative aspect-[5/8] w-full cursor-pointer overflow-hidden rounded-[25px] bg-neutral-200 lg:rounded-[30px]">
         {d.image && (
           <Image src={d.image} alt={d.name} fill sizes="(max-width: 1024px) 50vw, 250px" className="object-cover" />
@@ -32,49 +34,49 @@ export function DestinationCard({ d, locale }: { d: Destination; locale: string 
             </span>
           )}
           <p className="font-serif mt-4 text-center text-sm leading-[15px] font-medium tracking-[0.9px] uppercase lg:text-lg lg:leading-[21px]">
-            {d.name}
+            {name}
           </p>
           {d.visaRequired ? (
             <>
               <div className="mt-2 flex w-full items-center justify-between border-t border-white/10 pt-3 text-[9px] leading-[14px] font-bold tracking-[1.1px] uppercase lg:mt-4 lg:pt-4 lg:text-[11px]">
                 <div className="flex flex-col items-start gap-0.5 lg:gap-1">
-                  <p className="opacity-45">Type</p>
-                  <p>{visaTypeLabels[d.visaType]}</p>
+                  <p className="opacity-45">{t(locale, "card.type")}</p>
+                  <p>{visaTypeLabel(d.visaType, locale)}</p>
                 </div>
                 <div className="flex flex-col items-end gap-0.5 lg:items-center lg:gap-1">
-                  <p className="opacity-45">Valid</p>
-                  <p>{d.validity ?? "—"}</p>
+                  <p className="opacity-45">{t(locale, "card.valid")}</p>
+                  <p>{localizedPhrase(d.validity, locale, d.validityAr) || "—"}</p>
                 </div>
                 <div className="hidden flex-col items-end gap-1 lg:flex">
-                  <p className="opacity-45">Fees</p>
-                  <p>{formatMoney(totalFee(d), d.currency)}</p>
+                  <p className="opacity-45">{t(locale, "card.fees")}</p>
+                  <p>{formatMoney(totalFee(d), d.currency, locale)}</p>
                 </div>
               </div>
               <div className="pointer-events-none hidden max-h-0 w-full overflow-hidden transition-all duration-500 group-hover:max-h-[260px] lg:block">
                 <div className="mt-5 border-t border-white/10 pt-4">
-                  <p className="text-[9px] leading-[14px] font-bold tracking-[1.1px] uppercase opacity-45 lg:text-[11px]">Documents Needed:</p>
-                  <p className="mt-2.5 text-left text-[10px] leading-3 font-semibold tracking-[0.24px] capitalize lg:text-xs lg:leading-4">
-                    {docsLabel(d.documents) || "Passport"}
+                  <p className="text-[9px] leading-[14px] font-bold tracking-[1.1px] uppercase opacity-45 lg:text-[11px]">{t(locale, "card.documents")}</p>
+                  <p className="mt-2.5 text-start text-[10px] leading-3 font-semibold tracking-[0.24px] lg:text-xs lg:leading-4">
+                    {docsLabel(d.documents, locale) || docLabel("passport", locale)}
                   </p>
                 </div>
                 <div className="mt-4 h-px w-full bg-white/15" />
                 <div className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-[30px] bg-white/10 px-[9px] py-1.5">
                   <span className="text-[12px] leading-3 font-semibold tracking-[0.02em] underline decoration-white/70 decoration-dotted underline-offset-[3px]">
-                    Get emergency assistance
+                    {t(locale, "card.emergency")}
                   </span>
                 </div>
               </div>
             </>
           ) : (
-            <p className="mt-4 text-[11px] font-bold tracking-[1.1px] uppercase">No visa required</p>
+            <p className="mt-4 text-[11px] font-bold tracking-[1.1px] uppercase">{t(locale, "card.noVisa")}</p>
           )}
         </div>
       </div>
       {d.visaRequired && due && (
-        <div className="mt-3 pl-3 lg:mt-4 lg:pl-6">
-          <p className="mt-3 text-xs leading-[18px] font-medium text-[#69727B] lg:text-[15px] lg:leading-6">Guaranteed Visa On</p>
-          <p className="text-xs leading-[18px] font-bold text-black lg:text-[15px] lg:leading-6">{formatDateTime(due)}</p>
-          <p className="mt-1 text-xs font-semibold text-[#69727B] lg:hidden">Fees: {formatMoney(totalFee(d), d.currency)}</p>
+        <div className="mt-3 ps-3 lg:mt-4 lg:ps-6">
+          <p className="mt-3 text-xs leading-[18px] font-medium text-[#69727B] lg:text-[15px] lg:leading-6">{t(locale, "card.targetOn")}</p>
+          <p className="text-xs leading-[18px] font-bold text-black lg:text-[15px] lg:leading-6">{formatDate(due, locale)}</p>
+          <p className="mt-1 text-xs font-semibold text-[#69727B] lg:hidden">{t(locale, "card.fees")}: {formatMoney(totalFee(d), d.currency, locale)}</p>
         </div>
       )}
     </Link>

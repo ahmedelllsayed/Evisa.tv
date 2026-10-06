@@ -4,6 +4,7 @@ import { Home, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { href } from "@/lib/href";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export function MobileBottomNav({ locale }: { locale: string }) {
@@ -11,7 +12,7 @@ export function MobileBottomNav({ locale }: { locale: string }) {
   const home = path === href("/", locale);
   const profile = path.includes("/account") || path.includes("/sign-in");
   return (
-    <nav className="fixed bottom-4 left-1/2 z-30 flex w-[min(92vw,380px)] -translate-x-1/2 items-center rounded-full bg-white p-1.5 shadow-[0_12px_40px_rgba(17,24,39,0.16)] lg:hidden">
+    <nav data-app-nav="" className="fixed bottom-4 left-1/2 z-30 flex w-[min(92vw,380px)] -translate-x-1/2 items-center rounded-full bg-white p-1.5 shadow-[0_12px_40px_rgba(17,24,39,0.16)] lg:hidden">
       <Link
         href={href("/", locale)}
         className={cn(
@@ -19,7 +20,7 @@ export function MobileBottomNav({ locale }: { locale: string }) {
           home ? "bg-black text-white" : "text-muted-ink",
         )}
       >
-        <Home className="size-4" /> Home
+        <Home className="size-4" /> {t(locale, "nav.home")}
       </Link>
       <Link
         href={href("/account", locale)}
@@ -28,7 +29,7 @@ export function MobileBottomNav({ locale }: { locale: string }) {
           profile ? "bg-black text-white" : "text-muted-ink",
         )}
       >
-        <User className="size-4" /> My Profile
+        <User className="size-4" /> {t(locale, "nav.profile")}
       </Link>
     </nav>
   );

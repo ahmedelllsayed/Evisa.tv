@@ -6,6 +6,7 @@ import type { CmsContent, CmsTemplate } from "@/lib/cms/registry";
 import { addDocument, addEvent, getApplication, setAssignee, setDocumentStatus, setStatus } from "@/lib/data/applications";
 import { sendMail } from "@/lib/email";
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, storeFile } from "@/lib/storage";
+import { setRefundRequestStatus } from "@/lib/data/inbox";
 import { refundApplication } from "@/lib/payments";
 import {
   createDestination,
@@ -25,7 +26,7 @@ import {
 import { deletePage, savePage, setPagePublished } from "@/lib/data/pages";
 import { clearBrandLogo, saveBrandLogo } from "@/lib/brand-logo";
 import { saveDestinationMedia, type DestinationMediaKind } from "@/lib/destination-media";
-import { saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
+import { saveCitizenshipCodes, saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
 import { createUser, deleteUser, setUserRole, updateUser, type UserInput } from "@/lib/data/users";
 import type { ApplicationDocument, ApplicationStatus } from "@/lib/types";
 
@@ -52,11 +53,26 @@ export async function adminSetStatus(locale: string, id: string, status: Applica
 export async function adminRefund(locale: string, id: string) {
   await guard(locale);
   const result = await refundApplication(id);
+  if (result.ok) await setRefundRequestStatus(id, "approved");
   refresh(locale, "/admin");
   refresh(locale, `/admin/applications/${id}`);
   refresh(locale, "/account");
   refresh(locale, `/account/applications/${id}`);
   return result;
+}
+
+export async function adminDeclineRefund(locale: string, id: string) {
+  await guard(locale);
+  await setRefundRequestStatus(id, "declined");
+  await addEvent(id, {
+    title: "Refund request declined",
+    description: "Staff declined the refund request.",
+    internal: true,
+    onTime: true,
+  });
+  refresh(locale, `/admin/applications/${id}`);
+  refresh(locale, `/account/applications/${id}`);
+  return { ok: true as const };
 }
 
 export async function adminSetAssignee(locale: string, id: string, assigneeId: string | null) {
@@ -81,15 +97,16 @@ export async function adminUploadIssuedVisa(locale: string, applicationId: strin
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: "الملف أكبر من 10 ميغابايت." };
   if (!ALLOWED_TYPES.includes(file.type)) return { ok: false as const, error: "استخدم JPG أو PNG أو WebP أو PDF." };
   const storagePath = await storeFile(app.userId, app.id, file);
-  const saved = await addDocument({
-    applicationId: app.id,
-    travelerId: null,
-    kind: "issued_visa",
-    storagePath,
-    fileName: file.name,
-    mimeType: file.type,
-    sizeBytes: file.size,
-  });
+    const saved = await addDocument({
+      applicationId: app.id,
+      travelerId: null,
+      kind: "issued_visa",
+      storagePath,
+      fileName: file.name,
+      mimeType: file.type,
+      sizeBytes: file.size,
+      issuedByAdmin: true,
+    });
   await setDocumentStatus(saved.id, "verified");
   await addEvent(app.id, {
     status: "approved",
@@ -161,22 +178,32 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [title, ...rest] = line.split("|");
-      return { title: title.trim(), body: rest.join("|").trim() || title.trim() };
+      const parts = line.split("|").map((part) => part.trim());
+      return {
+        title: parts[0] ?? "",
+        body: parts[1] || parts[0] || "",
+        titleAr: parts[2] || undefined,
+        bodyAr: parts[3] || undefined,
+      };
     });
   const optional = (name: string) => String(fd.get(name) || "").trim() || null;
   const input: DestinationInput = {
     name: String(fd.get("name") || "").trim(),
+    nameAr: optional("nameAr"),
     slug: String(fd.get("slug") || "").trim(),
     code: String(fd.get("code") || "").trim().toUpperCase(),
     region: optional("region"),
     visaRequired: fd.get("visaRequired") === "on",
     visaType: String(fd.get("visaType") || "e-visa") as DestinationInput["visaType"],
     validity: optional("validity"),
+    validityAr: optional("validityAr"),
     stay: optional("stay"),
+    stayAr: optional("stayAr"),
     entry: optional("entry"),
+    entryAr: optional("entryAr"),
     acceptedAt: optional("acceptedAt"),
     method: optional("method"),
+    methodAr: optional("methodAr"),
     govFee: Number(fd.get("govFee") || 0),
     serviceFee: Number(fd.get("serviceFee") || 0),
     processingHours: Number(fd.get("processingHours")) || null,
@@ -273,7 +300,7 @@ export async function adminDeleteTravelEvent(locale: string, id: string) {
 
 export async function adminSaveFaq(
   locale: string,
-  input: { id?: string; scope: string; category: string; question: string; answer: string; destinationId: string | null; sortOrder: number },
+  input: { id?: string; scope: string; category: string; categoryAr?: string | null; question: string; questionAr?: string | null; answer: string; answerAr?: string | null; destinationId: string | null; sortOrder: number },
 ) {
   await guard(locale);
   await upsertFaq(input);
@@ -288,7 +315,7 @@ export async function adminDeleteFaq(locale: string, id: string) {
 
 export async function adminSaveReview(
   locale: string,
-  input: { id?: string; scope: string; author: string; location: string | null; title: string | null; body: string; rating: number; product: string | null; destinationId: string | null },
+  input: { id?: string; scope: string; author: string; location: string | null; title: string | null; titleAr?: string | null; body: string; bodyAr?: string | null; rating: number; product: string | null; destinationId: string | null },
 ) {
   await guard(locale);
   await upsertReview(input);
@@ -369,8 +396,8 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
     phone: String(fd.get("phone") || ""),
     whatsapp: String(fd.get("whatsapp") || ""),
     offices,
-    approvalRate: Number(fd.get("approvalRate")),
-    approvalOverall: Number(fd.get("approvalOverall")),
+    approvalRate: current.approvalRate,
+    approvalOverall: current.approvalOverall,
     bookingUrl: String(fd.get("bookingUrl") || ""),
     logoUrl,
   });
@@ -378,6 +405,15 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
   refresh(locale, "/admin/settings");
   refresh(locale, "/visa");
   refresh(locale, "/contact");
+  return { ok: true as const };
+}
+
+export async function adminSaveCitizenships(locale: string, codes: string[]) {
+  await guard(locale);
+  await saveCitizenshipCodes(codes);
+  revalidatePath("/en-EG", "layout");
+  revalidatePath("/ar-EG", "layout");
+  refresh(locale, "/admin/citizenships");
   return { ok: true as const };
 }
 

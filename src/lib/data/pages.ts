@@ -1,6 +1,8 @@
 import "server-only";
 import { notFound } from "next/navigation";
 import { BUILTIN_PAGES, BUILTIN_SLUGS, defaultContent, mergeContent, type CmsContent, type CmsTemplate } from "@/lib/cms/registry";
+import { isArabicLocale } from "@/lib/i18n";
+import { currentLocale } from "@/lib/locale";
 import { json, one, sql } from "./db";
 
 export type ManagedPage = {
@@ -46,13 +48,25 @@ export async function getPage(slug: string): Promise<ManagedPage | null> {
   return row ? toPage(row) : null;
 }
 
+function localizeContent(content: CmsContent, locale: string): CmsContent {
+  if (!isArabicLocale(locale)) return content;
+  const out = { ...content };
+  for (const [key, value] of Object.entries(content)) {
+    if (!value || key.endsWith("Ar")) continue;
+    const arabic = content[`${key}Ar`];
+    if (arabic) out[key] = arabic;
+  }
+  return out;
+}
+
 /** Public pages: a hidden row is a 404. Missing rows keep the built-in copy. */
 export async function requirePageContent(slug: string): Promise<CmsContent & { title: string }> {
   const page = await getPage(slug);
   if (page && !page.published) notFound();
   const builtin = BUILTIN_PAGES.find((item) => item.slug === slug);
-  const content = page?.content ?? builtin?.content ?? {};
-  return { ...content, title: page?.title || builtin?.title || content.title || "" };
+  const content = localizeContent(mergeContent(builtin?.content ?? {}, page?.content), await currentLocale());
+  const title = content.title || page?.title || builtin?.title || "";
+  return { ...content, title };
 }
 
 export async function unpublishedSlugs(): Promise<Set<string>> {

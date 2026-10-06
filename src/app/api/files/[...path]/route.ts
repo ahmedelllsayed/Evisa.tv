@@ -36,6 +36,7 @@ async function resolveOwnedFile(storagePath: string, userId: string, admin: bool
   }
   const profileDoc = await getProfileDocumentByPath(storagePath);
   if (!profileDoc) return "missing" as const;
+  if (!storagePath.startsWith(`${profileDoc.userId}/`)) return "forbidden" as const;
   if (profileDoc.userId !== userId && !admin) return "forbidden" as const;
   return { fileName: profileDoc.fileName, mimeType: profileDoc.mimeType };
 }

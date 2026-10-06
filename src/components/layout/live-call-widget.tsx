@@ -1,7 +1,7 @@
 export function LiveCallWidget({ bookingUrl }: { bookingUrl: string }) {
   if (!bookingUrl) return null;
   return (
-    <div className="fixed right-4 bottom-20 z-40 hidden w-72 overflow-hidden rounded-2xl border border-line bg-white shadow-float lg:block">
+    <div data-live-call="" className="fixed right-4 bottom-20 z-40 hidden w-72 overflow-hidden rounded-2xl border border-line bg-white shadow-float lg:block">
       <div className="p-4">
         <p className="font-display text-sm font-semibold">Live Video Call</p>
         <p className="mt-1 text-xs leading-relaxed text-slate-ink">

@@ -2,7 +2,9 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+html[dir="rtl"] body {
+  font-family: var(--font-arabic), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
 
 /* Design tokens extracted from the reference site. Brand values are
    overridden at runtime from src/config/site.config.ts. */
@@ -174,4 +176,123 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+}
+
+html[data-home-map] footer,
+html[data-home-map] [data-app-nav],
+html[data-home-map] [data-live-call] {
+  display: none;
+}
+.visa-map {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  background: #c5dff0;
+}
+.visa-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: inherit;
+  background: #c5dff0;
+  outline: none;
+}
+.visa-map .leaflet-control-attribution {
+  margin: 0 8px 6px 0 !important;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #5f6368;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.visa-map .leaflet-control-attribution a {
+  color: #5f6368;
+}
+.visa-map .leaflet-marker-icon.visa-pin {
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+.visa-map .leaflet-marker-icon.visa-pin:hover {
+  z-index: 800 !important;
+}
+.visa-pin-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  filter: drop-shadow(0 2px 5px rgba(17, 24, 39, 0.18));
+}
+html[dir="ltr"] .visa-pin-link {
+  transform: translate(-14px, -50%);
+}
+html[dir="rtl"] .visa-pin-link {
+  transform: translate(calc(-100% + 14px), -50%);
+}
+html[dir="ltr"] .visa-pin-link.is-flag {
+  transform: translate(-13px, -50%);
+}
+html[dir="rtl"] .visa-pin-link.is-flag {
+  transform: translate(calc(-100% + 13px), -50%);
+}
+.visa-pin-flag {
+  position: relative;
+  z-index: 1;
+  display: block;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  overflow: hidden;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #fff;
+}
+.visa-pin-link.is-flag .visa-pin-flag {
+  width: 26px;
+  height: 26px;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.22);
+}
+.visa-pin-flag img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.visa-pin-pill {
+  display: flex;
+  min-height: 28px;
+  flex-direction: column;
+  justify-content: center;
+  margin-inline-start: -12px;
+  padding-block: 2px;
+  padding-inline: 16px 10px;
+  border-radius: 999px;
+  background: #fff;
+}
+.visa-pin-pill strong {
+  display: block;
+  max-width: 9.25rem;
+  overflow: hidden;
+  color: #111;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+}
+.visa-pin-pill em {
+  color: #8b919a;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: 0.05em;
+}
+.visa-pin-link.is-current .visa-pin-flag {
+  box-shadow: 0 0 0 3px rgba(80, 87, 234, 0.35);
 }

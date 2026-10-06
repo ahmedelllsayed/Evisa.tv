@@ -4,6 +4,7 @@ const codes =
   );
 
 const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+const arabicNames = new Intl.DisplayNames(["ar"], { type: "region" });
 
 export type Country = { code: string; name: string };
 
@@ -11,9 +12,20 @@ export const countries: Country[] = codes
   .map((code) => ({ code, name: code === "XK" ? "Kosovo" : (displayNames.of(code) ?? code) }))
   .sort((a, b) => a.name.localeCompare(b.name));
 
-export function countryName(code: string | null | undefined) {
+export function countryName(code: string | null | undefined, locale = "en") {
   if (!code) return "";
-  return countries.find((c) => c.code === code.toUpperCase())?.name ?? code;
+  const upper = code.toUpperCase();
+  if (upper === "XK") return locale.toLowerCase().startsWith("ar") ? "كوسوفو" : "Kosovo";
+  if (locale.toLowerCase().startsWith("ar")) return arabicNames.of(upper) ?? displayNames.of(upper) ?? code;
+  return countries.find((c) => c.code === upper)?.name ?? displayNames.of(upper) ?? code;
+}
+
+/** Empty `codes` keeps the full list. A saved selection limits the citizenship picker. */
+export function citizenshipChoices(codes: string[] | undefined, current?: string) {
+  if (!codes?.length) return countries;
+  const allowed = new Set(codes.map((code) => code.toUpperCase()));
+  if (current) allowed.add(current.toUpperCase());
+  return countries.filter((country) => allowed.has(country.code));
 }
 
 export function flagUrl(code: string, width: 20 | 40 | 80 = 40) {

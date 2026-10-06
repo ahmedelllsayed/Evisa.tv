@@ -25,6 +25,7 @@ export async function startApplicationAction(input: {
     destinationId: dest.id,
     departureDate: input.departureDate,
     express: input.express,
+    locale: input.locale,
   });
   redirect(`/${input.locale}/apply/${id}`);
 }
