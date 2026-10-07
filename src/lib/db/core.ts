@@ -61,6 +61,10 @@ async function createDb(): Promise<Db> {
       await reserved.unsafe("select pg_advisory_lock(84217001)");
       await migrate(locked, console.log);
       await seed(locked, { log: console.log });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`database startup failed: ${message}`);
+      throw error;
     } finally {
       await reserved.unsafe("select pg_advisory_unlock(84217001)").catch(() => undefined);
       reserved.release();
