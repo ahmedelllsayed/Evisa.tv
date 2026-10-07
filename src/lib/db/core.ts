@@ -54,7 +54,16 @@ async function createDb(): Promise<Db> {
         await reserved.unsafe(text);
       },
       async transaction(fn) {
-        return (await reserved.begin((tx) => fn(wrap(tx as unknown as typeof sql)))) as never;
+        // A reserved postgres.js connection has unsafe(), not begin().
+        await reserved.unsafe("begin");
+        try {
+          const result = await fn(wrap(reserved));
+          await reserved.unsafe("commit");
+          return result;
+        } catch (error) {
+          await reserved.unsafe("rollback").catch(() => undefined);
+          throw error;
+        }
       },
     };
     try {
