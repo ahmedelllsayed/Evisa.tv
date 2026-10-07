@@ -94,16 +94,18 @@ export function SignInForm({ locale, next, googleEnabled }: { locale: string; ne
             </button>
           </form>
         )}
-        <p className="my-5 text-center text-xs tracking-wide text-muted-ink uppercase">{t(locale, "signIn.or")}</p>
-        <button
-          type="button"
-          onClick={() => {
-            if (googleEnabled) start(() => void googleAction(next));
-          }}
-          className="mx-auto flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-line text-sm font-medium"
-        >
-          {t(locale, "signIn.google")}
-        </button>
+        {googleEnabled && (
+          <>
+            <p className="my-5 text-center text-xs tracking-wide text-muted-ink uppercase">{t(locale, "signIn.or")}</p>
+            <button
+              type="button"
+              onClick={() => start(() => void googleAction(next))}
+              className="mx-auto flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-line text-sm font-medium"
+            >
+              {t(locale, "signIn.google")}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

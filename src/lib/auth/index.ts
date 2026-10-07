@@ -117,6 +117,9 @@ export async function sendEmailCode(email: string, locale = "en-EG"): Promise<Ot
     [normalized],
   );
   if (recent?.too_soon) return { ok: false, error: t(locale, "err.wait") };
+  if (process.env.NODE_ENV === "production" && !process.env.RESEND_API_KEY) {
+    return { ok: false, error: t(locale, "err.mailOff") };
+  }
   const code = String(randomInt(100000, 1000000));
   await sql(
     `insert into local_otps (email, code_hash, attempts, expires_at) values ($1, $2, 0, now() + interval '10 minutes')
@@ -131,6 +134,7 @@ export async function sendEmailCode(email: string, locale = "en-EG"): Promise<Ot
     idempotencyKey: `otp/${normalized}/${hashCode(normalized, code)}`,
   });
   if (process.env.RESEND_API_KEY && !mailed.sent) {
+    await sql("delete from local_otps where email = $1", [normalized]);
     return { ok: false, error: t(locale, "err.sendCode") };
   }
   if (process.env.NODE_ENV !== "production") console.info(`[auth] sign-in code for ${normalized}: ${code}`);
