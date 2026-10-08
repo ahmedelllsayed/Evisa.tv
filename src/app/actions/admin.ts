@@ -422,7 +422,7 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
       social: String(fd.get("social") || ""),
       showFaq: false,
       showReviews: false,
-      showStats: fd.get("showStats") === "on",
+      showStats: false,
       showEvents: fd.get("showEvents") === "on",
       showMap: fd.get("showMap") === "on",
       announcementEn: String(fd.get("announcementEn") || ""),

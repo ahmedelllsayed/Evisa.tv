@@ -57,7 +57,7 @@ export function defaultExtras(): SiteExtras {
     social: "",
     showFaq: false,
     showReviews: false,
-    showStats: true,
+    showStats: false,
     showEvents: siteConfig.features.events,
     showMap: siteConfig.features.mapView,
     announcementEn: "",

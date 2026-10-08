@@ -60,7 +60,6 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
               className={adminTextareaClass}
             />
           </label>
-          <Check name="showStats" label="إظهار الأرقام في الرئيسية" defaultChecked={settings.extras.showStats} />
           <Check name="showEvents" label="إظهار الفعاليات" defaultChecked={settings.extras.showEvents} />
           <Check name="showMap" label="إظهار الخريطة" defaultChecked={settings.extras.showMap} />
           <Check name="consentEnabled" label="شريط الموافقة على الكوكيز" defaultChecked={settings.extras.consentEnabled} />
