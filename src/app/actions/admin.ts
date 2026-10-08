@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
+import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import type { CmsContent, CmsTemplate } from "@/lib/cms/registry";
-import { addDocument, addEvent, getApplication, setAssignee, setDocumentStatus, setStatus } from "@/lib/data/applications";
+import { addDocument, addEvent, getApplication, patchTraveler, setAssignee, setDocumentStatus, setStatus } from "@/lib/data/applications";
 import { sendMail } from "@/lib/email";
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, storeFile } from "@/lib/storage";
-import { setRefundRequestStatus } from "@/lib/data/inbox";
+import { deleteContactMessage, setMessageRead, setRefundRequestStatus } from "@/lib/data/inbox";
 import { refundApplication } from "@/lib/payments";
 import {
   createDestination,
@@ -27,11 +27,22 @@ import { deletePage, savePage, setPagePublished } from "@/lib/data/pages";
 import { clearBrandLogo, saveBrandLogo } from "@/lib/brand-logo";
 import { saveDestinationMedia, type DestinationMediaKind } from "@/lib/destination-media";
 import { saveCitizenshipCodes, saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
-import { createUser, deleteUser, setUserRole, updateUser, type UserInput } from "@/lib/data/users";
+import { sql } from "@/lib/data/db";
+import { createUser, deleteUser, setUserBanned, setUserRole, updateUser, type UserInput } from "@/lib/data/users";
 import type { ApplicationDocument, ApplicationStatus } from "@/lib/types";
 
 async function guard(locale: string) {
-  await requireAdmin(locale);
+  return requireAdmin(locale);
+}
+
+export async function recordAudit(action: string, target?: string, detail?: string) {
+  const user = await getCurrentUser();
+  await sql("insert into admin_audit (actor_email, action, target, detail) values ($1,$2,$3,$4)", [
+    user?.email ?? null,
+    action,
+    target ?? null,
+    detail ?? null,
+  ]);
 }
 
 function refresh(locale: string, path = "") {
@@ -400,12 +411,82 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
     approvalOverall: current.approvalOverall,
     bookingUrl: String(fd.get("bookingUrl") || ""),
     logoUrl,
+    extras: {
+      ...current.extras,
+      seoTitleEn: String(fd.get("seoTitleEn") || ""),
+      seoTitleAr: String(fd.get("seoTitleAr") || ""),
+      seoDescriptionEn: String(fd.get("seoDescriptionEn") || ""),
+      seoDescriptionAr: String(fd.get("seoDescriptionAr") || ""),
+      ogImage: String(fd.get("ogImage") || ""),
+      favicon: String(fd.get("favicon") || ""),
+      social: String(fd.get("social") || ""),
+      showFaq: fd.get("showFaq") === "on",
+      showReviews: fd.get("showReviews") === "on",
+      showStats: fd.get("showStats") === "on",
+      showEvents: fd.get("showEvents") === "on",
+      showMap: fd.get("showMap") === "on",
+      announcementEn: String(fd.get("announcementEn") || ""),
+      announcementAr: String(fd.get("announcementAr") || ""),
+      gaMeasurementId: String(fd.get("gaMeasurementId") || "").trim(),
+      consentEnabled: fd.get("consentEnabled") === "on",
+      consentTextEn: String(fd.get("consentTextEn") || ""),
+      consentTextAr: String(fd.get("consentTextAr") || ""),
+      maintenance: fd.get("maintenance") === "on",
+      paymobIntegrationId: String(fd.get("paymobIntegrationId") || "").replace(/\D/g, ""),
+    },
   });
+  await recordAudit("settings.save", "site_settings");
   refresh(locale);
   refresh(locale, "/admin/settings");
   refresh(locale, "/visa");
   refresh(locale, "/contact");
   return { ok: true as const };
+}
+
+export async function adminSetMessageRead(locale: string, id: string, read: boolean) {
+  await guard(locale);
+  await setMessageRead(id, read);
+  refresh(locale, "/admin/messages");
+}
+
+export async function adminDeleteMessage(locale: string, id: string) {
+  await guard(locale);
+  await deleteContactMessage(id);
+  await recordAudit("message.delete", id);
+  refresh(locale, "/admin/messages");
+}
+
+export async function adminReplyMessage(locale: string, id: string, email: string, body: string) {
+  await guard(locale);
+  const text = body.trim();
+  if (text.length < 2) return { ok: false as const, error: "اكتب الرد." };
+  const sent = await sendMail({ to: email, subject: "Evisa", text });
+  if (!sent.sent) return { ok: false as const, error: "تعذر إرسال البريد. تحقق من إعداد Resend." };
+  await setMessageRead(id, true);
+  await recordAudit("message.reply", id);
+  refresh(locale, "/admin/messages");
+  return { ok: true as const };
+}
+
+export async function adminPatchTraveler(
+  locale: string,
+  id: string,
+  input: { firstName: string; lastName: string; passportNumber: string; nationality: string },
+) {
+  await guard(locale);
+  if (!input.firstName.trim() || !input.lastName.trim()) return { ok: false as const, error: "الاسم مطلوب." };
+  await patchTraveler(id, input);
+  await recordAudit("traveler.update", id);
+  refresh(locale, "/admin/applications");
+  return { ok: true as const };
+}
+
+export async function adminSetUserBanned(locale: string, id: string, banned: boolean) {
+  await guard(locale);
+  const result = await setUserBanned(id, banned);
+  if (result.ok) await recordAudit(banned ? "user.ban" : "user.unban", id);
+  refresh(locale, "/admin/users");
+  return result;
 }
 
 export async function adminSaveCitizenships(locale: string, codes: string[]) {

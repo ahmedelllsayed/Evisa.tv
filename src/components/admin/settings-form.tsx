@@ -60,6 +60,29 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
               className={adminTextareaClass}
             />
           </label>
+          <Check name="showFaq" label="إظهار الأسئلة في الرئيسية" defaultChecked={settings.extras.showFaq} />
+          <Check name="showReviews" label="إظهار التقييمات في الرئيسية" defaultChecked={settings.extras.showReviews} />
+          <Check name="showStats" label="إظهار الأرقام في الرئيسية" defaultChecked={settings.extras.showStats} />
+          <Check name="showEvents" label="إظهار الفعاليات" defaultChecked={settings.extras.showEvents} />
+          <Check name="showMap" label="إظهار الخريطة" defaultChecked={settings.extras.showMap} />
+          <Check name="consentEnabled" label="شريط الموافقة على الكوكيز" defaultChecked={settings.extras.consentEnabled} />
+          <Check name="maintenance" label="وضع الصيانة للزوار" defaultChecked={settings.extras.maintenance} />
+          <Field name="announcementEn" label="شريط إعلان بالإنجليزية" defaultValue={settings.extras.announcementEn} />
+          <Field name="announcementAr" label="شريط إعلان بالعربية" defaultValue={settings.extras.announcementAr} />
+          <Field name="seoTitleEn" label="عنوان SEO بالإنجليزية" defaultValue={settings.extras.seoTitleEn} />
+          <Field name="seoTitleAr" label="عنوان SEO بالعربية" defaultValue={settings.extras.seoTitleAr} />
+          <Field name="seoDescriptionEn" label="وصف SEO بالإنجليزية" defaultValue={settings.extras.seoDescriptionEn} />
+          <Field name="seoDescriptionAr" label="وصف SEO بالعربية" defaultValue={settings.extras.seoDescriptionAr} />
+          <Field name="ogImage" label="صورة المشاركة" defaultValue={settings.extras.ogImage} />
+          <Field name="favicon" label="أيقونة الموقع" defaultValue={settings.extras.favicon} />
+          <Field name="gaMeasurementId" label="معرّف GA4" defaultValue={settings.extras.gaMeasurementId} />
+          <Field name="paymobIntegrationId" label="رقم تكامل Paymob" defaultValue={settings.extras.paymobIntegrationId} />
+          <Field name="consentTextEn" label="نص الموافقة بالإنجليزية" defaultValue={settings.extras.consentTextEn} />
+          <Field name="consentTextAr" label="نص الموافقة بالعربية" defaultValue={settings.extras.consentTextAr} />
+          <label className="text-sm sm:col-span-2">
+            روابط التواصل (سطر لكل رابط)
+            <textarea name="social" defaultValue={settings.extras.social} className={adminTextareaClass} />
+          </label>
           <button disabled={pending} className={`${adminPrimaryClass} sm:col-span-2`}>
             حفظ الإعدادات
           </button>
@@ -71,4 +94,13 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
 
 function Field(props: { name: string; label: string; defaultValue: string; type?: string; step?: string; min?: string; max?: string; required?: boolean }) {
   return <AdminField {...props} />;
+}
+
+function Check({ name, label, defaultChecked }: { name: string; label: string; defaultChecked: boolean }) {
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" name={name} defaultChecked={defaultChecked} />
+      {label}
+    </label>
+  );
 }

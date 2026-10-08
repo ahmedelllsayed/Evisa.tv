@@ -4,6 +4,29 @@ import { countries } from "@/lib/countries";
 import { safePublicUrl } from "@/lib/safe-path";
 import { json, one, sql } from "./db";
 
+export type SiteExtras = {
+  seoTitleEn: string;
+  seoTitleAr: string;
+  seoDescriptionEn: string;
+  seoDescriptionAr: string;
+  ogImage: string;
+  favicon: string;
+  social: string;
+  showFaq: boolean;
+  showReviews: boolean;
+  showStats: boolean;
+  showEvents: boolean;
+  showMap: boolean;
+  announcementEn: string;
+  announcementAr: string;
+  gaMeasurementId: string;
+  consentEnabled: boolean;
+  consentTextEn: string;
+  consentTextAr: string;
+  maintenance: boolean;
+  paymobIntegrationId: string;
+};
+
 export type SiteSettings = {
   name: string;
   legalName: string;
@@ -20,7 +43,51 @@ export type SiteSettings = {
   approvalOverall: number;
   bookingUrl: string;
   logoUrl: string;
+  extras: SiteExtras;
 };
+
+export function defaultExtras(): SiteExtras {
+  return {
+    seoTitleEn: siteConfig.seoTitle,
+    seoTitleAr: "طلبات التأشيرة للجواز المصري",
+    seoDescriptionEn: siteConfig.description,
+    seoDescriptionAr: "خطّط لطلب التأشيرة وتابعه.",
+    ogImage: "",
+    favicon: "",
+    social: "",
+    showFaq: true,
+    showReviews: true,
+    showStats: true,
+    showEvents: siteConfig.features.events,
+    showMap: siteConfig.features.mapView,
+    announcementEn: "",
+    announcementAr: "",
+    gaMeasurementId: "",
+    consentEnabled: true,
+    consentTextEn: "We use cookies to measure visits. You can refuse.",
+    consentTextAr: "نستخدم الكوكيز لقياس الزيارات. يمكنك الرفض.",
+    maintenance: false,
+    paymobIntegrationId: "",
+  };
+}
+
+function readExtras(value: unknown): SiteExtras {
+  const base = defaultExtras();
+  const raw = json<Partial<SiteExtras>>(value, {});
+  return {
+    ...base,
+    ...raw,
+    showFaq: raw.showFaq ?? base.showFaq,
+    showReviews: raw.showReviews ?? base.showReviews,
+    showStats: raw.showStats ?? base.showStats,
+    showEvents: raw.showEvents ?? base.showEvents,
+    showMap: raw.showMap ?? base.showMap,
+    consentEnabled: raw.consentEnabled ?? base.consentEnabled,
+    maintenance: raw.maintenance ?? base.maintenance,
+    gaMeasurementId: String(raw.gaMeasurementId ?? "").trim(),
+    paymobIntegrationId: String(raw.paymobIntegrationId ?? "").replace(/\D/g, ""),
+  };
+}
 
 function fromConfig(): SiteSettings {
   return {
@@ -39,6 +106,7 @@ function fromConfig(): SiteSettings {
     approvalOverall: 75.3,
     bookingUrl: "",
     logoUrl: "",
+    extras: defaultExtras(),
   };
 }
 
@@ -69,6 +137,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
     approvalOverall: rate(row.approval_overall, 75.3),
     bookingUrl: String(row.booking_url || ""),
     logoUrl: String(row.logo_url || ""),
+    extras: readExtras(row.extras),
   };
 }
 
@@ -94,18 +163,19 @@ export async function saveCitizenshipCodes(codes: string[]) {
 export async function saveSiteSettings(input: SiteSettings) {
   await sql(
     `insert into site_settings (
-       id, name, legal_name, description, tagline, general_email, support_email, press_email, partnerships_email, phone, whatsapp, offices, approval_rate, approval_overall, booking_url, logo_url, updated_at
-     ) values (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15, now())
+       id, name, legal_name, description, tagline, general_email, support_email, press_email, partnerships_email, phone, whatsapp, offices, approval_rate, approval_overall, booking_url, logo_url, extras, updated_at
+     ) values (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16::jsonb, now())
      on conflict (id) do update set
        name=excluded.name, legal_name=excluded.legal_name, description=excluded.description, tagline=excluded.tagline,
        general_email=excluded.general_email, support_email=excluded.support_email, press_email=excluded.press_email,
        partnerships_email=excluded.partnerships_email, phone=excluded.phone, whatsapp=excluded.whatsapp,
        offices=excluded.offices, approval_rate=excluded.approval_rate, approval_overall=excluded.approval_overall,
-       booking_url=excluded.booking_url, logo_url=excluded.logo_url, updated_at=now()`,
+       booking_url=excluded.booking_url, logo_url=excluded.logo_url, extras=excluded.extras, updated_at=now()`,
     [
       input.name.trim() || siteConfig.name, input.legalName, input.description, input.tagline, input.generalEmail, input.supportEmail,
       input.pressEmail, input.partnershipsEmail, input.phone, safePublicUrl(input.whatsapp), JSON.stringify(input.offices),
       rate(input.approvalRate, 96.7), rate(input.approvalOverall, 75.3), safePublicUrl(input.bookingUrl), input.logoUrl.trim(),
+      JSON.stringify(input.extras ?? defaultExtras()),
     ],
   );
 }

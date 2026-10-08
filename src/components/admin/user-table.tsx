@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { adminCreateUser, adminDeleteUser, adminUpdateUser } from "@/app/actions/admin";
+import { adminCreateUser, adminDeleteUser, adminSetUserBanned, adminUpdateUser } from "@/app/actions/admin";
 import {
   AdminCard,
   AdminEmpty,
@@ -115,8 +115,25 @@ export function UserTable({ locale, users, currentUserId }: { locale: string; us
                   {user.id === currentUserId ? "حسابك" : "حذف"}
                 </button>
               </form>
-              <p className="mt-2 text-xs text-muted-ink">
-                {user.applicationCount} طلب · منذ {formatAt(user.createdAt)}
+              <p className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-ink">
+                <span>
+                  {user.applicationCount} طلب · منذ {formatAt(user.createdAt)}
+                  {user.banned ? " · محظور" : ""}
+                </span>
+                <button
+                  type="button"
+                  disabled={pending || user.id === currentUserId}
+                  className="rounded-full border border-line px-3 py-1"
+                  onClick={() =>
+                    start(async () => {
+                      setError(null);
+                      const result = await adminSetUserBanned(locale, user.id, !user.banned);
+                      if (!result.ok) setError(result.error);
+                    })
+                  }
+                >
+                  {user.banned ? "إلغاء الحظر" : "حظر"}
+                </button>
               </p>
             </AdminCard>
           ))}

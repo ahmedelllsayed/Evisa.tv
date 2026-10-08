@@ -25,7 +25,7 @@ export default async function AdminQueuePage({ params, searchParams }: Page) {
   const requested = typeof sp.filter === "string" ? sp.filter : "all";
   const filter = filters.some((item) => item.id === requested) ? (requested as (typeof filters)[number]["id"]) : "all";
   const [apps, counts, ops] = await Promise.all([
-    listAllApplications({ queue: filter === "all" ? "attention" : filter, assigneeId: user.id }),
+    listAllApplications({ queue: filter === "all" ? "attention" : filter, assigneeId: user.id, limit: 100 }),
     queueCounts(user.id),
     opsCounts(),
   ]);

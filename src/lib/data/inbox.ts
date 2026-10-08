@@ -17,6 +17,7 @@ export type ContactMessage = {
   topic: string | null;
   body: string;
   createdAt: string;
+  readAt: string | null;
 };
 
 function toRefund(row: Record<string, unknown>): RefundRequest {
@@ -61,8 +62,14 @@ export async function createContactMessage(input: { name: string; email: string;
   ]);
 }
 
-export async function listContactMessages(): Promise<ContactMessage[]> {
-  const rows = await sql("select * from contact_messages order by created_at desc limit 200");
+export async function listContactMessages(query = ""): Promise<ContactMessage[]> {
+  const term = `%${query.trim().toLowerCase()}%`;
+  const rows = await sql(
+    `select * from contact_messages
+     where $1 = '%%' or lower(name) like $1 or lower(email) like $1 or lower(coalesce(topic, '')) like $1 or lower(body) like $1
+     order by created_at desc limit 200`,
+    [term],
+  );
   return rows.map((row) => ({
     id: String(row.id),
     name: String(row.name),
@@ -70,5 +77,14 @@ export async function listContactMessages(): Promise<ContactMessage[]> {
     topic: (row.topic as string) ?? null,
     body: String(row.body),
     createdAt: iso(row.created_at),
+    readAt: row.read_at ? iso(row.read_at) : null,
   }));
+}
+
+export async function setMessageRead(id: string, read: boolean) {
+  await sql(`update contact_messages set read_at = ${read ? "now()" : "null"} where id = $1`, [id]);
+}
+
+export async function deleteContactMessage(id: string) {
+  await sql("delete from contact_messages where id = $1", [id]);
 }

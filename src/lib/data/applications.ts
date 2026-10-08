@@ -107,7 +107,17 @@ export async function findOpenApplication(userId: string, destinationId: string)
   return r ? toApplication(r) : null;
 }
 
-export async function listAllApplications(filter: { status?: string; q?: string; queue?: QueueFilter; assigneeId?: string } = {}) {
+export async function listAllApplications(filter: {
+  status?: string;
+  q?: string;
+  queue?: QueueFilter;
+  assigneeId?: string;
+  destination?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+} = {}) {
   const where: string[] = [];
   const params: unknown[] = [];
   if (filter.status) {
@@ -143,11 +153,52 @@ export async function listAllApplications(filter: { status?: string; q?: string;
       )`,
     );
   }
+  if (filter.destination) {
+    params.push(filter.destination);
+    where.push(`d.slug = $${params.length}`);
+  }
+  if (filter.from) {
+    params.push(filter.from);
+    where.push(`a.created_at >= $${params.length}::date`);
+  }
+  if (filter.to) {
+    params.push(filter.to);
+    where.push(`a.created_at < ($${params.length}::date + interval '1 day')`);
+  }
+  const limit = Math.min(100, Math.max(1, filter.limit ?? 50));
+  const offset = Math.max(0, filter.offset ?? 0);
+  params.push(limit, offset);
   const rows = await sql(
-    `${APP_SELECT} ${where.length ? "where " + where.join(" and ") : ""} order by a.created_at desc limit 200`,
+    `${APP_SELECT} ${where.length ? "where " + where.join(" and ") : ""} order by a.created_at desc limit $${params.length - 1} offset $${params.length}`,
     params,
   );
   return rows.map(toApplication);
+}
+
+export async function countApplications(filter: { status?: string; q?: string } = {}) {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (filter.status) {
+    params.push(filter.status);
+    where.push(`a.status = $${params.length}`);
+  }
+  if (filter.q) {
+    params.push(`%${filter.q.toLowerCase()}%`);
+    where.push(`(lower(a.reference) like $${params.length} or lower(p.email) like $${params.length} or lower(d.name) like $${params.length})`);
+  }
+  const row = await one<{ n: number }>(
+    `select count(*)::int as n from applications a join profiles p on p.id = a.user_id join destinations d on d.id = a.destination_id ${where.length ? "where " + where.join(" and ") : ""}`,
+    params,
+  );
+  return row?.n ?? 0;
+}
+
+export async function applicationsByDay() {
+  return sql<{ day: string; n: number }>(
+    `select to_char(created_at, 'YYYY-MM-DD') as day, count(*)::int as n
+     from applications where created_at > now() - interval '30 days'
+     group by 1 order by 1`,
+  );
 }
 
 export async function applicationStats() {
@@ -291,6 +342,13 @@ export async function listTravelers(applicationId: string) {
 export type TravelerInput = Omit<Traveler, "id" | "applicationId" | "sortOrder"> & { id?: string };
 
 /** Replaces the traveler list, keeping ids (and their documents) for travelers that still exist. */
+export async function patchTraveler(id: string, input: { firstName: string; lastName: string; passportNumber: string; nationality: string }) {
+  await sql(
+    `update travelers set first_name = $2, last_name = $3, passport_number = $4, nationality = nullif($5, '') where id = $1`,
+    [id, input.firstName.trim(), input.lastName.trim(), input.passportNumber.trim() || null, input.nationality.trim().toUpperCase()],
+  );
+}
+
 export async function saveTravelers(
   applicationId: string,
   travelers: TravelerInput[],

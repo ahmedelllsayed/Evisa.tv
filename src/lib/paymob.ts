@@ -5,13 +5,15 @@ import { paymobHmacHex, sameHex } from "@/lib/paymob-hmac";
 
 type Billing = { name: string; email: string; phone: string };
 
-export function paymobReady() {
+export function paymobReady(integrationIds?: string[]) {
   const { paymob } = serverEnv();
-  return Boolean(paymob.secretKey && paymob.publicKey && paymob.hmacSecret && paymob.integrationIds.length);
+  const ids = integrationIds?.length ? integrationIds : paymob.integrationIds;
+  return Boolean(paymob.secretKey && paymob.publicKey && paymob.hmacSecret && ids.length);
 }
 
-function methods() {
-  return serverEnv().paymob.integrationIds.map((id) => (/^\d+$/.test(id) ? Number(id) : id));
+function methods(integrationIds?: string[]) {
+  const ids = integrationIds?.length ? integrationIds : serverEnv().paymob.integrationIds;
+  return ids.map((id) => (/^\d+$/.test(id) ? Number(id) : id));
 }
 
 export async function createPaymobIntention(input: {
@@ -22,13 +24,14 @@ export async function createPaymobIntention(input: {
   billing: Billing;
   notificationUrl: string;
   redirectionUrl: string;
+  integrationIds?: string[];
 }) {
   const { paymob } = serverEnv();
   const [first, ...rest] = input.billing.name.trim().split(/\s+/);
   const body = {
     amount: input.amountCents,
     currency: input.currency,
-    payment_methods: methods(),
+    payment_methods: methods(input.integrationIds),
     items: [{ name: input.description.slice(0, 80) || "Visa application", amount: input.amountCents, quantity: 1 }],
     billing_data: {
       first_name: first || "Customer",

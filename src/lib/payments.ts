@@ -1,10 +1,10 @@
 import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { siteConfig } from "@/config/site.config";
 import { getSiteSettings } from "@/lib/data/settings";
 import { createPayment, findPendingPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
 import { getCurrentUser } from "@/lib/auth";
 import { env, serverEnv } from "@/lib/env";
+import { t } from "@/lib/i18n";
 import { createPaymobIntention, paymobReady, refundPaymob } from "@/lib/paymob";
 import type { Application, Payment, User } from "@/lib/types";
 
@@ -22,23 +22,24 @@ function reusableCheckoutUrl(payment: Payment, locale: string) {
 
 export async function createCheckout(application: Application, locale: string, customer: Pick<User, "fullName" | "email" | "phone">) {
   const fresh = await getApplication(application.id);
-  if (!fresh) return { ok: false as const, error: "Application not found." };
+  if (!fresh) return { ok: false as const, error: t(locale, "err.payNotFound") };
   if (fresh.status !== "draft" && fresh.status !== "payment_pending") {
-    return { ok: false as const, error: "This application can no longer be paid." };
+    return { ok: false as const, error: t(locale, "err.payLocked") };
   }
   const pending = await findPendingPayment(fresh.id);
   if (pending) {
     const sameAmount = Math.abs(pending.amount - fresh.totalAmount) < 0.01 && pending.currency.toUpperCase() === fresh.currency.toUpperCase();
     const url = sameAmount ? reusableCheckoutUrl(pending, locale) : null;
     if (url) return { ok: true as const, url };
-    return { ok: false as const, error: "A payment is already in progress for this application." };
+    return { ok: false as const, error: t(locale, "err.payProgress") };
   }
   const settings = await getSiteSettings();
+  const integrationOverride = settings.extras.paymobIntegrationId ? [settings.extras.paymobIntegrationId] : undefined;
   const success = `${env.siteUrl}/${locale}/payment/success?app=${fresh.id}`;
   const cancel = `${env.siteUrl}/${locale}/apply/${fresh.id}`;
-  if (paymobReady()) {
+  if (paymobReady(integrationOverride)) {
     const phone = (customer.phone || "").trim();
-    if (!phone) return { ok: false as const, error: "Add a phone number on your profile before paying." };
+    if (!phone) return { ok: false as const, error: t(locale, "err.payPhone") };
     const merchantOrderId = `${fresh.reference}-${randomUUID().slice(0, 8)}`;
     const amountCents = Math.round(fresh.totalAmount * 100);
     const intention = await createPaymobIntention({
@@ -49,6 +50,7 @@ export async function createCheckout(application: Application, locale: string, c
       billing: { name: customer.fullName || customer.email, email: customer.email, phone },
       notificationUrl: `${env.siteUrl}/api/payments/paymob`,
       redirectionUrl: `${env.siteUrl}/${locale}/payment/result`,
+      integrationIds: integrationOverride,
     });
     if (!intention.ok) return intention;
     await createPayment({
@@ -91,7 +93,7 @@ export async function createCheckout(application: Application, locale: string, c
       ],
     });
     const url = session.url;
-    if (!url) return { ok: false as const, error: "Could not start the payment." };
+    if (!url) return { ok: false as const, error: t(locale, "err.payStart") };
     await createPayment({
       applicationId: fresh.id,
       provider: "stripe",
@@ -103,7 +105,7 @@ export async function createCheckout(application: Application, locale: string, c
     return { ok: true as const, url };
   }
   if (process.env.NODE_ENV === "production") {
-    return { ok: false as const, error: "Payments are not configured." };
+    return { ok: false as const, error: t(locale, "err.payOff") };
   }
   const token = `${fresh.id}.${mockSign(fresh.id)}`;
   const url = `/${locale}/payment/mock?token=${encodeURIComponent(token)}`;
@@ -119,19 +121,20 @@ export async function createCheckout(application: Application, locale: string, c
 }
 
 export async function completeMockCheckout(token: string) {
-  if (process.env.NODE_ENV === "production") return { ok: false as const, error: "Test checkout is disabled." };
+  if (process.env.NODE_ENV === "production") return { ok: false as const, error: t("en-EG", "err.payTest") };
   const [id, sig] = token.split(".");
   const expected = id ? mockSign(id) : "";
   const given = Buffer.from(sig ?? "");
   const wanted = Buffer.from(expected);
-  if (!id || given.length !== wanted.length || !timingSafeEqual(given, wanted)) return { ok: false as const, error: "Invalid payment token" };
+  if (!id || given.length !== wanted.length || !timingSafeEqual(given, wanted)) return { ok: false as const, error: t("en-EG", "err.payToken") };
   const app = await getApplication(id);
-  if (!app) return { ok: false as const, error: "Invalid payment token" };
+  if (!app) return { ok: false as const, error: t("en-EG", "err.payToken") };
   const user = await getCurrentUser();
-  if (!user || (user.id !== app.userId && user.role !== "admin")) return { ok: false as const, error: "Invalid payment token" };
+  const payLocale = app.locale || "en-EG";
+  if (!user || (user.id !== app.userId && user.role !== "admin")) return { ok: false as const, error: t(payLocale, "err.payToken") };
   const paid = await markPaid("mock", token, app.totalAmount);
-  if (!paid) return { ok: false as const, error: "Payment could not be confirmed." };
-  return { ok: true as const, applicationId: id, locale: siteConfig.defaultLocale, app };
+  if (!paid) return { ok: false as const, error: t(payLocale, "err.payConfirm") };
+  return { ok: true as const, applicationId: id, locale: payLocale, app };
 }
 
 async function confirmStripe(sessionId: string) {

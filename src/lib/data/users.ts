@@ -7,6 +7,7 @@ export type AccountRow = {
   fullName: string | null;
   phone: string | null;
   role: "user" | "admin";
+  banned: boolean;
   createdAt: string;
   applicationCount: number;
 };
@@ -25,6 +26,7 @@ function toUser(row: Record<string, unknown>): AccountRow {
     fullName: (row.full_name as string) ?? null,
     phone: (row.phone as string) ?? null,
     role: row.role === "admin" ? "admin" : "user",
+    banned: Boolean(row.banned),
     createdAt: iso(row.created_at),
     applicationCount: Number(row.application_count ?? 0),
   };
@@ -60,6 +62,16 @@ async function lastAdmin(id: string) {
   if (current?.role !== "admin") return false;
   const count = await one<{ count: number }>("select count(*)::int as count from profiles where role = 'admin'");
   return (count?.count ?? 0) <= 1;
+}
+
+export async function setUserBanned(id: string, banned: boolean) {
+  if (!banned) {
+    await sql("update profiles set banned = false where id = $1", [id]);
+    return { ok: true as const };
+  }
+  if (await lastAdmin(id)) return { ok: false as const, error: "لا يمكن حظر آخر مدير." };
+  await sql("update profiles set banned = true where id = $1", [id]);
+  return { ok: true as const };
 }
 
 export async function setUserRole(id: string, role: "user" | "admin") {

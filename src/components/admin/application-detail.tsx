@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { adminAddEvent, adminDeclineRefund, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
+import { adminAddEvent, adminDeclineRefund, adminPatchTraveler, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
 import { AdminCard, AdminEmpty, AdminPage, adminGhostClass, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
 import { statusLabels } from "@/components/admin/status";
 import { documentGaps } from "@/lib/application-rules";
@@ -198,10 +198,26 @@ export function AdminApplicationDetail({
             <ul className="mt-3 space-y-2 text-sm">
               {travelers.map((traveler) => (
                 <li key={traveler.id} className="rounded-xl border border-line px-4 py-3">
-                  {traveler.firstName} {traveler.lastName}
-                  <span className="mt-1 block text-muted-ink">
-                    {traveler.passportNumber || "بدون جواز"} · {traveler.nationality || "—"}
-                  </span>
+                  <form
+                    className="grid gap-2 sm:grid-cols-2"
+                    action={(fd) =>
+                      start(async () => {
+                        const result = await adminPatchTraveler(locale, traveler.id, {
+                          firstName: String(fd.get("firstName") ?? ""),
+                          lastName: String(fd.get("lastName") ?? ""),
+                          passportNumber: String(fd.get("passportNumber") ?? ""),
+                          nationality: String(fd.get("nationality") ?? ""),
+                        });
+                        if (result && !result.ok) setError(result.error);
+                      })
+                    }
+                  >
+                    <input name="firstName" defaultValue={traveler.firstName} className="h-10 rounded-xl border border-line px-3 text-sm" />
+                    <input name="lastName" defaultValue={traveler.lastName} className="h-10 rounded-xl border border-line px-3 text-sm" />
+                    <input name="passportNumber" defaultValue={traveler.passportNumber ?? ""} placeholder="رقم الجواز" className="h-10 rounded-xl border border-line px-3 text-sm" />
+                    <input name="nationality" defaultValue={traveler.nationality ?? ""} placeholder="الجنسية" className="h-10 rounded-xl border border-line px-3 text-sm" />
+                    <button className="rounded-full bg-brand px-4 py-2 text-sm text-white sm:col-span-2">حفظ المسافر</button>
+                  </form>
                 </li>
               ))}
             </ul>

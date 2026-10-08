@@ -82,13 +82,15 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
     const { data } = await supabase.auth.getUser();
     if (!data.user?.email) return null;
     const existing = await one("select * from profiles where id = $1", [data.user.id]);
+    if (existing?.banned) return null;
     if (existing && !serverEnv().adminEmails.includes(String(existing.email))) return toUser(existing);
     return syncProfile(data.user.id, data.user.email, data.user.user_metadata?.full_name ?? data.user.user_metadata?.name);
   }
   const userId = decodeSession((await cookies()).get(SESSION_COOKIE)?.value);
   if (!userId) return null;
   const row = await one("select * from profiles where id = $1", [userId]);
-  return row ? toUser(row) : null;
+  if (!row || row.banned) return null;
+  return toUser(row);
 });
 
 export async function requireUser(locale: string, next?: string): Promise<User> {
