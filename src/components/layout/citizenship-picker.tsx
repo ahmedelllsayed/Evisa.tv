@@ -172,7 +172,7 @@ export function CitizenshipDialog({ initial, defaultOpen, codes }: { initial: st
   };
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-xl rounded-2xl p-5 sm:max-w-xl">
+      <DialogContent className="max-h-[min(85dvh,40rem)] w-[min(36rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl p-5">
         <DialogTitle className="text-lg font-semibold">{t(locale, "citizen.yours")}</DialogTitle>
         <DialogDescription className="text-slate-ink">{t(locale, "citizen.note")}</DialogDescription>
         <p className="mt-2 text-sm">{tf(locale, "citizen.live", { country: siteConfig.market.countryName })}</p>

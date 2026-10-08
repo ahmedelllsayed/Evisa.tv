@@ -68,10 +68,10 @@ export function VisaView({
   }, [destination.slug, destination.name, destination.currency, fee]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pt-4 pb-20 lg:px-0">
+    <div className="mx-auto w-full min-w-0 max-w-6xl px-4 pt-4 pb-24 lg:px-0">
       <Hero destination={destination} hours={hours} typeName={typeName} />
-      <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div>
+      <div className="mt-8 grid w-full min-w-0 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 overflow-x-clip max-lg:order-2">
           <InfoGrid destination={destination} typeName={typeName} />
           <GuaranteeBlock destination={destination} express={express} onExpress={setExpress} typeName={typeName} now={now} />
           {destination.visaRequired && approvalRate != null && (
@@ -85,7 +85,7 @@ export function VisaView({
           <NearbyBlock nearby={nearby} locale={locale} name={country} />
           <SourcesBlock destination={destination} locale={locale} brandName={brandName} />
         </div>
-        <aside className="lg:sticky lg:top-24">
+        <aside className="min-w-0 max-lg:order-1 lg:sticky lg:top-24">
           <FeeCard
             destination={destination}
             locale={locale}
@@ -107,8 +107,8 @@ export function VisaView({
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <h2 className="font-sans text-2xl font-semibold tracking-tight text-black">
-      <span className="inline-flex items-center gap-2">{children}</span>
+    <h2 className="font-sans text-2xl font-semibold tracking-tight text-balance text-black">
+      <span className="block">{children}</span>
       <span className="mt-2 block h-[3px] w-10 rounded-full bg-brand" />
     </h2>
   );
@@ -121,7 +121,7 @@ function Hero({ destination, hours, typeName }: { destination: Destination; hour
   const name = localizedDestinationName(destination, locale);
   const poster = destination.heroImage || destination.image || undefined;
   return (
-    <section className="relative h-[420px] overflow-hidden rounded-[16px] bg-neutral-900 lg:h-[600px]">
+    <section className="relative h-[300px] overflow-hidden rounded-[16px] bg-neutral-900 sm:h-[420px] lg:h-[600px]">
       {destination.videoUrl ? (
         <video
           className="absolute inset-0 h-full w-full object-cover"
@@ -136,7 +136,7 @@ function Hero({ destination, hours, typeName }: { destination: Destination; hour
         <img src={poster} alt="" className="absolute inset-0 h-full w-full object-cover" />
       ) : null}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-gradient-to-b from-black/70 via-black/40 to-black/70 px-6 text-center text-white">
-        <h1 className="font-sans text-4xl font-semibold lg:text-[48px] lg:leading-[56px]">
+        <h1 className="max-w-full font-sans text-3xl leading-tight font-semibold text-balance sm:text-4xl lg:text-[48px] lg:leading-[56px]">
           {tf("visa.for", { name, demonym })}
         </h1>
         {destination.visaRequired ? (
@@ -194,9 +194,9 @@ function InfoGrid({ destination, typeName }: { destination: Destination; typeNam
             <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", item.tint)}>
               {"mark" in item && item.mark === "check" ? <Check className="size-4" /> : <item.icon className="size-4" />}
             </span>
-            <div>
+            <div className="min-w-0">
               <dt className="text-xs text-muted-ink">{item.label}</dt>
-              <dd className={cn("text-sm font-semibold", item.line && "underline decoration-black underline-offset-4")}>{item.value ?? "—"}</dd>
+              <dd className={cn("text-sm font-semibold break-words", item.line && "underline decoration-black underline-offset-4")}>{item.value ?? "—"}</dd>
             </div>
           </div>
         ))}
@@ -257,9 +257,9 @@ function ArrivalTimeline({ due }: { due: Date }) {
       <div className="grid sm:grid-cols-[minmax(0,1fr)_220px]">
         <div className="px-4 pt-8 pb-4">
           <p className="text-base font-semibold text-black">{title}</p>
-          <div className="mt-4 grid grid-cols-7 text-center text-[11px] text-[#9aa1ab]">
+          <div className="mt-4 grid grid-cols-7 text-center text-[10px] leading-none text-[#9aa1ab]">
             {weekdays.map((day) => (
-              <span key={day}>{day}</span>
+              <span key={day} className="truncate">{day}</span>
             ))}
           </div>
           <div className="mt-2 grid grid-cols-7">
@@ -268,7 +268,7 @@ function ArrivalTimeline({ due }: { due: Date }) {
               return (
                 <span key={cell.key} className="relative flex h-10 items-center justify-center">
                   {selected && (
-                    <span className="absolute bottom-[calc(100%-4px)] left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-md bg-white px-2 py-1 text-[10px] font-semibold tracking-wide text-[#5b63e6] shadow-[0_4px_16px_rgba(17,24,39,0.12)]">
+                    <span className="absolute bottom-[calc(100%-4px)] left-1/2 z-10 flex max-w-[7.5rem] -translate-x-1/2 items-center justify-center gap-1 rounded-md bg-white px-2 py-1 text-center text-[10px] leading-tight font-semibold tracking-wide text-[#5b63e6] shadow-[0_4px_16px_rgba(17,24,39,0.12)]">
                       <Clock className="size-3" /> {t("visa.arrival")}
                       <span className="absolute top-full left-1/2 -translate-x-1/2 border-x-[5px] border-t-[5px] border-x-transparent border-t-white" />
                     </span>
@@ -340,7 +340,7 @@ function DateChoice({
           {tf("visa.daysSooner", { days: sooner })}
         </p>
       ) : null}
-      <div className="flex items-center justify-between gap-3 ps-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 ps-2">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold">
             {icon === "shield" ? (
@@ -360,7 +360,7 @@ function DateChoice({
           type="button"
           onClick={onSelect}
           className={cn(
-            "flex h-8 w-28 items-center justify-center gap-1.5 rounded-lg text-sm font-medium",
+            "flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium",
             selected ? "bg-brand text-white" : "border border-line bg-white text-slate-ink",
           )}
         >
@@ -457,7 +457,7 @@ function FeeCard({
   const otherDay = formatOrdinalShort(standardDue, locale).split(",")[0];
   return (
     <div className="select-none">
-      <div className="relative z-[1] -mb-2 flex flex-wrap items-end gap-y-1 pb-2">
+      <div className="relative z-[1] -mb-2 flex flex-wrap items-end gap-x-2 gap-y-1 pb-2">
         {express && (
           <button
             type="button"
@@ -468,10 +468,10 @@ function FeeCard({
             {otherDay}
           </button>
         )}
-        <div className="relative flex h-11 items-center gap-1.5 rounded-t-3xl bg-[#e6e8f0] px-3.5 pe-5 text-xs font-semibold text-[#2026A6]">
-          <span className="pointer-events-none absolute top-0 -right-2 block h-full w-5 skew-x-[27deg] rounded-tr-2xl bg-[#e6e8f0]" />
-          {express ? <Zap className="relative size-3.5 fill-[#2026A6] text-[#2026A6]" /> : <ShieldCheck className="relative size-4" />}
-          <span className="relative">{tf("visa.feeTarget", { date: formatOrdinalShort(due, locale) })}</span>
+        <div className="relative flex h-auto min-h-11 max-w-full items-center gap-1.5 rounded-t-3xl bg-[#e6e8f0] px-3.5 py-2 pe-5 text-xs font-semibold text-[#2026A6]">
+          <span className="pointer-events-none absolute top-0 -right-2 hidden h-full w-5 skew-x-[27deg] rounded-tr-2xl bg-[#e6e8f0] sm:block" />
+          {express ? <Zap className="relative size-3.5 shrink-0 fill-[#2026A6] text-[#2026A6]" /> : <ShieldCheck className="relative size-4 shrink-0" />}
+          <span className="relative min-w-0">{tf("visa.feeTarget", { date: formatOrdinalShort(due, locale) })}</span>
         </div>
         {!express && daysSooner && (
           <button
@@ -488,16 +488,16 @@ function FeeCard({
         <div className="rounded-3xl border border-gray-300 bg-white p-5">
           <dl className="text-sm">
             <div className="flex items-center justify-between gap-2 border-b border-line py-3">
-              <dt className="flex items-center gap-2 font-semibold"><Landmark className="size-4" /> {t("visa.gov")}</dt>
-              <dd className="font-semibold">{formatMoney(destination.govFee, destination.currency, locale)}</dd>
+              <dt className="flex min-w-0 items-center gap-2 font-semibold"><Landmark className="size-4 shrink-0" /> {t("visa.gov")}</dt>
+              <dd className="shrink-0 font-semibold">{formatMoney(destination.govFee, destination.currency, locale)}</dd>
             </div>
             <div className="flex items-center justify-between gap-2 border-b border-line py-3">
-              <dt className="flex items-center gap-2 font-semibold"><Zap className="size-4 text-brand" /> {t("visa.service")}</dt>
-              <dd className="font-semibold">{formatMoney(destination.serviceFee + (express ? (destination.expressFee ?? 0) : 0), destination.currency, locale)}</dd>
+              <dt className="flex min-w-0 items-center gap-2 font-semibold"><Zap className="size-4 shrink-0 text-brand" /> {t("visa.service")}</dt>
+              <dd className="shrink-0 font-semibold">{formatMoney(destination.serviceFee + (express ? (destination.expressFee ?? 0) : 0), destination.currency, locale)}</dd>
             </div>
             <div className="flex items-center justify-between gap-2 py-3 font-semibold">
-              <dt className="flex items-center gap-2"><CreditCard className="size-4" /> {t("visa.total")}</dt>
-              <dd>{formatMoney(fee, destination.currency, locale)}</dd>
+              <dt className="flex min-w-0 items-center gap-2"><CreditCard className="size-4 shrink-0" /> {t("visa.total")}</dt>
+              <dd className="shrink-0">{formatMoney(fee, destination.currency, locale)}</dd>
             </div>
           </dl>
           <div className="mt-2">
@@ -538,11 +538,11 @@ function ReviewsBlock({ reviews, country }: { reviews: Review[]; country: string
     <section className="mt-12">
       <SectionHeading>{t("visa.reviews")}</SectionHeading>
       <div className="mt-8 text-center">
-        <p className="flex items-center justify-center gap-3 font-sans text-3xl font-medium">
+        <p className="flex flex-wrap items-center justify-center gap-3 font-sans text-2xl font-medium sm:text-3xl">
           <Laurel /> {t("visa.topRated")} <Laurel flip />
         </p>
         <p className="mt-2 text-sm text-muted-ink">{tf("visa.trusted", { country: siteConfig.market.countryName })}</p>
-        <div className="mt-3 flex items-center justify-center gap-3 text-sm text-slate-ink">
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-slate-ink">
           <span className="font-medium text-[#00b67a]">★ Trustpilot</span>
           <span className="text-line">|</span>
           <span> App Store</span>
@@ -742,8 +742,8 @@ function NearbyBlock({ nearby, locale, name }: { nearby: Destination[]; locale: 
   const { tf } = useT();
   if (!nearby.length) return null;
   return (
-    <section className="mt-12">
-      <h2 className="font-display text-2xl font-semibold">{tf("visa.nearby", { name })}</h2>
+    <section className="mt-12 min-w-0">
+      <h2 className="font-display text-2xl font-semibold text-balance">{tf("visa.nearby", { name })}</h2>
       <div className="mt-4 flex w-full min-w-0 gap-3 overflow-x-auto pb-2 scrollbar-none">
         {nearby.map((d) => (
           <Link key={d.id} href={visaHref(d.slug, locale)} className="w-40 shrink-0">
@@ -769,7 +769,7 @@ function SourcesBlock({ destination, locale, brandName }: { destination: Destina
         {t("visa.reviewed")}
         <span className="mt-2 block h-[3px] w-10 rounded-full bg-brand" />
       </h2>
-      <div className="mt-5 flex gap-6 border-b border-[#ececf1] text-sm font-semibold tracking-wide">
+      <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-b border-[#ececf1] text-sm font-semibold tracking-wide">
         <button type="button" onClick={() => setTab("sources")} className={cn("inline-flex items-center gap-2 border-b-2 pb-2", tab === "sources" ? "border-brand text-brand" : "border-transparent text-muted-ink")}>
           <FileText className="size-4" /> {t("visa.sources")}
         </button>
