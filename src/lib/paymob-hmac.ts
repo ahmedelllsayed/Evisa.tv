@@ -23,13 +23,23 @@ const hmacFields = [
   "success",
 ] as const;
 
-function text(value: unknown) {
+type BoolStyle = "words" | "python" | "php" | "bits";
+
+function text(value: unknown, style: BoolStyle) {
   if (value === null || value === undefined) return "";
-  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "boolean") {
+    if (style === "python") return value ? "True" : "False";
+    if (style === "php") return value ? "1" : "";
+    if (style === "bits") return value ? "1" : "0";
+    return value ? "true" : "false";
+  }
   return String(value);
 }
 
 function nested(obj: Record<string, unknown>, path: string) {
+  if (Object.prototype.hasOwnProperty.call(obj, path)) return obj[path];
+  const flat = path.replaceAll(".", "_");
+  if (flat !== path && Object.prototype.hasOwnProperty.call(obj, flat)) return obj[flat];
   const [head, child] = path.split(".");
   if (!child) return obj[head];
   const parent = obj[head];
@@ -39,12 +49,19 @@ function nested(obj: Record<string, unknown>, path: string) {
 }
 
 /** Concatenation order documented for the Transaction Processed callback. */
-export function paymobCallbackString(obj: Record<string, unknown>) {
-  return hmacFields.map((field) => text(nested(obj, field))).join("");
+export function paymobCallbackString(obj: Record<string, unknown>, style: BoolStyle = "words") {
+  return hmacFields.map((field) => text(nested(obj, field), style)).join("");
 }
 
-export function paymobHmacHex(obj: Record<string, unknown>, secret: string) {
-  return createHmac("sha512", secret).update(paymobCallbackString(obj)).digest("hex");
+export function paymobHmacHex(obj: Record<string, unknown>, secret: string, style: BoolStyle = "words") {
+  return createHmac("sha512", secret).update(paymobCallbackString(obj, style)).digest("hex");
+}
+
+const boolStyles: BoolStyle[] = ["words", "python", "php", "bits"];
+
+export function paymobSignatureMatches(obj: Record<string, unknown>, hmac: string, secret: string) {
+  const given = hmac.trim().toLowerCase();
+  return boolStyles.some((style) => sameHex(paymobHmacHex(obj, secret, style).toLowerCase(), given));
 }
 
 export function sameHex(left: string, right: string) {
