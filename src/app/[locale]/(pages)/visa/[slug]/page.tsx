@@ -8,19 +8,23 @@ import { getDestinationBySlug, listDestinations, listFaqs, listReviews, computed
 import { getCitizenshipCodes, getSiteSettings } from "@/lib/data/settings";
 import type { Page } from "@/lib/page";
 import { getCitizenship, hasChosenCitizenship } from "@/lib/preferences";
+import { localizedMetadata } from "@/lib/seo";
 import { fillTemplate } from "@/lib/visa";
 
 export async function generateMetadata({ params }: Page<{ locale: string; slug: string }>) {
-  const { slug } = await params;
+  const { locale, slug } = await params;
   const d = await getDestinationBySlug(slug);
-  if (!d) return { title: "Visa" };
-  return {
-    title: `${d.name} Visa from ${siteConfig.market.countryName}`,
-    description: fillTemplate(
-      `Apply for a ${d.name} visa from ${siteConfig.market.countryName}. Fees, documents, and a staff-reviewed file.`,
-      d.name,
-    ),
-  };
+  if (!d) return localizedMetadata(locale, `/visa/${slug}`, { en: "Visa", ar: "تأشيرة" });
+  const name = locale.startsWith("ar") && d.nameAr ? d.nameAr : d.name;
+  return localizedMetadata(
+    locale,
+    `/visa/${slug}`,
+    { en: `${d.name} Visa from ${siteConfig.market.countryName}`, ar: `تأشيرة ${name}` },
+    {
+      en: fillTemplate(`Apply for a ${d.name} visa from ${siteConfig.market.countryName}. Fees, documents, and a staff-reviewed file.`, d.name),
+      ar: `قدّم لطلب تأشيرة ${name}. الرسوم والمستندات ومراجعة الفريق.`,
+    },
+  );
 }
 
 export default async function VisaPage({ params, searchParams }: Page<{ locale: string; slug: string }>) {

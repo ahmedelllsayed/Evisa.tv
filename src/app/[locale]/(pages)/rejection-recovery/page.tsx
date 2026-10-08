@@ -1,3 +1,5 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import Link from "next/link";
 import { RejectionPicker } from "@/components/tools/rejection-picker";
 import { listDestinations } from "@/lib/data/catalog";
@@ -5,9 +7,12 @@ import { requirePageContent } from "@/lib/data/pages";
 import { getSiteSettings } from "@/lib/data/settings";
 import { visaHref } from "@/lib/href";
 import { localizedDestinationName } from "@/lib/localize";
-import type { Page } from "@/lib/page";
 
-export const metadata = { title: "Rejection Recovery" };
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/rejection-recovery", { en: "Rejection Recovery", ar: "ملاحظات الرفض" });
+}
 
 export default async function RejectionRecoveryPage({ params }: Page) {
   const { locale } = await params;

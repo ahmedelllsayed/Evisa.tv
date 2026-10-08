@@ -8,8 +8,15 @@ export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   if (!localePattern.test(pathname)) {
+    const cookieLocale = request.cookies.get("locale")?.value;
+    const accept = request.headers.get("accept-language") ?? "";
+    const preferred = isLocale(cookieLocale ?? "")
+      ? cookieLocale!
+      : /\bar\b/i.test(accept)
+        ? "ar-EG"
+        : siteConfig.defaultLocale;
     const url = request.nextUrl.clone();
-    url.pathname = `/${siteConfig.defaultLocale}${pathname === "/" ? "" : pathname}`;
+    url.pathname = `/${preferred}${pathname === "/" ? "" : pathname}`;
     url.search = search;
     return NextResponse.redirect(url);
   }
@@ -19,6 +26,7 @@ export async function proxy(request: NextRequest) {
   const forward = () => {
     const headers = new Headers(request.headers);
     headers.set("x-locale", locale);
+    headers.set("x-pathname", pathname);
     const cookie = request.cookies.getAll().map((item) => `${item.name}=${item.value}`).join("; ");
     if (cookie) headers.set("cookie", cookie);
     return NextResponse.next({ request: { headers } });

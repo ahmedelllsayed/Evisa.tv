@@ -1,7 +1,13 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { linesOf } from "@/lib/cms/registry";
 import { requirePageContent } from "@/lib/data/pages";
 
-export const metadata = { title: "Partners" };
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/partners", { en: "Partners", ar: "الشركاء" });
+}
 
 export default async function PartnersPage() {
   const content = await requirePageContent("partners");

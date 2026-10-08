@@ -1,10 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { siteConfig } from "@/config/site.config";
 import { signOut } from "@/lib/auth";
+import { requestLocale } from "@/lib/request-locale";
 
 export async function signOutAction() {
+  const locale = await requestLocale();
   await signOut();
-  redirect(`/${siteConfig.defaultLocale}`);
+  redirect(`/${locale}`);
 }

@@ -1,9 +1,14 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { ContactForm } from "@/components/contact/contact-form";
 import { requirePageContent } from "@/lib/data/pages";
 import { getSiteSettings } from "@/lib/data/settings";
-import type { Page } from "@/lib/page";
 
-export const metadata = { title: "Contact" };
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/contact", { en: "Contact", ar: "تواصل" });
+}
 
 export default async function ContactPage({ params }: Page) {
   const { locale } = await params;

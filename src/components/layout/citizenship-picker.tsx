@@ -3,18 +3,21 @@
 import { Pencil } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLocale } from "@/components/providers";
 import { siteConfig } from "@/config/site.config";
 import { citizenshipChoices, countryName, flagUrl } from "@/lib/countries";
+import { track } from "@/lib/analytics";
 import { t, tf } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { rememberLocale, useLocaleHref } from "@/components/layout/locale-switch";
 
 function setCitizenshipCookie(code: string) {
   document.cookie = `citizenship=${code}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+  track("citizenship_change", { citizenship: code });
 }
 
 export function Flag({ code, size = 20, className }: { code: string; size?: number; className?: string }) {
@@ -31,17 +34,14 @@ export function Flag({ code, size = 20, className }: { code: string; size?: numb
   );
 }
 
-function localePath(path: string, locale: "en-EG" | "ar-EG") {
-  const swapped = path.replace(/^\/[a-z]{2}-[A-Z]{2}(?=\/|$)/, `/${locale}`);
-  return swapped.startsWith(`/${locale}`) ? swapped : `/${locale}`;
-}
-
 function LangToggle({ locale }: { locale: string }) {
-  const path = usePathname() || `/${locale}`;
+  const enHref = useLocaleHref("en-EG");
+  const arHref = useLocaleHref("ar-EG");
   const active = locale.toLowerCase().startsWith("ar") ? "ar" : "en";
-  const choice = (id: "en" | "ar", label: string, target: "en-EG" | "ar-EG") => (
+  const choice = (id: "en" | "ar", label: string, target: "en-EG" | "ar-EG", href: string) => (
     <Link
-      href={localePath(path, target)}
+      href={href}
+      onClick={() => rememberLocale(target)}
       hrefLang={id === "ar" ? "ar" : "en"}
       aria-current={active === id ? "page" : undefined}
       className={cn("rounded-full px-3 py-1", active === id ? "bg-white text-black shadow-sm" : "text-muted-ink")}
@@ -51,8 +51,8 @@ function LangToggle({ locale }: { locale: string }) {
   );
   return (
     <div className="mb-2 inline-flex rounded-full border border-line bg-[#f6f7f8] p-0.5 text-xs font-medium" role="group" aria-label="Language">
-      {choice("en", "English", "en-EG")}
-      {choice("ar", "العربية", "ar-EG")}
+      {choice("en", "English", "en-EG", enHref)}
+      {choice("ar", "العربية", "ar-EG", arHref)}
     </div>
   );
 }
@@ -144,7 +144,7 @@ export function CitizenshipButton({ initial, className, codes }: { initial: stri
       >
         <Flag code={value} size={20} />
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[28rem] rounded-2xl p-4">
+      <PopoverContent align="end" className="w-[min(28rem,calc(100vw-2rem))] rounded-2xl p-4">
         <p className="text-base font-semibold">{t(locale, "citizen.yours")}</p>
         <p className="text-xs text-slate-ink">{t(locale, "citizen.note")}</p>
         <CountryList

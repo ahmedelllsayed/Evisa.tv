@@ -1,7 +1,13 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { CmsProse } from "@/components/cms/prose-page";
 import { requirePageContent } from "@/lib/data/pages";
 
-export const metadata = { title: "Terms" };
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/terms", { en: "Terms", ar: "الشروط" });
+}
 
 export default async function TermsPage() {
   const content = await requirePageContent("terms");
