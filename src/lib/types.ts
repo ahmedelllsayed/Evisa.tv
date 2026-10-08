@@ -24,6 +24,7 @@ export type Destination = {
   processingHours: number | null;
   expressHours: number | null;
   expressFee: number | null;
+  embassyVisit: boolean;
   documents: string[];
   image: string | null;
   heroImage: string | null;

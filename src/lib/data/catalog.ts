@@ -3,6 +3,7 @@ import { cache } from "react";
 import type { Destination, Faq, FeeChange, Holiday, Review, TravelEvent, VisaType } from "@/lib/types";
 import { day, iso, json, num, numOrNull, one, sql } from "./db";
 import { clearDestinationMedia } from "@/lib/destination-media";
+import { governmentFeeCharged } from "@/lib/visa";
 
 type Row = Record<string, unknown>;
 
@@ -31,6 +32,7 @@ function toDestination(r: Row): Destination {
     processingHours: numOrNull(r.processing_hours),
     expressHours: numOrNull(r.express_hours),
     expressFee: numOrNull(r.express_fee),
+    embassyVisit: Boolean(r.embassy_visit),
     documents: json<string[]>(r.documents, []),
     image: (r.image as string) ?? null,
     heroImage: (r.hero_image as string) ?? null,
@@ -294,6 +296,7 @@ export type DestinationInput = {
   processingHours: number | null;
   expressHours: number | null;
   expressFee: number | null;
+  embassyVisit: boolean;
   documents: string[];
   image: string | null;
   heroImage: string | null;
@@ -312,20 +315,21 @@ export async function updateDestination(id: string, input: DestinationInput) {
     `update destinations set name=$2, name_ar=$3, slug=$4, code=$5, region=$6, visa_required=$7, visa_type=$8, validity=$9, validity_ar=$10, stay=$11, stay_ar=$12,
        entry=$13, entry_ar=$14, accepted_at=$15, method=$16, method_ar=$17, gov_fee=$18, service_fee=$19, processing_hours=$20, express_hours=$21,
        express_fee=$22, documents=$23::jsonb, image=$24, hero_image=$25, flag=$26, cities=$27::jsonb,
-       rejection_reasons=$28::jsonb, sources=$29::jsonb, sort_order=$30, is_active=$31, video_url=$32, updated_at=now()
+       rejection_reasons=$28::jsonb, sources=$29::jsonb, sort_order=$30, is_active=$31, video_url=$32, embassy_visit=$33, updated_at=now()
      where id=$1`,
     [
       id, input.name, input.nameAr, input.slug, input.code, input.region, input.visaRequired, input.visaType, input.validity, input.validityAr, input.stay, input.stayAr,
       input.entry, input.entryAr, input.acceptedAt, input.method, input.methodAr, input.govFee, input.serviceFee, input.processingHours, input.expressHours,
       input.expressFee, JSON.stringify(input.documents), input.image, input.heroImage, input.flag,
       JSON.stringify(input.cities), JSON.stringify(input.rejectionReasons), JSON.stringify(input.sources), input.sortOrder, input.isActive,
-      input.videoUrl,
+      input.videoUrl, input.embassyVisit,
     ],
   );
-  const newTotal = input.govFee + input.serviceFee;
-  if (before && before.govFee + before.serviceFee !== newTotal) {
+  const oldTotal = before ? governmentFeeCharged(before) + before.serviceFee : null;
+  const newTotal = governmentFeeCharged(input) + input.serviceFee;
+  if (before && oldTotal !== newTotal) {
     await sql("insert into fee_changes (destination_id, old_total, new_total, reason) values ($1,$2,$3,$4)", [
-      id, before.govFee + before.serviceFee, newTotal, "Fee updated",
+      id, oldTotal, newTotal, "Fee updated",
     ]);
   }
 }

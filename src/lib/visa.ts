@@ -21,8 +21,13 @@ export function formatMoney(amount: number, currency: string = market.currency, 
   return `${currency}\u00a0${n}`;
 }
 
-export function totalFee(d: Pick<Destination, "govFee" | "serviceFee">) {
-  return d.govFee + d.serviceFee;
+export function governmentFeeCharged(d: { govFee: number; visaType?: VisaType; embassyVisit?: boolean }) {
+  if (d.visaType === "sticker" && d.embassyVisit) return 0;
+  return d.govFee;
+}
+
+export function totalFee(d: { govFee: number; serviceFee: number; visaType?: VisaType; embassyVisit?: boolean }) {
+  return governmentFeeCharged(d) + d.serviceFee;
 }
 
 export function guaranteedDate(hours: number, from: Date = new Date()) {

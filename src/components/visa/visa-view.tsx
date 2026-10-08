@@ -22,6 +22,7 @@ import {
   guaranteedDate,
   initials,
   processingLabel,
+  governmentFeeCharged,
   totalFee,
   visaTypeLabel,
 } from "@/lib/visa";
@@ -489,7 +490,9 @@ function FeeCard({
           <dl className="text-sm">
             <div className="flex items-center justify-between gap-2 border-b border-line py-3">
               <dt className="flex min-w-0 items-center gap-2 font-semibold"><Landmark className="size-4 shrink-0" /> {t("visa.gov")}</dt>
-              <dd className="shrink-0 font-semibold">{formatMoney(destination.govFee, destination.currency, locale)}</dd>
+              <dd className="shrink-0 text-end font-semibold">
+                {destination.embassyVisit ? t("visa.govEmbassy") : formatMoney(governmentFeeCharged(destination), destination.currency, locale)}
+              </dd>
             </div>
             <div className="flex items-center justify-between gap-2 border-b border-line py-3">
               <dt className="flex min-w-0 items-center gap-2 font-semibold"><Zap className="size-4 shrink-0 text-brand" /> {t("visa.service")}</dt>

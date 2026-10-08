@@ -220,10 +220,8 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
     processingHours: Number(fd.get("processingHours")) || null,
     expressHours: Number(fd.get("expressHours")) || null,
     expressFee: Number(fd.get("expressFee")) || null,
-    documents: String(fd.get("documents") || "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean),
+    embassyVisit: fd.get("embassyVisit") === "on",
+    documents: fd.getAll("documents").map((item) => String(item).trim()).filter(Boolean),
     image: optional("image"),
     heroImage: optional("heroImage"),
     flag: optional("flag"),
@@ -239,6 +237,17 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
   };
   if (!input.name || !input.slug || !input.code) {
     return { ok: false as const, error: "الاسم والرابط ورمز الدولة مطلوبة." };
+  }
+  if (input.embassyVisit) {
+    input.visaType = "sticker";
+    input.method = "Embassy";
+    input.methodAr = "عبر السفارة";
+  }
+  if (input.visaRequired && !input.processingHours) {
+    return { ok: false as const, error: "حدد وقت المعالجة العادي بالساعة أو اليوم أو الشهر." };
+  }
+  if (input.expressHours != null && input.processingHours != null && input.expressHours >= input.processingHours) {
+    return { ok: false as const, error: "وقت المعالجة السريعة يجب أن يكون أقصر من الوقت العادي." };
   }
   const saved = await adminSaveDestination(locale, id, input);
   if (!saved.ok) return saved;

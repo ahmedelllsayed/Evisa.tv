@@ -10,6 +10,7 @@ export type SearchHit = {
   processingHours: number | null;
   govFee: number;
   serviceFee: number;
+  embassyVisit: boolean;
   currency: string;
   image: string | null;
   flag: string | null;
@@ -27,6 +28,7 @@ export function toSearchHit(d: Destination): SearchHit {
     processingHours: d.processingHours,
     govFee: d.govFee,
     serviceFee: d.serviceFee,
+    embassyVisit: d.embassyVisit,
     currency: d.currency,
     image: d.image,
     flag: d.flag,

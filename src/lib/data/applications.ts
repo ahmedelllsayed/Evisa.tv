@@ -12,7 +12,7 @@ import type {
 import { documentGaps } from "@/lib/application-rules";
 import { t, tf, type MessageKey } from "@/lib/i18n";
 import { sendMail } from "@/lib/email";
-import { formatAt, guaranteedDate } from "@/lib/visa";
+import { formatAt, governmentFeeCharged, guaranteedDate } from "@/lib/visa";
 import { getDestinationById } from "./catalog";
 import { day, getDb, iso, isoOrNull, json, num, numOrNull, one, sql } from "./db";
 
@@ -75,6 +75,7 @@ export async function createApplication(input: {
   if (!d || !d.isActive || !d.visaRequired) throw new Error("This destination is not available for applications");
   const express = input.express && d.expressHours !== null;
   const hours = express ? d.expressHours! : (d.processingHours ?? 72);
+  const govFee = governmentFeeCharged(d);
   const serviceFee = d.serviceFee + (express ? (d.expressFee ?? 0) : 0);
   const row = await one<{ id: string }>(
     `insert into applications (reference, user_id, destination_id, departure_date, express, guaranteed_at,
@@ -82,7 +83,7 @@ export async function createApplication(input: {
      values ($1,$2,$3,$4::date,$5,$6::timestamptz,$7,$8,$9,$10,$11) returning id`,
     [
       newReference(), input.userId, d.id, input.departureDate, express, guaranteedDate(hours).toISOString(),
-      d.govFee, serviceFee, d.govFee + serviceFee, d.currency, input.locale || "en-EG",
+      govFee, serviceFee, govFee + serviceFee, d.currency, input.locale || "en-EG",
     ],
   );
   await addEvent(row!.id, { status: "draft", title: "Application started", description: `${d.name} visa application created` });
