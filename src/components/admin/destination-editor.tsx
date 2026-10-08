@@ -106,7 +106,31 @@ function fileLabel(url: string | null | undefined) {
   return clean.split("/").pop() || clean;
 }
 
-export function DestinationEditor({ locale, destinations }: { locale: string; destinations: Destination[] }) {
+function missingMediaKinds(destination: Destination | undefined, stored: { destination_id: string; kind: string }[]) {
+  const missing = new Set<string>();
+  if (!destination) return missing;
+  const have = new Set(stored.filter((row) => row.destination_id === destination.id).map((row) => row.kind));
+  const urls: Record<string, string | null | undefined> = {
+    image: destination.image,
+    hero: destination.heroImage,
+    flag: destination.flag,
+    video: destination.videoUrl,
+  };
+  for (const kind of ["image", "hero", "flag", "video"]) {
+    if ((urls[kind] ?? "").startsWith("/destination-media/") && !have.has(kind)) missing.add(kind);
+  }
+  return missing;
+}
+
+export function DestinationEditor({
+  locale,
+  destinations,
+  storedMedia = [],
+}: {
+  locale: string;
+  destinations: Destination[];
+  storedMedia?: { destination_id: string; kind: string }[];
+}) {
   const [pending, start] = useTransition();
   const [selected, setSelected] = useState<string>(destinations[0]?.id ?? "new");
   const [tab, setTab] = useState<Tab>(destinations[0] ? "media" : "basics");
@@ -124,6 +148,7 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
   const [expressFee, setExpressFee] = useState(String(destinations[0]?.expressFee ?? 0));
   const [expressOn, setExpressOn] = useState(destinations[0]?.expressHours != null);
   const current = destinations.find((d) => d.id === selected);
+  const missing = useMemo(() => missingMediaKinds(current, storedMedia), [current, storedMedia]);
   const initial = current ? fromDestination(current) : empty;
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -408,6 +433,11 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
             </div>
 
             <div className={tab === "media" ? "mt-4" : "hidden"}>
+              {missing.size > 0 && (
+                <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                  صور هذه الوجهة غير محفوظة في قاعدة البيانات، لذلك البطاقة تظهر فارغة في الموقع. أعد رفع كل ملف عليه تنبيه «غير محفوظ» ثم اضغط حفظ. بعد ذلك تبقى الملفات بعد أي نشر.
+                </p>
+              )}
               <div className="grid gap-4 sm:grid-cols-2">
                 <MediaTile
                   title="صورة البطاقة"
@@ -416,6 +446,7 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
                   accept="image/png,image/jpeg,image/webp"
                   value={initial.image ?? ""}
                   picked={picked.image}
+                  missing={missing.has("image")}
                   onPick={(file) => setPicked((current) => ({ ...current, image: { url: URL.createObjectURL(file), name: file.name } }))}
                 />
                 <MediaTile
@@ -425,6 +456,7 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
                   accept="image/png,image/jpeg,image/webp"
                   value={initial.heroImage ?? ""}
                   picked={picked.hero}
+                  missing={missing.has("hero")}
                   onPick={(file) => setPicked((current) => ({ ...current, hero: { url: URL.createObjectURL(file), name: file.name } }))}
                 />
                 <MediaTile
@@ -435,6 +467,7 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
                   value={initial.flag ?? ""}
                   picked={picked.flag}
                   contain
+                  missing={missing.has("flag")}
                   onPick={(file) => setPicked((current) => ({ ...current, flag: { url: URL.createObjectURL(file), name: file.name } }))}
                 />
                 <MediaTile
@@ -445,11 +478,12 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
                   value={initial.videoUrl ?? ""}
                   picked={picked.video}
                   video
+                  missing={missing.has("video")}
                   actionLabel="رفع فيديو"
                   onPick={(file) => setPicked((current) => ({ ...current, video: { url: URL.createObjectURL(file), name: file.name } }))}
                 />
               </div>
-              <p className="mt-4 text-sm text-muted-ink">ارفع الصورة أو الفيديو، أو الصق رابطاً. الملفات المرفوعة تُحفظ في قاعدة البيانات وتبقى بعد النشر. إذا ظهرت البطاقة رمادية في الموقع، أعد رفع الصور ثم احفظ.</p>
+              <p className="mt-4 text-sm text-muted-ink">ارفع الصورة أو الفيديو، أو الصق رابطاً. الملف المرفوع يُحفظ في قاعدة البيانات ويبقى بعد النشر.</p>
             </div>
 
             <div className={tab === "sources" ? "mt-4 grid gap-3" : "hidden"}>
@@ -691,6 +725,7 @@ function MediaTile({
   onPick,
   video,
   contain,
+  missing,
   actionLabel = "استبدال",
 }: {
   title: string;
@@ -702,14 +737,18 @@ function MediaTile({
   onPick: (file: File) => void;
   video?: boolean;
   contain?: boolean;
+  missing?: boolean;
   actionLabel?: string;
 }) {
   const src = picked?.url || value;
   const label = picked?.name || fileLabel(value);
   return (
-    <article className="rounded-2xl border border-line bg-white p-4">
+    <article className={`rounded-2xl border bg-white p-4 ${missing && !picked ? "border-amber-400" : "border-line"}`}>
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-medium text-ink">{title}</h3>
+        <h3 className="text-sm font-medium text-ink">
+          {title}
+          {missing && !picked ? <span className="ms-2 text-xs font-normal text-amber-700">غير محفوظ</span> : null}
+        </h3>
         <label className="flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1.5 text-xs text-ink">
           <Upload className="size-3.5" />
           {actionLabel}

@@ -6,6 +6,7 @@ import path from "node:path";
 import destinationsSeed from "../../data/seed/destinations.json" with { type: "json" };
 import * as content from "../../data/seed/content.ts";
 import { officialSources } from "../../data/official-sources.ts";
+import { importLeftoverFiles } from "../persist-uploads.ts";
 
 export type Row = Record<string, unknown>;
 
@@ -70,6 +71,7 @@ async function createDb(): Promise<Db> {
       await reserved.unsafe("select pg_advisory_lock(84217001)");
       await migrate(locked, console.log);
       await seed(locked, { log: console.log });
+      await importLeftoverFiles(locked, console.log);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`database startup failed: ${message}`);
@@ -106,6 +108,7 @@ async function createDb(): Promise<Db> {
   };
   await migrate(db);
   await seed(db);
+  await importLeftoverFiles(db);
   return db;
 }
 

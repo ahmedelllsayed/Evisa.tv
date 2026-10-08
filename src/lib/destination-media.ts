@@ -1,6 +1,7 @@
 import "server-only";
 import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { asBytes } from "@/lib/bytes";
 import { one, sql } from "@/lib/data/db";
 
 const kinds = ["image", "hero", "flag", "video"] as const;
@@ -31,15 +32,13 @@ function validId(id: string) {
   return /^[0-9a-f-]{36}$/i.test(id);
 }
 
-function asBytes(value: unknown): Buffer | null {
-  if (value == null) return null;
-  if (Buffer.isBuffer(value)) return value.length ? value : null;
-  if (value instanceof Uint8Array) return value.byteLength ? Buffer.from(value) : null;
-  if (typeof value === "string") {
-    const hex = value.startsWith("\\x") ? value.slice(2) : value;
-    if (hex && /^[0-9a-f]+$/i.test(hex) && hex.length % 2 === 0) return Buffer.from(hex, "hex");
-  }
-  return null;
+export async function listStoredDestinationMedia(ids: string[]) {
+  const valid = ids.filter(validId);
+  if (!valid.length) return [];
+  return sql<{ destination_id: string; kind: string }>(
+    `select destination_id, kind from destination_files where destination_id::text = any(string_to_array($1, ','))`,
+    [valid.join(",")],
+  );
 }
 
 export async function saveDestinationMedia(id: string, kind: DestinationMediaKind, file: File) {
@@ -76,7 +75,14 @@ export async function readDestinationMedia(id: string, kind: string) {
   const ext = name.split(".").pop() ?? "";
   const mime = mimes[ext];
   if (!mime) return null;
-  return { bytes: await readFile(path.join(dir, name)), mime };
+  const bytes = await readFile(path.join(dir, name));
+  await sql(
+    `insert into destination_files (destination_id, kind, bytes, mime)
+     values ($1, $2, $3, $4)
+     on conflict (destination_id, kind) do nothing`,
+    [id, kind, bytes, mime],
+  );
+  return { bytes, mime };
 }
 
 export async function clearDestinationMedia(id: string) {

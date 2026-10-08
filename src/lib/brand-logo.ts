@@ -1,6 +1,7 @@
 import "server-only";
 import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { asBytes } from "@/lib/bytes";
 import { sql } from "@/lib/data/db";
 
 const dir = path.join(process.cwd(), ".data", "brand");
@@ -17,17 +18,6 @@ const mimes: Record<string, string> = {
 };
 
 export type StoredLogo = { bytes: Buffer; mime: string };
-
-function asBytes(value: unknown): Buffer | null {
-  if (value == null) return null;
-  if (Buffer.isBuffer(value)) return value.length ? value : null;
-  if (value instanceof Uint8Array) return value.byteLength ? Buffer.from(value) : null;
-  if (typeof value === "string") {
-    const hex = value.startsWith("\\x") ? value.slice(2) : value;
-    if (hex && /^[0-9a-f]+$/i.test(hex) && hex.length % 2 === 0) return Buffer.from(hex, "hex");
-  }
-  return null;
-}
 
 async function diskName() {
   try {

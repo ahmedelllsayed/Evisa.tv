@@ -1,7 +1,9 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { asBytes } from "@/lib/bytes";
+import { one, sql } from "@/lib/data/db";
 import { supabaseEnabled } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -15,32 +17,53 @@ function safeName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(-80) || "file";
 }
 
+function diskPath(storagePath: string) {
+  const target = path.resolve(LOCAL_ROOT, storagePath);
+  if (!target.startsWith(LOCAL_ROOT)) throw new Error("Invalid path");
+  return target;
+}
+
+async function remember(storagePath: string, bytes: Buffer, mime: string | null) {
+  await sql(
+    `insert into stored_files (path, bytes, mime) values ($1, $2, $3)
+     on conflict (path) do update set bytes = excluded.bytes, mime = excluded.mime`,
+    [storagePath, bytes, mime],
+  );
+}
+
+async function recall(storagePath: string) {
+  const row = await one<{ bytes: unknown }>("select bytes from stored_files where path = $1", [storagePath]);
+  return row ? asBytes(row.bytes) : null;
+}
+
 /** Stores a file as <userId>/<applicationId>/<uuid>-<name> and returns the storage path. */
 export async function storeFile(userId: string, applicationId: string, file: File) {
   const storagePath = `${userId}/${applicationId}/${randomUUID()}-${safeName(file.name)}`;
   const bytes = Buffer.from(await file.arrayBuffer());
+  await remember(storagePath, bytes, file.type || null);
   if (supabaseEnabled) {
     const { error } = await createSupabaseAdminClient()
       .storage.from(BUCKET)
       .upload(storagePath, bytes, { contentType: file.type, upsert: false });
     if (error) throw new Error(error.message);
-  } else {
-    const target = path.join(LOCAL_ROOT, storagePath);
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, bytes);
   }
   return storagePath;
 }
 
 export async function readStoredBytes(storagePath: string) {
+  const stored = await recall(storagePath);
+  if (stored) return stored;
   if (supabaseEnabled) {
     const { data, error } = await createSupabaseAdminClient().storage.from(BUCKET).download(storagePath);
-    if (error || !data) throw new Error(error?.message ?? "Could not read file");
-    return Buffer.from(await data.arrayBuffer());
+    if (!error && data) {
+      const bytes = Buffer.from(await data.arrayBuffer());
+      await remember(storagePath, bytes, null);
+      return bytes;
+    }
   }
-  const target = path.resolve(LOCAL_ROOT, storagePath);
-  if (!target.startsWith(LOCAL_ROOT)) throw new Error("Invalid path");
-  return readFile(target);
+  const bytes = await readFile(diskPath(storagePath));
+  await remember(storagePath, bytes, null);
+  return bytes;
 }
 
 /** Copies an existing stored file into a new application path so deletes stay independent. */
@@ -51,21 +74,23 @@ export async function copyStoredFile(userId: string, applicationId: string, sour
 }
 
 export async function removeFile(storagePath: string) {
+  await sql("delete from stored_files where path = $1", [storagePath]);
   if (supabaseEnabled) {
     await createSupabaseAdminClient().storage.from(BUCKET).remove([storagePath]);
-  } else {
-    await rm(path.join(LOCAL_ROOT, storagePath), { force: true });
   }
+  await rm(diskPath(storagePath), { force: true }).catch(() => undefined);
 }
 
 /** Either a short-lived signed URL (Supabase) or the raw bytes (local storage). */
 export async function readFileForDownload(storagePath: string): Promise<{ url: string } | { bytes: Buffer }> {
+  const stored = await recall(storagePath);
+  if (stored) return { bytes: stored };
   if (supabaseEnabled) {
     const { data, error } = await createSupabaseAdminClient().storage.from(BUCKET).createSignedUrl(storagePath, 60);
     if (error || !data) throw new Error(error?.message ?? "Could not sign URL");
     return { url: data.signedUrl };
   }
-  const target = path.resolve(LOCAL_ROOT, storagePath);
-  if (!target.startsWith(LOCAL_ROOT)) throw new Error("Invalid path");
-  return { bytes: await readFile(target) };
+  const bytes = await readFile(diskPath(storagePath));
+  await remember(storagePath, bytes, null);
+  return { bytes };
 }
