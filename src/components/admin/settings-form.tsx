@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { adminSaveSettingsForm } from "@/app/actions/admin";
 import { AdminCard, AdminError, AdminField, AdminPage, adminPrimaryClass, adminTextareaClass } from "@/components/admin/chrome";
 import type { SiteSettings } from "@/lib/data/settings";
@@ -8,6 +8,16 @@ import type { SiteSettings } from "@/lib/data/settings";
 export function SettingsForm({ locale, settings }: { locale: string; settings: SiteSettings }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    setBroken(false);
+    setPreview(null);
+    setFileName("");
+  }, [settings.logoUrl]);
+  const shown = preview || (!broken && settings.logoUrl ? settings.logoUrl : "");
   return (
     <AdminPage title="إعدادات الموقع" description="اسم البراند يظهر في العنوان والتذييل وصفحات التأشيرة. ارفع شعارك ليحل مكان العلامة الحالية.">
       {error && <AdminError>{error}</AdminError>}
@@ -17,8 +27,10 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
           action={(fd) =>
             start(async () => {
               setError(null);
+              setSaved(false);
               const result = await adminSaveSettingsForm(locale, fd);
               if (result && !result.ok) setError(result.error);
+              else setSaved(true);
             })
           }
         >
@@ -32,16 +44,48 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
           </label>
           <div className="text-sm sm:col-span-2">
             الشعار
-            {settings.logoUrl ? (
-              <img src={settings.logoUrl} alt={settings.name} className="mt-2 h-10 w-auto" />
+            {shown ? (
+              <img
+                src={shown}
+                alt={settings.name}
+                className="mt-2 h-16 w-auto max-w-full rounded-lg border border-line bg-white object-contain p-2"
+                onError={() => {
+                  if (!preview) setBroken(true);
+                }}
+              />
             ) : (
-              <p className="mt-1 text-xs text-muted-ink">العلامة المرسومة الحالية. ارفع صورة لاستبدالها.</p>
+              <p className="mt-1 text-xs text-muted-ink">
+                {broken ? "الشعار السابق لم يعد متاحاً. ارفع الصورة مرة أخرى ثم احفظ." : "لا يوجد شعار مرفوع. الموقع يعرض الاسم إلى أن ترفع صورة."}
+              </p>
             )}
-            <input name="logo" type="file" accept="image/png,image/jpeg,image/webp" className="mt-2 block w-full text-sm" />
-            <label className="mt-2 flex items-center gap-2">
-              <input type="checkbox" name="clearLogo" />
-              إزالة الشعار المرفوع
+            <label className="mt-3 inline-flex cursor-pointer items-center rounded-full border border-line bg-white px-4 py-2 text-sm">
+              اختيار صورة
+              <input
+                name="logo"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  setSaved(false);
+                  if (!file) {
+                    setPreview(null);
+                    setFileName("");
+                    return;
+                  }
+                  setFileName(file.name);
+                  setPreview(URL.createObjectURL(file));
+                }}
+              />
             </label>
+            {fileName && <p className="mt-2 text-xs text-muted-ink">{fileName}</p>}
+            <p className="mt-2 text-xs text-muted-ink">PNG أو JPG أو WebP، بحد أقصى 2 ميغابايت. يُحفظ الشعار مع الإعدادات ولا يختفي بعد النشر.</p>
+            {settings.logoUrl && (
+              <label className="mt-2 flex items-center gap-2">
+                <input type="checkbox" name="clearLogo" />
+                إزالة الشعار المرفوع
+              </label>
+            )}
           </div>
           <Field name="generalEmail" label="بريد عام" defaultValue={settings.generalEmail} />
           <Field name="supportEmail" label="بريد الدعم" defaultValue={settings.supportEmail} />
@@ -80,9 +124,12 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
             روابط التواصل (سطر لكل رابط)
             <textarea name="social" defaultValue={settings.extras.social} className={adminTextareaClass} />
           </label>
-          <button disabled={pending} className={`${adminPrimaryClass} sm:col-span-2`}>
-            حفظ الإعدادات
-          </button>
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+            <button disabled={pending} className={adminPrimaryClass}>
+              {pending ? "جارٍ الحفظ..." : "حفظ الإعدادات"}
+            </button>
+            {saved && <p className="text-sm text-brand">تم حفظ الإعدادات.</p>}
+          </div>
         </form>
       </AdminCard>
     </AdminPage>

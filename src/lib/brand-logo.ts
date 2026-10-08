@@ -1,6 +1,7 @@
 import "server-only";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { sql } from "@/lib/data/db";
 
 const dir = path.join(process.cwd(), ".data", "brand");
 const types: Record<string, string> = {
@@ -15,7 +16,20 @@ const mimes: Record<string, string> = {
   svg: "image/svg+xml",
 };
 
-async function existing() {
+export type StoredLogo = { bytes: Buffer; mime: string };
+
+function asBytes(value: unknown): Buffer | null {
+  if (value == null) return null;
+  if (Buffer.isBuffer(value)) return value.length ? value : null;
+  if (value instanceof Uint8Array) return value.byteLength ? Buffer.from(value) : null;
+  if (typeof value === "string") {
+    const hex = value.startsWith("\\x") ? value.slice(2) : value;
+    if (hex && /^[0-9a-f]+$/i.test(hex) && hex.length % 2 === 0) return Buffer.from(hex, "hex");
+  }
+  return null;
+}
+
+async function diskName() {
   try {
     const names = await readdir(dir);
     return names.find((name) => name.startsWith("logo."));
@@ -24,26 +38,36 @@ async function existing() {
   }
 }
 
-export async function saveBrandLogo(file: File) {
+export async function readLogoFile(file: File): Promise<{ ok: true; logo: StoredLogo } | { ok: false; error: string }> {
   const ext = types[file.type];
-  if (!ext) return { ok: false as const, error: "استخدم PNG أو JPG أو WebP." };
-  if (file.size > 2 * 1024 * 1024) return { ok: false as const, error: "الشعار أكبر من 2 ميغابايت." };
-  await clearBrandLogo();
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, `logo.${ext}`), Buffer.from(await file.arrayBuffer()));
-  return { ok: true as const, url: `/brand-logo?v=${Date.now()}` };
+  if (!ext) return { ok: false, error: "استخدم PNG أو JPG أو WebP." };
+  if (file.size > 2 * 1024 * 1024) return { ok: false, error: "الشعار أكبر من 2 ميغابايت." };
+  return { ok: true, logo: { bytes: Buffer.from(await file.arrayBuffer()), mime: mimes[ext] } };
 }
 
-export async function clearBrandLogo() {
-  const name = await existing();
+/** Persists the mark in the database so a new deploy does not wipe it. */
+export async function storeBrandLogo(logo: StoredLogo | null) {
+  await sql(`update site_settings set logo_bytes = $1, logo_mime = $2 where id = 1`, [
+    logo?.bytes ?? null,
+    logo?.mime ?? null,
+  ]);
+  const name = await diskName();
   if (name) await rm(path.join(dir, name), { force: true });
 }
 
 export async function readBrandLogo() {
-  const name = await existing();
+  const row = await sql<{ logo_bytes: unknown; logo_mime: string | null }>(
+    "select logo_bytes, logo_mime from site_settings where id = 1",
+  );
+  const stored = row[0];
+  const bytes = asBytes(stored?.logo_bytes);
+  if (bytes && stored?.logo_mime) return { bytes, mime: stored.logo_mime, attachment: false };
+
+  const name = await diskName();
   if (!name) return null;
   const ext = name.split(".").pop() ?? "";
   const mime = mimes[ext];
   if (!mime) return null;
   return { bytes: await readFile(path.join(dir, name)), mime, attachment: ext === "svg" };
 }
+

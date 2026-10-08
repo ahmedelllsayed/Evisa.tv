@@ -24,7 +24,7 @@ import {
   type TravelEventInput,
 } from "@/lib/data/catalog";
 import { deletePage, savePage, setPagePublished } from "@/lib/data/pages";
-import { clearBrandLogo, saveBrandLogo } from "@/lib/brand-logo";
+import { readLogoFile, storeBrandLogo } from "@/lib/brand-logo";
 import { saveDestinationMedia, type DestinationMediaKind } from "@/lib/destination-media";
 import { saveCitizenshipCodes, saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
 import { sql } from "@/lib/data/db";
@@ -386,13 +386,15 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
   await guard(locale);
   const current = await getSiteSettings();
   let logoUrl = current.logoUrl;
+  let storedLogo: { bytes: Buffer; mime: string } | null | undefined;
   const file = fd.get("logo");
   if (file instanceof File && file.size > 0) {
-    const saved = await saveBrandLogo(file);
-    if (!saved.ok) return saved;
-    logoUrl = saved.url;
+    const parsed = await readLogoFile(file);
+    if (!parsed.ok) return parsed;
+    storedLogo = parsed.logo;
+    logoUrl = `/brand-logo?v=${Date.now()}`;
   } else if (fd.get("clearLogo") === "on") {
-    await clearBrandLogo();
+    storedLogo = null;
     logoUrl = "";
   }
   const offices = String(fd.get("offices") || "")
@@ -444,6 +446,7 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
       paymobIntegrationId: String(fd.get("paymobIntegrationId") || "").replace(/\D/g, ""),
     },
   });
+  if (storedLogo !== undefined) await storeBrandLogo(storedLogo);
   await recordAudit("settings.save", "site_settings");
   refresh(locale);
   refresh(locale, "/admin/settings");

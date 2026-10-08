@@ -116,7 +116,11 @@ function rate(value: unknown, fallback: number) {
 }
 
 export async function getSiteSettings(): Promise<SiteSettings> {
-  const row = await one("select * from site_settings where id = 1");
+  const row = await one(
+    `select name, legal_name, description, tagline, general_email, support_email, press_email, partnerships_email,
+            phone, whatsapp, offices, approval_rate, approval_overall, booking_url, logo_url, extras
+     from site_settings where id = 1`,
+  );
   if (!row) return fromConfig();
   const offices = json<{ city?: string; address?: string }[]>(row.offices, []);
   return {

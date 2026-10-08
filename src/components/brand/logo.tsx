@@ -1,12 +1,22 @@
-import { useId } from "react";
+"use client";
+
+import { useId, useState } from "react";
 import { siteConfig } from "@/config/site.config";
 import { cn } from "@/lib/utils";
 
 /** Built-in wordmark, a text name, or the logo uploaded in admin settings. */
 export function Logo({ className, name = siteConfig.name, src }: { className?: string; name?: string; src?: string | null }) {
   const id = useId();
-  if (src) {
-    return <img src={src} alt={name} className={cn("h-[27px] w-auto max-w-[140px] object-contain", className)} />;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  if (src && failedSrc !== src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        className={cn("h-[27px] w-auto max-w-[140px] object-contain", className)}
+        onError={() => setFailedSrc(src)}
+      />
+    );
   }
   if (name !== siteConfig.name) {
     return <span className={cn("font-display text-xl leading-none font-semibold tracking-tight", className)}>{name}</span>;
