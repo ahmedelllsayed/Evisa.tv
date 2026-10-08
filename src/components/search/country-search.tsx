@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Search, TrendingUp } from "lucide-react";
 import { MediaImage } from "@/components/media-image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
@@ -9,7 +9,7 @@ import { href, visaHref } from "@/lib/href";
 import { t, tf } from "@/lib/i18n";
 import { localizedDestinationName } from "@/lib/localize";
 import { matchHits, type SearchHit } from "@/lib/search";
-import { formatMoney, guaranteedDate, formatDateTime, totalFee, visaTypeLabel } from "@/lib/visa";
+import { formatDate, formatMoney, guaranteedDate, totalFee, visaTypeLabel } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
 export function CountrySearchOverlay({
@@ -28,7 +28,11 @@ export function CountrySearchOverlay({
   onQuery: (q: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const results = useMemo(() => matchHits(hits, query), [hits, query]);
+  const trimmed = query.trim();
+  const results = useMemo(
+    () => (trimmed ? matchHits(hits, trimmed) : hits.map((hit) => ({ hit, city: null as string | null }))),
+    [hits, trimmed],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -56,7 +60,7 @@ export function CountrySearchOverlay({
         <EmergencyIcon className="size-3" />
         {t(locale, "search.emergency")}
       </Link>
-      <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-4">
+      <div className="mx-auto flex w-full max-w-4xl items-center gap-3 px-4 py-4">
         <button
           type="button"
           onClick={onClose}
@@ -65,19 +69,28 @@ export function CountrySearchOverlay({
         >
           <ArrowLeft className="size-4 rtl:rotate-180" />
         </button>
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => onQuery(e.target.value)}
-          placeholder={t(locale, "home.searchCountry")}
-          className="h-12 flex-1 rounded-full border border-line-strong px-5 text-base outline-none focus:border-brand"
-        />
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute start-5 top-1/2 size-4 -translate-y-1/2 text-muted-ink" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            placeholder={t(locale, "home.searchCountry")}
+            className="h-12 w-full rounded-full border border-line-strong ps-12 pe-5 text-base outline-none focus:border-brand"
+          />
+        </div>
       </div>
-      <div className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 pb-16">
-        {query.trim() && results.length === 0 && (
-          <p className="py-10 text-center text-sm text-muted-ink">{tf(locale, "search.empty", { query: query.trim() })}</p>
+      <div className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-4 pb-16">
+        {!trimmed && results.length > 0 && (
+          <p className="flex items-center justify-center gap-1.5 py-2 text-xs text-muted-ink">
+            <TrendingUp className="size-3.5" />
+            {t(locale, "search.trending")}
+          </p>
         )}
-        <ul className="divide-y divide-line">
+        {trimmed && results.length === 0 && (
+          <p className="py-10 text-center text-sm text-muted-ink">{tf(locale, "search.empty", { query: trimmed })}</p>
+        )}
+        <ul>
           {results.map(({ hit, city }) => (
             <SearchRow key={hit.slug} hit={hit} city={city} locale={locale} onPick={onClose} />
           ))}
@@ -103,7 +116,7 @@ function SearchRow({
   return (
     <li className="flex items-center gap-4 border-b border-line py-5">
       <div className="relative size-16 shrink-0">
-        <div className="relative size-16 overflow-hidden rounded-2xl bg-surface">
+        <div className="relative size-16 overflow-hidden rounded-2xl bg-neutral-200">
           {hit.image && <MediaImage src={hit.image} alt="" fill className="object-cover" sizes="64px" />}
         </div>
         {hit.flag && (
@@ -112,42 +125,42 @@ function SearchRow({
             alt=""
             width={22}
             height={22}
-            className="absolute -top-1 -right-1 size-[22px] rounded-full object-cover ring-2 ring-white"
+            className="absolute -top-1 -end-1 size-[22px] rounded-full object-cover ring-2 ring-white"
           />
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="font-serif text-sm tracking-wide uppercase">
+        <p className="font-serif text-sm font-semibold tracking-wide uppercase">
           {name}
-          {city && <span className="ml-2 font-sans text-xs tracking-normal text-brand normal-case">· {city}</span>}
+          {city && <span className="ms-2 font-sans text-xs font-medium tracking-normal text-brand normal-case">· {city}</span>}
         </p>
         {available ? (
-          <p className="mt-2 flex flex-wrap gap-x-4 text-xs text-slate-ink">
-            <span>
-              {t(locale, "search.guaranteed")}
-              <span className="mt-0.5 block font-medium text-ink">{formatDateTime(guaranteedDate(hit.processingHours ?? 72), locale).split(",")[0]}</span>
-            </span>
-            <span>
-              {t(locale, "card.type")}
-              <span className="mt-0.5 block font-medium text-ink">{visaTypeLabel(hit.visaType, locale)}</span>
-            </span>
-            <span>
-              {t(locale, "card.fees")}
-              <span className="mt-0.5 block font-medium text-ink">{formatMoney(totalFee(hit), hit.currency, locale)}</span>
-            </span>
-          </p>
+          <div className="mt-2 flex flex-wrap gap-x-8 gap-y-2">
+            <Detail label={t(locale, "search.guaranteed")} value={formatDate(guaranteedDate(hit.processingHours ?? 72), locale)} />
+            <Detail label={t(locale, "card.type")} value={visaTypeLabel(hit.visaType, locale)} />
+            <Detail label={t(locale, "card.fees")} value={formatMoney(totalFee(hit), hit.currency, locale)} />
+          </div>
         ) : (
-          <p className="mt-2 text-sm text-muted-ink">{t(locale, "search.noVisa")}</p>
+          <p className="mt-1.5 text-sm text-muted-ink">{t(locale, "search.noVisa")}</p>
         )}
       </div>
       <Link
         href={visaHref(hit.slug, locale)}
         onClick={onPick}
-        className="shrink-0 rounded-full border border-line px-5 py-2 text-sm font-medium"
+        className="shrink-0 rounded-full border border-neutral-300 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors hover:border-black hover:bg-black hover:text-white sm:px-5"
       >
         {t(locale, "visa.get")}
       </Link>
     </li>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <p className="text-xs text-muted-ink">
+      {label}:
+      <span className="mt-1 block text-sm font-semibold text-black">{value}</span>
+    </p>
   );
 }
 
