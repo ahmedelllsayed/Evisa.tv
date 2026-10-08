@@ -30,12 +30,12 @@ export function HomeReviews({ reviews }: { reviews: Review[] }) {
   const locale = useLocale();
   const rows = reviews.map((r) => localizeReview(r, locale));
   return (
-    <section className="mx-auto mt-20 max-w-site px-4">
+    <section className="mx-auto mt-20 w-full min-w-0 max-w-site px-4">
       <h2 className="text-center font-display text-3xl font-semibold">{t(locale, "home.loved")}</h2>
       {rows.length > 0 && (
         <p className="mt-2 text-center text-sm text-muted-ink">{rows.length}</p>
       )}
-      <div className="mt-8 flex gap-4 overflow-x-auto pb-4 scrollbar-none">
+      <div className="mt-8 flex w-full min-w-0 gap-4 overflow-x-auto pb-4 scrollbar-none">
         {rows.map((r) => (
           <figure key={r.id} className="w-72 shrink-0 rounded-2xl border border-line p-5">
             <StarRow rating={r.rating} />

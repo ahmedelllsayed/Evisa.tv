@@ -744,7 +744,7 @@ function NearbyBlock({ nearby, locale, name }: { nearby: Destination[]; locale: 
   return (
     <section className="mt-12">
       <h2 className="font-display text-2xl font-semibold">{tf("visa.nearby", { name })}</h2>
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+      <div className="mt-4 flex w-full min-w-0 gap-3 overflow-x-auto pb-2 scrollbar-none">
         {nearby.map((d) => (
           <Link key={d.id} href={visaHref(d.slug, locale)} className="w-40 shrink-0">
             <div className="relative aspect-4/5 overflow-hidden rounded-2xl bg-neutral-200">

@@ -41,7 +41,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const arabic = isLocale(localeHeader) && localeHeader.startsWith("ar");
   return (
     <html lang={arabic ? "ar" : "en"} dir={arabic ? "rtl" : "ltr"} className={`${fontVariables} h-full`} style={{ ...brandCssVariables(), colorScheme: "light" } as CSSProperties} suppressHydrationWarning>
-      <body className="flex min-h-full flex-col bg-white text-black">
+      <body className="flex min-h-full w-full max-w-full flex-col bg-white text-black">
         <Providers locale={isLocale(localeHeader) ? localeHeader : siteConfig.defaultLocale}>
           {children}
           <Toaster position="top-center" theme="light" />

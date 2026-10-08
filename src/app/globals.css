@@ -153,6 +153,12 @@ html[dir="rtl"] body {
   html {
     @apply font-sans;
   }
+  /* Column flex on body uses min-width:auto, so a wide scroller
+     stretches the page and phones zoom out until content looks like a narrow column. */
+  body > * {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 @layer utilities {
