@@ -5,11 +5,11 @@
  * `src/config/fonts.ts`.
  */
 export const siteConfig = {
-  name: "Atlys",
-  legalName: "Atlys, Inc.",
+  name: "Evisa",
+  legalName: "Evisa",
   shortTagline: "Visas On Time",
   tagline: "Visas On Time Guaranteed",
-  description: "Atlys helps you plan, apply, and track visas seamlessly across the world.",
+  description: "Evisa helps you plan, apply, and track visas.",
   seoTitle: "Visa applications for Egyptian passports",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
 
@@ -53,17 +53,13 @@ export const siteConfig = {
   },
 
   contact: {
-    generalEmail: "help@atlys.com",
-    supportEmail: "support@atlys.com",
-    pressEmail: "pr@atlys.com",
-    partnershipsEmail: "partnerships@atlys.com",
-    phone: "+1 607-208-2132",
-    whatsapp: "https://wa.me/16072082132",
-    offices: [
-      { city: "New York", address: "447 Broadway STE 851, New York, USA" },
-      { city: "Dubai", address: "3rd Floor, Burjuman Mall, Khalid Bin Al Waleed Rd - Al Mankhool - Dubai" },
-      { city: "Delhi", address: "7 Khullar Farms, New Delhi, India" },
-    ],
+    generalEmail: "help@evisa.tv",
+    supportEmail: "support@evisa.tv",
+    pressEmail: "pr@evisa.tv",
+    partnershipsEmail: "partnerships@evisa.tv",
+    phone: "",
+    whatsapp: "",
+    offices: [] as { city: string; address: string }[],
   },
 
   stats: {

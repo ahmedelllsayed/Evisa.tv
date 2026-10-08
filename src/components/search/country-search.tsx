@@ -137,11 +137,11 @@ function SearchRow({
             </span>
           </p>
         ) : (
-          <p className="mt-2 text-sm text-muted-ink">{t(locale, "visa.coming")}</p>
+          <p className="mt-2 text-sm text-muted-ink">{t(locale, "search.noVisa")}</p>
         )}
       </div>
       <Link
-        href={available ? visaHref(hit.slug, locale) : href("/contact", locale)}
+        href={visaHref(hit.slug, locale)}
         onClick={onPick}
         className="shrink-0 rounded-full border border-line px-5 py-2 text-sm font-medium"
       >

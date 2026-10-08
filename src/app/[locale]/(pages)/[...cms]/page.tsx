@@ -1,14 +1,14 @@
 import { notFound } from "next/navigation";
 import { CmsProse } from "@/components/cms/prose-page";
 import { linesOf } from "@/lib/cms/registry";
-import { getPage } from "@/lib/data/pages";
+import { getPage, localizeContent } from "@/lib/data/pages";
 
 export default async function CustomPage({ params }: { params: Promise<{ locale: string; cms: string[] }> }) {
-  const { cms } = await params;
+  const { cms, locale } = await params;
   const slug = cms.join("/");
   const page = await getPage(slug);
   if (!page || !page.published) notFound();
-  const content = page.content;
+  const content = localizeContent(page.content, locale);
   if (page.template === "prose" || page.template === "contact" || page.template === "fees") {
     return <CmsProse title={content.title || page.title} intro={content.intro} body={content.body} />;
   }

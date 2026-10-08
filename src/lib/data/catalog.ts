@@ -55,7 +55,7 @@ export const listDestinations = cache(async (opts: { includeInactive?: boolean }
 });
 
 export const getDestinationBySlug = cache(async (slug: string) => {
-  const r = await one("select * from destinations where slug = $1", [slug]);
+  const r = await one("select * from destinations where slug = $1 and is_active", [slug]);
   return r ? toDestination(r) : null;
 });
 

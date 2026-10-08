@@ -1,6 +1,6 @@
 import "server-only";
 import { notFound } from "next/navigation";
-import { BUILTIN_PAGES, BUILTIN_SLUGS, defaultContent, mergeContent, type CmsContent, type CmsTemplate } from "@/lib/cms/registry";
+import { BUILTIN_PAGES, BUILTIN_SLUGS, defaultContent, linesOf, mergeContent, type CmsContent, type CmsTemplate } from "@/lib/cms/registry";
 import { isArabicLocale } from "@/lib/i18n";
 import { currentLocale } from "@/lib/locale";
 import { json, one, sql } from "./db";
@@ -48,7 +48,7 @@ export async function getPage(slug: string): Promise<ManagedPage | null> {
   return row ? toPage(row) : null;
 }
 
-function localizeContent(content: CmsContent, locale: string): CmsContent {
+export function localizeContent(content: CmsContent, locale: string): CmsContent {
   if (!isArabicLocale(locale)) return content;
   const out = { ...content };
   for (const [key, value] of Object.entries(content)) {
@@ -67,6 +67,22 @@ export async function requirePageContent(slug: string): Promise<CmsContent & { t
   const content = localizeContent(mergeContent(builtin?.content ?? {}, page?.content), await currentLocale());
   const title = content.title || page?.title || builtin?.title || "";
   return { ...content, title };
+}
+
+export async function emptyContentSlugs(): Promise<Set<string>> {
+  const checks: [string, string][] = [
+    ["newsroom", "posts"],
+    ["partners", "groups"],
+    ["on-time-guaranteed", "cases"],
+  ];
+  const hidden = new Set<string>();
+  for (const [slug, key] of checks) {
+    const page = await getPage(slug);
+    const builtin = BUILTIN_PAGES.find((item) => item.slug === slug);
+    const content = mergeContent(builtin?.content ?? {}, page?.content);
+    if (linesOf(content[key]).length === 0) hidden.add(slug);
+  }
+  return hidden;
 }
 
 export async function unpublishedSlugs(): Promise<Set<string>> {
