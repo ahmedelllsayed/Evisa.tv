@@ -10,6 +10,7 @@ import {
   startPaymentAction,
   uploadDocumentAction,
 } from "@/app/actions/apply";
+import { track } from "@/lib/analytics";
 import { documentGaps } from "@/lib/application-rules";
 import { countries, countryName } from "@/lib/countries";
 import { href } from "@/lib/href";
@@ -312,6 +313,7 @@ export function ApplyWizard({
             className="h-12 w-full rounded-full bg-[#ffd873] font-semibold text-black disabled:opacity-60"
             onClick={() =>
               start(async () => {
+                track("add_payment_info", { item_id: application.destinationSlug, value: application.totalAmount });
                 const result = await startPaymentAction(locale, application.id);
                 if (result && !result.ok) setError(result.error);
               })
@@ -332,6 +334,7 @@ export function ApplyWizard({
             className="mt-4 h-12 rounded-full bg-brand px-6 font-medium text-white"
             onClick={() =>
               start(async () => {
+                track("add_payment_info", { item_id: application.destinationSlug, value: application.totalAmount });
                 const result = await startPaymentAction(locale, application.id);
                 if (result && !result.ok) setError(result.error);
               })

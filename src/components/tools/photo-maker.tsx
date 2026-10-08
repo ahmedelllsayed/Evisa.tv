@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { uploadDocumentAction } from "@/app/actions/apply";
+import { track } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 
 const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -90,6 +91,7 @@ export function PhotoMaker({ locale, targets = [] }: { locale: string; targets?:
     const a = document.createElement("a");
     a.href = canvas.toDataURL("image/jpeg", 0.92);
     a.download = "visa-photo.jpg";
+    track("photo_tool_use", { action: "download" });
     a.click();
   }
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PurchaseBeacon } from "@/components/analytics/purchase-beacon";
 import { getCurrentUser } from "@/lib/auth";
 import { completeStripeSession } from "@/lib/payments";
 import { getApplication } from "@/lib/data/applications";
@@ -16,6 +17,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: Page)
   const visible = app && user && (user.id === app.userId || user.role === "admin") ? app : null;
   return (
     <div className="mx-auto max-w-md px-4 py-16 text-center">
+      {visible?.paidAt && <PurchaseBeacon id={visible.id} value={visible.totalAmount} currency={visible.currency} />}
       <h1 className="font-display text-3xl font-semibold">{confirmed ? "Payment received" : "Payment was not completed"}</h1>
       <p className="mt-3 text-body">
         {visible

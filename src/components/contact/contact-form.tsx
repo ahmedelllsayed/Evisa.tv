@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { sendContactAction } from "@/app/actions/inbox";
+import { track } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 
 export function ContactForm({ locale }: { locale: string }) {
@@ -27,7 +28,10 @@ export function ContactForm({ locale }: { locale: string }) {
             body: String(data.get("message") ?? ""),
           });
           if (!result.ok) setError(result.error);
-          else setSent(true);
+          else {
+            track("generate_lead", { method: "contact" });
+            setSent(true);
+          }
         });
       }}
     >

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { googleAction, sendCodeAction, verifyCodeAction } from "@/app/actions/auth";
+import { track } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 
 export function SignInForm({ locale, next, googleEnabled }: { locale: string; next: string; googleEnabled: boolean }) {
@@ -36,6 +37,7 @@ export function SignInForm({ locale, next, googleEnabled }: { locale: string; ne
                 const res = await sendCodeAction(email, locale);
                 if (!res.ok) setError(res.error);
                 else {
+                  track("sign_up", { method: "email" });
                   setSent(true);
                   setDevCode(res.devCode);
                 }
@@ -65,6 +67,7 @@ export function SignInForm({ locale, next, googleEnabled }: { locale: string; ne
               e.preventDefault();
               setError(null);
               start(async () => {
+                track("login", { method: "email" });
                 const res = await verifyCodeAction(email, code, next, locale);
                 if (res && !res.ok) setError(res.error);
               });

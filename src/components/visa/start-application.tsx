@@ -5,6 +5,7 @@ import { startApplicationAction } from "@/app/actions/application";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { track } from "@/lib/analytics";
 import { t, tf } from "@/lib/i18n";
 import { localizedDestinationName } from "@/lib/localize";
 import type { Destination } from "@/lib/types";
@@ -78,14 +79,15 @@ export function StartApplication({
             type="button"
             disabled={pending}
             onClick={() =>
-              start(() =>
-                startApplicationAction({
+              start(() => {
+                track("begin_checkout", { item_id: destination.slug, value: totalFee(destination) });
+                return startApplicationAction({
                   locale,
                   destinationId: destination.id,
                   departureDate: date ? date.toISOString().slice(0, 10) : null,
                   express,
-                }),
-              )
+                });
+              })
             }
             className="mt-2 h-12 w-full rounded-full bg-[#ffd873] font-semibold text-black disabled:opacity-60"
           >
