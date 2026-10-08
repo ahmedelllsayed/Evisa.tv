@@ -4,7 +4,7 @@ import { getSiteSettings } from "@/lib/data/settings";
 import { createPayment, findPendingPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
 import { getCurrentUser } from "@/lib/auth";
 import { env, serverEnv } from "@/lib/env";
-import { t } from "@/lib/i18n";
+import { t, tf } from "@/lib/i18n";
 import { createPaymobIntention, paymobReady, refundPaymob } from "@/lib/paymob";
 import type { Application, Payment, User } from "@/lib/types";
 
@@ -52,7 +52,10 @@ export async function createCheckout(application: Application, locale: string, c
       redirectionUrl: `${env.siteUrl}/${locale}/payment/result`,
       integrationIds: integrationOverride,
     });
-    if (!intention.ok) return intention;
+    if (!intention.ok) {
+      const id = (integrationOverride ?? serverEnv().paymob.integrationIds)[0] ?? "";
+      return { ok: false as const, error: tf(locale, "err.payIntegration", { id }) };
+    }
     await createPayment({
       applicationId: fresh.id,
       provider: "paymob",

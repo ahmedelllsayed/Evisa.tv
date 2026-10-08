@@ -61,7 +61,8 @@ export async function createPaymobIntention(input: {
     detail?: string;
   } | null;
   if (!response.ok || !payload?.client_secret) {
-    console.error("[paymob] intention failed", response.status, payload?.detail ?? "no client_secret");
+    const sent = methods(input.integrationIds).join(",");
+    console.error("[paymob] intention failed", response.status, "integration", sent, payload?.detail ?? "no client_secret");
     return { ok: false as const, error: "Could not start the payment. Check the Paymob integration settings." };
   }
   const checkout = new URL(paymob.checkoutUrl);
@@ -84,7 +85,7 @@ function text(value: unknown) {
 }
 
 export async function handlePaymobWebhook(rawBody: string, hmac: string | null) {
-  if (!paymobReady() || !hmac) return { ok: false, status: 401 };
+  if (!serverEnv().paymob.hmacSecret || !hmac) return { ok: false, status: 401 };
   let body: { obj?: Record<string, unknown> };
   try {
     body = JSON.parse(rawBody) as { obj?: Record<string, unknown> };

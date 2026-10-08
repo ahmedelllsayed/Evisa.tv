@@ -117,7 +117,10 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
           <Field name="ogImage" label="صورة المشاركة" defaultValue={settings.extras.ogImage} />
           <Field name="favicon" label="أيقونة الموقع" defaultValue={settings.extras.favicon} />
           <Field name="gaMeasurementId" label="معرّف GA4" defaultValue={settings.extras.gaMeasurementId} />
-          <Field name="paymobIntegrationId" label="رقم تكامل Paymob" defaultValue={settings.extras.paymobIntegrationId} />
+          <div className="text-sm sm:col-span-2">
+            <Field name="paymobIntegrationId" label="رقم تكامل Paymob" defaultValue={settings.extras.paymobIntegrationId} />
+            <p className="mt-1 text-xs text-muted-ink">من نفس حساب Paymob المرتبط بمفتاح السر: Developers ثم Payment Integrations. اختر تكامل البطاقة الأونلاين فقط.</p>
+          </div>
           <Field name="consentTextEn" label="نص الموافقة بالإنجليزية" defaultValue={settings.extras.consentTextEn} />
           <Field name="consentTextAr" label="نص الموافقة بالعربية" defaultValue={settings.extras.consentTextAr} />
           <label className="text-sm sm:col-span-2">
