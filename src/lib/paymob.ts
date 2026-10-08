@@ -65,7 +65,7 @@ export async function createPaymobIntention(input: {
     console.error("[paymob] intention failed", response.status, "integration", sent, payload?.detail ?? "no client_secret");
     return { ok: false as const, error: "Could not start the payment. Check the Paymob integration settings." };
   }
-  const checkout = new URL(paymob.checkoutUrl);
+  const checkout = new URL("unifiedcheckout/", `${paymob.baseUrl}/`);
   checkout.searchParams.set("publicKey", paymob.publicKey);
   checkout.searchParams.set("clientSecret", payload.client_secret);
   return {
