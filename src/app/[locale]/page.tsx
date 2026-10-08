@@ -1,11 +1,10 @@
 import { Footer } from "@/components/layout/footer";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
-import { HomeFaq, HomeReviews } from "@/components/home/home-faq";
 import { HomeShell } from "@/components/home/home-shell";
 import { siteConfig } from "@/config/site.config";
 import { getCurrentUser } from "@/lib/auth";
 import { applicationStats } from "@/lib/data/applications";
-import { listDestinations, listEvents, listFaqs, listHolidays, listReviews } from "@/lib/data/catalog";
+import { listDestinations, listEvents, listHolidays } from "@/lib/data/catalog";
 import { isArabicLocale } from "@/lib/i18n";
 import { getCitizenship } from "@/lib/preferences";
 import { getCitizenshipCodes, getSiteSettings } from "@/lib/data/settings";
@@ -14,7 +13,7 @@ import { toSearchHit } from "@/lib/search";
 
 export default async function HomePage({ params }: Page) {
   const { locale } = await params;
-  const [user, citizenship, destinations, events, holidays, settings, citizenshipCodes, faqs, reviews, stats] = await Promise.all([
+  const [user, citizenship, destinations, events, holidays, settings, citizenshipCodes, stats] = await Promise.all([
     getCurrentUser(),
     getCitizenship(),
     listDestinations(),
@@ -22,8 +21,6 @@ export default async function HomePage({ params }: Page) {
     listHolidays(siteConfig.market.countryCode),
     getSiteSettings(),
     getCitizenshipCodes(),
-    listFaqs("home"),
-    listReviews("home"),
     applicationStats(),
   ]);
   const completed = stats.find((row) => row.status === "approved")?.count ?? 0;
@@ -58,8 +55,6 @@ export default async function HomePage({ params }: Page) {
           </div>
         </section>
       )}
-      {settings.extras.showFaq && faqs.length > 0 && <HomeFaq faqs={faqs} />}
-      {settings.extras.showReviews && reviews.length > 0 && <HomeReviews reviews={reviews} />}
       <Footer locale={locale} />
       <MobileBottomNav locale={locale} />
     </>
