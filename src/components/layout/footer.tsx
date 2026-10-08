@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { AskCatalog } from "@/components/layout/ask-catalog";
 import { LocaleSwitch } from "@/components/layout/locale-switch";
-import { unpublishedSlugs } from "@/lib/data/pages";
+import { emptyContentSlugs, unpublishedSlugs } from "@/lib/data/pages";
 import { publicReviewStats } from "@/lib/data/catalog";
 import { getSiteSettings } from "@/lib/data/settings";
 import { href } from "@/lib/href";
@@ -11,7 +11,8 @@ import { initials } from "@/lib/visa";
 import { siteConfig } from "@/config/site.config";
 
 export async function Footer({ locale }: { locale: string }) {
-  const [hidden, settings, reviews] = await Promise.all([unpublishedSlugs(), getSiteSettings(), publicReviewStats()]);
+  const [unpublished, empty, settings, reviews] = await Promise.all([unpublishedSlugs(), emptyContentSlugs(), getSiteSettings(), publicReviewStats()]);
+  const hidden = new Set([...unpublished, ...empty]);
   const toolLinks = [
     { href: "/tools/visa-requirements", label: t(locale, "footer.requirements") },
     { href: "/tools/visa-photo-maker", label: t(locale, "footer.photo") },
@@ -76,6 +77,12 @@ export async function Footer({ locale }: { locale: string }) {
       <div className="mx-auto max-w-site px-5">
         <div className="h-px bg-line" />
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 py-4 text-sm text-slate-ink">
+          {settings.extras.social.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => (
+            <a key={line} href={line} className="hover:text-ink" rel="noreferrer">
+              {line.replace(/^https?:\/\//, "")}
+            </a>
+          ))}
+          {settings.phone && <span>{settings.phone}</span>}
           {settings.offices.map((o) => (
             <span key={o.city} title={o.address} className="inline-flex items-center gap-1.5">
               <span className="size-1.5 rounded-full bg-slate-ink/60" />
@@ -84,7 +91,7 @@ export async function Footer({ locale }: { locale: string }) {
           ))}
         </div>
         <div className="h-px bg-line" />
-        <div className="flex items-center justify-between gap-4 py-5 text-sm text-muted-ink">
+        <div className="flex flex-col items-start gap-4 py-5 text-sm text-muted-ink sm:flex-row sm:items-center sm:justify-between">
           <p className="flex flex-wrap items-center gap-1">
             © {settings.name}, {t(locale, "common.rights")}
             {!hidden.has("privacy") && (

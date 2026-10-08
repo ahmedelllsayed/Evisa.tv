@@ -1,16 +1,22 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { StarRow } from "@/components/brand/icons";
 import { listReviews } from "@/lib/data/catalog";
 import { requirePageContent } from "@/lib/data/pages";
 import { initials } from "@/lib/visa";
 
-export const metadata = { title: "Wall of Love" };
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/wall-of-love", { en: "Wall of Love", ar: "آراء العملاء" });
+}
 
 export default async function WallOfLovePage() {
   const [reviews, content] = await Promise.all([listReviews("wall"), requirePageContent("wall-of-love")]);
   return (
     <div className="bg-[#111] text-white">
       <header className="px-4 pt-16 pb-10 text-center">
-        <h1 className="mx-auto w-fit font-sans text-5xl font-bold tracking-tight">{content.title}</h1>
+        <h1 className="mx-auto w-fit font-sans text-3xl font-bold tracking-tight md:text-5xl">{content.title}</h1>
       </header>
       <div className="mx-auto columns-1 gap-4 px-4 pb-20 sm:columns-2 lg:max-w-6xl lg:columns-3">
         {reviews.map((r, i) => (

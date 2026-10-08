@@ -1,12 +1,12 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { PhotoMaker } from "@/components/tools/photo-maker";
 import { documentLabels } from "@/data/seed/content";
 import { getCurrentUser } from "@/lib/auth";
 import { listApplicationsForUser, listTravelers } from "@/lib/data/applications";
 import { requirePageContent } from "@/lib/data/pages";
-import type { Page } from "@/lib/page";
 
-export const metadata = { title: "Visa Photo Creator" };
 
 const steps = [
   ["Upload Your Photo", "Pick a photo from your phone or computer (JPEG, JPG, or PNG). A fresh selfie works too."],
@@ -30,6 +30,11 @@ const faqs = [
   ["How recent should the photo be?", "Take it within the last six months, and match how you look now."],
   ["Why was my upload rejected?", "Use a JPEG or PNG under a few megabytes, with your face clearly in frame."],
 ];
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/tools/visa-photo-maker", { en: "Visa Photo Creator", ar: "صورة التأشيرة" });
+}
 
 export default async function VisaPhotoPage({ params }: Page) {
   const { locale } = await params;
@@ -55,7 +60,7 @@ export default async function VisaPhotoPage({ params }: Page) {
   return (
     <div className="bg-black text-white">
       <section className="mx-auto max-w-3xl px-4 pt-20 pb-12 text-center">
-        <h1 className="mx-auto max-w-[558px] font-sans text-[40px] leading-tight font-medium">{content.title}</h1>
+        <h1 className="mx-auto max-w-[558px] font-sans text-3xl leading-tight font-medium md:text-[40px]">{content.title}</h1>
         <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-white/65">{content.intro}</p>
         <a href="#photo-tool" className="mt-8 inline-flex rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black">
           Make my Photo

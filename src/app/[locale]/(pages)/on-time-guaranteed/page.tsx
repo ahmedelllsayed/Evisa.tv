@@ -1,10 +1,11 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { Logo } from "@/components/brand/logo";
 import { OnTimeCircles } from "@/components/marketing/on-time-circles";
 import { getSiteSettings } from "@/lib/data/settings";
 import { linesOf } from "@/lib/cms/registry";
 import { requirePageContent } from "@/lib/data/pages";
 
-export const metadata = { title: "On Time Guaranteed" };
 
 function Asterisk() {
   return (
@@ -16,6 +17,11 @@ function Asterisk() {
       </div>
     </div>
   );
+}
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/on-time-guaranteed", { en: "On Time Guaranteed", ar: "في الموعد" });
 }
 
 export default async function OnTimePage() {
@@ -39,9 +45,9 @@ export default async function OnTimePage() {
               time
             </span>
           </div>
-          <h1 className="text-[3.5rem] font-black leading-tight tracking-tight text-white md:text-9xl">{content.hero1}</h1>
+          <h1 className="text-5xl font-black leading-tight tracking-tight text-white md:text-8xl lg:text-9xl">{content.hero1}</h1>
           <div className="relative pr-4">
-            <h1 className="text-[3.5rem] font-black leading-tight tracking-tight text-white md:text-9xl lg:-mt-3">
+            <h1 className="text-5xl font-black leading-tight tracking-tight text-white md:text-8xl lg:-mt-3 lg:text-9xl">
               {content.hero2}
             </h1>
             <Asterisk />
@@ -53,7 +59,7 @@ export default async function OnTimePage() {
       {bands.map((band) => (
         <section key={band.title} data-ontime-band className="relative z-10 bg-transparent px-8">
           <div className="mx-auto flex min-h-screen max-w-4xl flex-col items-center justify-center py-60">
-            <h2 className="text-center text-5xl leading-tight font-black tracking-tight text-blue-600 lg:text-[5.5rem]">
+            <h2 className="text-center text-3xl leading-tight font-black tracking-tight text-blue-600 md:text-5xl lg:text-[5.5rem]">
               {band.title}
             </h2>
             <h3 className="mt-8 text-center text-xl font-semibold text-blue-600 lg:mt-14 lg:text-2xl">{band.body}</h3>
@@ -90,8 +96,8 @@ export default async function OnTimePage() {
       </section>
 
       <section data-ontime-band className="relative z-10 bg-blue-600 px-8 py-24 text-center text-white">
-        <h2 className="text-5xl font-black tracking-tight lg:text-7xl">On Time</h2>
-        <p className="-mt-1 text-5xl font-black tracking-tight lg:-mt-3 lg:text-7xl">Guaranteed!</p>
+        <h2 className="text-4xl font-black tracking-tight md:text-5xl lg:text-7xl">On Time</h2>
+        <p className="-mt-1 text-4xl font-black tracking-tight md:text-5xl lg:-mt-3 lg:text-7xl">Guaranteed!</p>
       </section>
     </div>
   );

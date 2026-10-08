@@ -1,9 +1,15 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { PageHero } from "@/components/layout/page-hero";
 import { listFeeChanges } from "@/lib/data/catalog";
 import { requirePageContent } from "@/lib/data/pages";
 import { formatMoney } from "@/lib/visa";
 
-export const metadata = { title: "Fee Change Audit" };
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/transparency/price-change-log", { en: "Fee Change Audit", ar: "سجل الرسوم" });
+}
 
 export default async function FeeChangePage() {
   const [changes, content] = await Promise.all([listFeeChanges(), requirePageContent("transparency/price-change-log")]);
@@ -13,7 +19,7 @@ export default async function FeeChangePage() {
         <p>{content.intro}</p>
       </PageHero>
       <div className="mx-auto max-w-4xl overflow-x-auto px-4 pb-16">
-        <table className="w-full text-left text-sm">
+        <table className="w-full min-w-[40rem] text-start text-sm">
           <thead>
             <tr className="border-b border-line text-muted-ink">
               <th className="py-2 font-medium">Date</th>

@@ -1,8 +1,14 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { linesOf } from "@/lib/cms/registry";
 import { requirePageContent } from "@/lib/data/pages";
 import { getSiteSettings } from "@/lib/data/settings";
 
-export const metadata = { title: "Emergency Helpline" };
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/emergency-care", { en: "Emergency Helpline", ar: "الطوارئ" });
+}
 
 export default async function EmergencyPage() {
   const [content, settings] = await Promise.all([requirePageContent("emergency-care"), getSiteSettings()]);
@@ -11,7 +17,7 @@ export default async function EmergencyPage() {
   return (
     <div className="min-h-[calc(100vh-72px)] px-6 py-16 lg:px-20">
       <div className="max-w-xl">
-        <h1 className="max-w-[280px] font-serif text-[40px] leading-[48px] font-medium tracking-tight text-[#0e1116]">
+        <h1 className="max-w-[280px] font-serif text-3xl leading-tight font-medium tracking-tight text-[#0e1116] md:text-[40px] md:leading-[48px]">
           {first}
           {second && (
             <>

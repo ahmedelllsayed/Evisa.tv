@@ -3,13 +3,14 @@
 import { Ban, Bed, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, FileText, Flag, Folder, Landmark, Plus, Search, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { StarRow, WhatsAppIcon } from "@/components/brand/icons";
 import { useT } from "@/components/providers";
 import { StartApplication } from "@/components/visa/start-application";
 import { siteConfig } from "@/config/site.config";
+import { track } from "@/lib/analytics";
 import { href, visaHref } from "@/lib/href";
 import { categoryLabel, docHint, docLabel, localizeFaq, localizeReview, localizedDestinationName, localizedPhrase } from "@/lib/localize";
 import type { Destination, Faq, Review } from "@/lib/types";
@@ -62,6 +63,9 @@ export function VisaView({
     destination.expressHours && destination.processingHours
       ? Math.max(1, Math.round((destination.processingHours - destination.expressHours) / 24))
       : null;
+  useEffect(() => {
+    track("view_item", { item_id: destination.slug, item_name: destination.name, value: fee, currency: destination.currency });
+  }, [destination.slug, destination.name, destination.currency, fee]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-4 pb-20 lg:px-0">
@@ -118,15 +122,19 @@ function Hero({ destination, hours, typeName }: { destination: Destination; hour
   const poster = destination.heroImage || destination.image || undefined;
   return (
     <section className="relative h-[420px] overflow-hidden rounded-[16px] bg-neutral-900 lg:h-[600px]">
-      <video
-        className="absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        muted
-        loop
-        playsInline
-        poster={poster}
-        src={destination.videoUrl || `https://media.atlys.com/b2c/clp/country-landing-page-videos/${destination.code}.mp4?tr=f-webm`}
-      />
+      {destination.videoUrl ? (
+        <video
+          className="absolute inset-0 h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+          poster={poster}
+          src={destination.videoUrl}
+        />
+      ) : poster ? (
+        <img src={poster} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      ) : null}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-gradient-to-b from-black/70 via-black/40 to-black/70 px-6 text-center text-white">
         <h1 className="font-sans text-4xl font-semibold lg:text-[48px] lg:leading-[56px]">
           {tf("visa.for", { name, demonym })}
@@ -140,7 +148,7 @@ function Hero({ destination, hours, typeName }: { destination: Destination; hour
             <button
               type="button"
               onClick={() => setDocsOpen(true)}
-              className="h-10 w-[350px] rounded-[12px] bg-brand text-base font-medium text-white shadow-md"
+              className="h-10 w-full rounded-[12px] bg-brand text-base font-medium text-white shadow-md sm:w-[350px]"
             >
               {t("visa.docsTitle")}
             </button>
@@ -180,7 +188,7 @@ function InfoGrid({ destination, typeName }: { destination: Destination; typeNam
   return (
     <section>
       <SectionHeading>{tf("visa.infoHeading", { type: typeName })}</SectionHeading>
-      <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
+      <dl className="mt-6 grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item) => (
           <div key={item.label} className="flex items-start gap-3">
             <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", item.tint)}>
@@ -449,7 +457,7 @@ function FeeCard({
   const otherDay = formatOrdinalShort(standardDue, locale).split(",")[0];
   return (
     <div className="select-none">
-      <div className="relative z-[1] -mb-2 flex items-end pb-2">
+      <div className="relative z-[1] -mb-2 flex flex-wrap items-end gap-y-1 pb-2">
         {express && (
           <button
             type="button"

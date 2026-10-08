@@ -10,7 +10,19 @@ export function ApplicationTable({ locale, applications }: { locale: string; app
   if (!applications.length) return <AdminEmpty>لا توجد طلبات في هذا التصفية.</AdminEmpty>;
   return (
     <AdminCard className="overflow-x-auto p-0">
-      <table className="w-full text-start text-sm">
+      <ul className="divide-y divide-line md:hidden">
+        {applications.map((app) => (
+          <li key={app.id}>
+            <Link href={href(`/admin/applications/${app.id}`, locale)} className="block px-4 py-3">
+              <span className="font-medium">{app.reference}</span>
+              <span className="mt-1 block text-sm">{app.destinationName}</span>
+              <span className="mt-1 block text-xs text-muted-ink">{app.userEmail}</span>
+              <span className="mt-1 block text-xs">{statusLabels[app.status] ?? app.status} · {formatMoney(app.totalAmount, app.currency)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <table className="hidden w-full text-start text-sm md:table">
         <thead>
           <tr className="border-b border-line text-muted-ink">
             <th className="px-5 py-3 font-medium">الرقم</th>

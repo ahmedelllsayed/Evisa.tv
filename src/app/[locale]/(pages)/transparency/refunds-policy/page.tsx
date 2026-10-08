@@ -1,10 +1,16 @@
+import { localizedMetadata } from "@/lib/seo";
+import type { Page } from "@/lib/page";
 import { PageHero } from "@/components/layout/page-hero";
 import { linesOf } from "@/lib/cms/registry";
 import { listFaqs, listReviews } from "@/lib/data/catalog";
 import { requirePageContent } from "@/lib/data/pages";
 import { initials } from "@/lib/visa";
 
-export const metadata = { title: "Refunds Policy" };
+
+export async function generateMetadata({ params }: Page) {
+  const { locale } = await params;
+  return localizedMetadata(locale, "/transparency/refunds-policy", { en: "Refunds Policy", ar: "سياسة الاسترداد" });
+}
 
 export default async function RefundsPage() {
   const [faqs, reviews, content] = await Promise.all([listFaqs("refunds"), listReviews("refunds"), requirePageContent("transparency/refunds-policy")]);
@@ -15,7 +21,7 @@ export default async function RefundsPage() {
         <p>{content.intro}</p>
       </PageHero>
       <div className="mx-auto max-w-4xl overflow-x-auto px-4 pb-10">
-        <table className="w-full text-left text-sm">
+        <table className="w-full min-w-[36rem] text-start text-sm">
           <thead>
             <tr className="border-b border-line text-xs tracking-wide text-muted-ink uppercase">
               <th className="py-2 font-medium">Application stage</th>

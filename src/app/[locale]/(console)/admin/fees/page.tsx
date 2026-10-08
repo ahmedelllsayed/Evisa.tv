@@ -16,7 +16,17 @@ export default async function AdminFeesPage({ params }: Page) {
         {changes.length === 0 ? (
           <AdminEmpty>لا توجد تغييرات على الرسوم بعد. احفظ وجهة برسوم مختلفة ليظهر السطر هنا.</AdminEmpty>
         ) : (
-          <table className="w-full text-start text-sm">
+          <>
+          <ul className="divide-y divide-line md:hidden">
+            {changes.map((change) => (
+              <li key={change.id} className="px-4 py-3 text-sm">
+                <span className="font-medium">{change.destinationName}</span>
+                <span className="mt-1 block">{formatMoney(change.oldTotal, "EGP")} → {formatMoney(change.newTotal, "EGP")}</span>
+                <span className="mt-1 block text-xs text-muted-ink">{formatDateTime(change.changedAt)}</span>
+              </li>
+            ))}
+          </ul>
+          <table className="hidden w-full text-start text-sm md:table">
             <thead>
               <tr className="border-b border-line text-muted-ink">
                 <th className="px-5 py-3 font-medium">الوجهة</th>
@@ -38,6 +48,7 @@ export default async function AdminFeesPage({ params }: Page) {
               ))}
             </tbody>
           </table>
+          </>
         )}
       </AdminCard>
     </AdminPage>

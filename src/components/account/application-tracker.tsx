@@ -35,7 +35,7 @@ export function ApplicationCard({ app, locale }: { app: Application; locale: str
     <Link
       href={href(`/account/applications/${app.id}`, locale)}
       className={cn(
-        "flex items-center justify-between gap-4 rounded-2xl border p-4 hover:bg-surface",
+        "flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4 hover:bg-surface",
         late ? "border-red-300 bg-red-50" : "border-line",
       )}
     >

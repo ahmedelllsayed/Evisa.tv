@@ -10,22 +10,30 @@ import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
+  const localeHeader = (await headers()).get("x-locale") ?? siteConfig.defaultLocale;
+  const arabic = isLocale(localeHeader) && localeHeader.startsWith("ar");
+  const title = (arabic ? settings.extras.seoTitleAr : settings.extras.seoTitleEn) || siteConfig.seoTitle;
+  const description = (arabic ? settings.extras.seoDescriptionAr : settings.extras.seoDescriptionEn) || settings.description;
   return {
     metadataBase: new URL(siteConfig.url),
     title: {
-      default: `${siteConfig.seoTitle} | ${settings.name}`,
+      default: `${title} | ${settings.name}`,
       template: `%s | ${settings.name}`,
     },
-    description: settings.description,
-    openGraph: { siteName: settings.name, type: "website" },
-    icons: settings.logoUrl ? { icon: settings.logoUrl } : undefined,
+    description,
+    openGraph: {
+      siteName: settings.name,
+      type: "website",
+      images: settings.extras.ogImage ? [settings.extras.ogImage] : undefined,
+    },
+    icons: settings.extras.favicon || settings.logoUrl ? { icon: settings.extras.favicon || settings.logoUrl } : undefined,
+    alternates: { languages: { "en-EG": "/en-EG", "ar-EG": "/ar-EG" } },
   };
 }
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

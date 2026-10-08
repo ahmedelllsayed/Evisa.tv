@@ -70,7 +70,7 @@ export function PassportBoard({
     <div className="bg-black text-white">
       <section className="mx-auto max-w-5xl px-4 pt-16 pb-10 text-center">
         <p className="text-[11px] font-semibold tracking-[0.22em] text-white/50 uppercase">{kicker}</p>
-        <h1 className="mx-auto mt-4 max-w-[768px] font-sans text-[72px] leading-tight font-semibold">{title}</h1>
+        <h1 className="mx-auto mt-4 max-w-[768px] font-sans text-4xl leading-tight font-semibold md:text-6xl lg:text-[72px]">{title}</h1>
         <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/60">{intro}</p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <a href="#ranking" className="rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black">{t(locale, "tool.rank")}</a>
@@ -95,7 +95,7 @@ export function PassportBoard({
       <section className="mx-auto max-w-3xl px-4 pb-12 text-center">
         <div className="mx-auto h-36 w-24 rounded-lg bg-linear-to-b from-amber-200 to-amber-700 shadow-[0_20px_50px_rgba(0,0,0,0.45)]" />
         <p className="mt-6 text-xl font-medium">{active.name}</p>
-        <dl className="mt-6 grid grid-cols-3 gap-4 text-sm">
+        <dl className="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
           <div><dt className="text-[11px] tracking-widest text-white/40">{t(locale, "tool.rank")}</dt><dd className="mt-1 text-2xl font-semibold">#{active.rank}</dd></div>
           <div><dt className="text-[11px] tracking-widest text-white/40">{t(locale, "tool.score")}</dt><dd className="mt-1 text-2xl font-semibold">{active.score}</dd></div>
           <div><dt className="text-[11px] tracking-widest text-white/40">{t(locale, "tool.visaFree")}</dt><dd className="mt-1 text-2xl font-semibold">{active.visaFree}</dd></div>

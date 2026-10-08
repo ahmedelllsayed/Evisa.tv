@@ -35,6 +35,8 @@ export function HomeShell({
   brandName,
   logoUrl,
   citizenshipCodes = [],
+  showMap = siteConfig.features.mapView,
+  showEvents = siteConfig.features.events,
 }: {
   locale: string;
   user: User | null;
@@ -46,6 +48,8 @@ export function HomeShell({
   brandName: string;
   logoUrl: string;
   citizenshipCodes?: string[];
+  showMap?: boolean;
+  showEvents?: boolean;
 }) {
   const [tab, setTab] = useState<"explore" | "events">("explore");
   const [view, setView] = useState<"grid" | "map">("grid");
@@ -55,14 +59,39 @@ export function HomeShell({
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const [mapHeight, setMapHeight] = useState("calc(100dvh - 4.75rem)");
   const mapOpen = view === "map" && tab === "explore";
 
   useEffect(() => {
-    const onScroll = () => setCompact(window.scrollY > 40);
+    const collapseAt = 120;
+    const expandAt = 8;
+    let frame = 0;
+    let current = false;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const next = current ? y > expandAt : y > collapseAt;
+        if (next === current) return;
+        const before = headerRef.current?.offsetHeight ?? 0;
+        current = next;
+        setCompact(next);
+        requestAnimationFrame(() => {
+          const after = headerRef.current?.offsetHeight ?? 0;
+          const y2 = window.scrollY;
+          // A shrinking header can pull scrollY back under the threshold and oscillate.
+          if (next && y2 <= collapseAt) window.scrollTo({ top: collapseAt + 1, behavior: "auto" });
+          else if (!next && before && after > before && y2 >= expandAt) window.scrollTo({ top: 0, behavior: "auto" });
+        });
+      });
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -94,7 +123,11 @@ export function HomeShell({
 
   return (
     <>
-      <header className={cn("sticky top-0 z-40 bg-white", (compact || mapOpen) && "shadow-[0_8px_24px_rgba(17,24,39,0.06)]")}>
+      <header
+        ref={headerRef}
+        style={{ overflowAnchor: "none" }}
+        className={cn("sticky top-0 z-40 bg-white", (compact || mapOpen) && "shadow-[0_8px_24px_rgba(17,24,39,0.06)]")}
+      >
         <div className={cn("mx-auto hidden gap-4 px-8 lg:grid lg:grid-cols-[1fr_auto_1fr]", mapOpen ? "max-w-none items-center py-3" : "max-w-site items-start pt-5 pb-2")}>
           <div className="flex items-center gap-3">
             <Link href={href("/", locale)} aria-label={brandName}>
@@ -123,7 +156,7 @@ export function HomeShell({
             ) : compact && tab === "explore" ? (
               <FilterBar locale={locale} filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} compact />
             ) : (
-              <ExploreTabs tab={tab} onTab={setTab} />
+              <ExploreTabs tab={tab} onTab={setTab} showEvents={showEvents} />
             )}
           </div>
           <div className="flex items-center justify-end gap-2">
@@ -144,11 +177,18 @@ export function HomeShell({
             <UserMenu user={user} locale={locale} className="border-0" />
           </div>
         </div>
-        {!mapOpen && !compact && tab === "explore" && (
-          <div className="mx-auto hidden justify-center px-6 pt-8 pb-6 lg:flex">
-            <FilterBar locale={locale} filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} />
+        <div
+          className={cn(
+            "mx-auto hidden overflow-hidden px-6 transition-[grid-template-rows,padding,opacity] duration-200 lg:grid",
+            mapOpen || compact || tab !== "explore" ? "pointer-events-none grid-rows-[0fr] py-0 opacity-0" : "grid-rows-[1fr] pt-8 pb-6 opacity-100",
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="flex justify-center">
+              <FilterBar locale={locale} filters={filters} onChange={setFilters} destinations={destinations} holidays={holidays} />
+            </div>
           </div>
-        )}
+        </div>
 
         <div className="px-4 py-3 lg:hidden">
           {mapOpen ? (
@@ -173,8 +213,8 @@ export function HomeShell({
             </div>
           ) : (
             <>
-              {!compact && (
-                <>
+              <div className={cn("grid transition-[grid-template-rows,opacity] duration-200", compact ? "pointer-events-none grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100")}>
+                <div className="overflow-hidden">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Link href={href("/", locale)} aria-label={brandName}>
@@ -185,10 +225,10 @@ export function HomeShell({
                     <CitizenshipButton initial={citizenship} codes={citizenshipCodes} />
                   </div>
                   <div className="mt-3">
-                    <ExploreTabs tab={tab} onTab={setTab} />
+                    <ExploreTabs tab={tab} onTab={setTab} showEvents={showEvents} />
                   </div>
-                </>
-              )}
+                </div>
+              </div>
               <div className={cn("flex items-center gap-2", !compact && "mt-3")}>
                 <button
                   type="button"
@@ -233,7 +273,7 @@ export function HomeShell({
             ) : (
               <MapView destinations={filtered} locale={locale} onShowGrid={() => setView("grid")} />
             )}
-            {siteConfig.features.mapView && view === "grid" && (
+            {showMap && view === "grid" && (
               <div className="pointer-events-none fixed bottom-32 left-1/2 z-20 -translate-x-1/2 lg:bottom-8">
                 <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white px-1.5 py-1 shadow-[0_10px_28px_rgba(17,24,39,0.18)]">
                   <button
@@ -285,9 +325,9 @@ export function HomeShell({
   );
 }
 
-function ExploreTabs({ tab, onTab }: { tab: "explore" | "events"; onTab: (t: "explore" | "events") => void }) {
+function ExploreTabs({ tab, onTab, showEvents }: { tab: "explore" | "events"; onTab: (t: "explore" | "events") => void; showEvents: boolean }) {
   const locale = useLocale();
-  if (!siteConfig.features.events) return null;
+  if (!showEvents) return null;
   const items = [
     { id: "explore" as const, label: t(locale, "home.explore"), icon: <PassportIcon className="size-9" />, bubble: "bg-linear-to-b from-[#F4F4F4] to-white" },
     { id: "events" as const, label: t(locale, "home.events"), icon: <TicketsIcon className="size-9" />, bubble: "bg-linear-to-b from-[#F6F1E6] to-[#fff8ee]" },
