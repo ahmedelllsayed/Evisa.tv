@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import { MediaImage } from "@/components/media-image";
 import { visaHref } from "@/lib/href";
 import { tf, t } from "@/lib/i18n";
 import { docLabel, localizedDestinationName, localizedPhrase } from "@/lib/localize";
@@ -18,9 +18,9 @@ export function DestinationCard({ d, locale }: { d: Destination; locale: string 
   const name = localizedDestinationName(d, locale);
   return (
     <Link href={visaHref(d.slug, locale)} className="group block w-full" aria-label={tf(locale, "card.apply", { name })}>
-      <div className="relative aspect-[5/8] w-full cursor-pointer overflow-hidden rounded-[25px] bg-neutral-200 lg:rounded-[30px]">
+      <div className="relative aspect-[5/8] w-full cursor-pointer overflow-hidden rounded-[25px] bg-neutral-800 lg:rounded-[30px]">
         {d.image && (
-          <Image src={d.image} alt={d.name} fill sizes="(max-width: 1024px) 50vw, 250px" className="object-cover" />
+          <MediaImage src={d.image} alt={d.name} fill sizes="(max-width: 1024px) 50vw, 250px" className="object-cover" />
         )}
         <div
           aria-hidden
@@ -30,7 +30,7 @@ export function DestinationCard({ d, locale }: { d: Destination; locale: string 
         <div className="absolute inset-x-0 bottom-0 z-[1] flex flex-col items-center px-4 pb-4 text-white lg:px-6 lg:pb-6">
           {d.flag && (
             <span className="flex size-5 items-center justify-center overflow-hidden rounded-full lg:size-6">
-              <Image src={d.flag} alt="" width={24} height={24} className="size-5 object-cover lg:size-6" />
+              <MediaImage src={d.flag} alt="" width={24} height={24} className="size-5 object-cover lg:size-6" />
             </span>
           )}
           <p className="font-serif mt-4 text-center text-sm leading-[15px] font-medium tracking-[0.9px] uppercase lg:text-lg lg:leading-[21px]">

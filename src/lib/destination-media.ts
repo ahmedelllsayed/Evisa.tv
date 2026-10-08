@@ -1,6 +1,7 @@
 import "server-only";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
+import { one, sql } from "@/lib/data/db";
 
 const kinds = ["image", "hero", "flag", "video"] as const;
 export type DestinationMediaKind = (typeof kinds)[number];
@@ -30,6 +31,17 @@ function validId(id: string) {
   return /^[0-9a-f-]{36}$/i.test(id);
 }
 
+function asBytes(value: unknown): Buffer | null {
+  if (value == null) return null;
+  if (Buffer.isBuffer(value)) return value.length ? value : null;
+  if (value instanceof Uint8Array) return value.byteLength ? Buffer.from(value) : null;
+  if (typeof value === "string") {
+    const hex = value.startsWith("\\x") ? value.slice(2) : value;
+    if (hex && /^[0-9a-f]+$/i.test(hex) && hex.length % 2 === 0) return Buffer.from(hex, "hex");
+  }
+  return null;
+}
+
 export async function saveDestinationMedia(id: string, kind: DestinationMediaKind, file: File) {
   if (!validId(id) || !kinds.includes(kind)) return { ok: false as const, error: "تعذر حفظ الملف." };
   const video = kind === "video";
@@ -37,16 +49,26 @@ export async function saveDestinationMedia(id: string, kind: DestinationMediaKin
   if (!ext) return { ok: false as const, error: video ? "استخدم MP4 أو WEBM." : "استخدم PNG أو JPG أو WebP." };
   const max = video ? 8 * 1024 * 1024 : 2 * 1024 * 1024;
   if (file.size > max) return { ok: false as const, error: video ? "الفيديو أكبر من 8 ميغابايت." : "الصورة أكبر من 2 ميغابايت." };
-  const dir = folder(id);
-  await mkdir(dir, { recursive: true });
-  const names = await readdir(dir).catch(() => [] as string[]);
-  await Promise.all(names.filter((name) => name.startsWith(`${kind}.`)).map((name) => rm(path.join(dir, name), { force: true })));
-  await writeFile(path.join(dir, `${kind}.${ext}`), Buffer.from(await file.arrayBuffer()));
+  const mime = mimes[ext];
+  if (!mime) return { ok: false as const, error: "تعذر حفظ الملف." };
+  const bytes = Buffer.from(await file.arrayBuffer());
+  await sql(
+    `insert into destination_files (destination_id, kind, bytes, mime)
+     values ($1, $2, $3, $4)
+     on conflict (destination_id, kind) do update set bytes = excluded.bytes, mime = excluded.mime`,
+    [id, kind, bytes, mime],
+  );
   return { ok: true as const, url: `/destination-media/${id}/${kind}?v=${Date.now()}` };
 }
 
 export async function readDestinationMedia(id: string, kind: string) {
   if (!validId(id) || !kinds.includes(kind as DestinationMediaKind)) return null;
+  const row = await one<{ bytes: unknown; mime: string }>(
+    `select bytes, mime from destination_files where destination_id = $1 and kind = $2`,
+    [id, kind],
+  );
+  const stored = row ? asBytes(row.bytes) : null;
+  if (stored && row?.mime) return { bytes: stored, mime: row.mime };
   const dir = folder(id);
   const names = await readdir(dir).catch(() => [] as string[]);
   const name = names.find((item) => item.startsWith(`${kind}.`));
@@ -59,5 +81,6 @@ export async function readDestinationMedia(id: string, kind: string) {
 
 export async function clearDestinationMedia(id: string) {
   if (!validId(id)) return;
+  await sql(`delete from destination_files where destination_id = $1`, [id]);
   await rm(folder(id), { recursive: true, force: true });
 }

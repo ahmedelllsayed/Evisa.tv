@@ -1,7 +1,7 @@
 "use client";
 
 import { Ban, Bed, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, CreditCard, FileText, Flag, Folder, Landmark, Plus, Search, ShieldCheck, Smartphone, TriangleAlert, Zap } from "lucide-react";
-import Image from "next/image";
+import { MediaImage } from "@/components/media-image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -751,7 +751,7 @@ function NearbyBlock({ nearby, locale, name }: { nearby: Destination[]; locale: 
         {nearby.map((d) => (
           <Link key={d.id} href={visaHref(d.slug, locale)} className="w-40 shrink-0">
             <div className="relative aspect-4/5 overflow-hidden rounded-2xl bg-neutral-200">
-              {d.image && <Image src={d.image} alt={localizedDestinationName(d, locale)} fill className="object-cover" sizes="160px" />}
+              {d.image && <MediaImage src={d.image} alt={localizedDestinationName(d, locale)} fill className="object-cover" sizes="160px" />}
             </div>
             <p className="mt-2 text-sm font-medium">{localizedDestinationName(d, locale)}</p>
           </Link>

@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { MediaImage } from "@/components/media-image";
 import Link from "next/link";
 import { tf, t } from "@/lib/i18n";
 import { localizedDestinationName } from "@/lib/localize";
@@ -26,7 +26,7 @@ export function EventsPanel({
           <article key={e.id} className="overflow-hidden rounded-card-sm border border-line lg:rounded-card">
             <div className="relative aspect-16/10 bg-surface">
               {(e.image || dest?.image) && (
-                <Image src={e.image || dest!.image!} alt={e.name} fill className="object-cover" sizes="400px" />
+                <MediaImage src={e.image || dest!.image!} alt={e.name} fill className="object-cover" sizes="400px" />
               )}
             </div>
             <div className="p-4">

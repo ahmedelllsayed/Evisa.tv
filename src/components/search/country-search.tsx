@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
-import Image from "next/image";
+import { MediaImage } from "@/components/media-image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import { EmergencyIcon } from "@/components/brand/icons";
@@ -104,10 +104,10 @@ function SearchRow({
     <li className="flex items-center gap-4 border-b border-line py-5">
       <div className="relative size-16 shrink-0">
         <div className="relative size-16 overflow-hidden rounded-2xl bg-surface">
-          {hit.image && <Image src={hit.image} alt="" fill className="object-cover" sizes="64px" />}
+          {hit.image && <MediaImage src={hit.image} alt="" fill className="object-cover" sizes="64px" />}
         </div>
         {hit.flag && (
-          <Image
+          <MediaImage
             src={hit.flag}
             alt=""
             width={22}

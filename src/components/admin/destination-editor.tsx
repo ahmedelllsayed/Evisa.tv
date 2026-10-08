@@ -449,7 +449,7 @@ export function DestinationEditor({ locale, destinations }: { locale: string; de
                   onPick={(file) => setPicked((current) => ({ ...current, video: { url: URL.createObjectURL(file), name: file.name } }))}
                 />
               </div>
-              <p className="mt-4 text-sm text-muted-ink">ارفع الصورة أو الفيديو، أو الصق رابطاً.</p>
+              <p className="mt-4 text-sm text-muted-ink">ارفع الصورة أو الفيديو، أو الصق رابطاً. الملفات المرفوعة تُحفظ في قاعدة البيانات وتبقى بعد النشر. إذا ظهرت البطاقة رمادية في الموقع، أعد رفع الصور ثم احفظ.</p>
             </div>
 
             <div className={tab === "sources" ? "mt-4 grid gap-3" : "hidden"}>
