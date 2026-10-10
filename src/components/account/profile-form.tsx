@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteProfileDocumentAction, updateProfileAction, uploadProfileDocumentAction } from "@/app/actions/profile";
 import { countries, countryName } from "@/lib/countries";
+import { href } from "@/lib/href";
 import { t, tf } from "@/lib/i18n";
 import { docHint, docLabel } from "@/lib/localize";
 import { profileDocumentKinds, type ProfileVault } from "@/lib/profile";
@@ -24,7 +26,8 @@ export function ProfileForm({ locale, user, vault }: { locale: string; user: Use
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10">
-      <h1 className="font-display text-3xl font-semibold">{t(locale, "profile.title")}</h1>
+      <Link href={href("/account", locale)} className="text-sm text-brand">{t(locale, "account.back")}</Link>
+      <h1 className="mt-4 font-display text-3xl font-semibold">{t(locale, "profile.title")}</h1>
       <p className="mt-2 text-sm leading-6 text-muted-ink">{t(locale, "profile.intro")}</p>
       <p className={`mt-3 text-sm ${ready ? "text-brand" : "text-muted-ink"}`}>
         {ready ? t(locale, "profile.ready") : t(locale, "profile.need")}

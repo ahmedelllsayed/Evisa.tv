@@ -9,9 +9,11 @@ import type {
   Payment,
   Traveler,
 } from "@/lib/types";
+import type { AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { documentGaps } from "@/lib/application-rules";
 import { t, tf, type MessageKey } from "@/lib/i18n";
 import { sendMail } from "@/lib/email";
+import { notifyUser } from "./notifications";
 import { formatAt, governmentFeeCharged, guaranteedDate } from "@/lib/visa";
 import { getDestinationById } from "./catalog";
 import { day, getDb, iso, isoOrNull, json, num, numOrNull, one, sql } from "./db";
@@ -97,6 +99,135 @@ export async function getApplication(id: string) {
 
 export async function listApplicationsForUser(userId: string) {
   return (await sql(`${APP_SELECT} where a.user_id = $1 order by a.created_at desc`, [userId])).map(toApplication);
+}
+
+const gapCountSql = `
+  select count(*)::int as n
+  from applications a
+  join destinations d on d.id = a.destination_id
+  where a.user_id = $1
+    and a.status not in ('draft', 'approved', 'rejected', 'cancelled', 'refunded')
+    and (
+      exists (
+        select 1 from documents doc
+        where doc.application_id = a.id and doc.status = 'rejected' and doc.kind <> 'issued_visa'
+      )
+      or exists (
+        select 1
+        from travelers t
+        cross join lateral jsonb_array_elements_text(
+          case
+            when jsonb_typeof(d.documents) = 'array' and jsonb_array_length(d.documents) > 0 then d.documents
+            else '["passport"]'::jsonb
+          end
+        ) as req(kind)
+        where t.application_id = a.id
+          and not exists (
+            select 1 from documents doc
+            where doc.application_id = a.id
+              and doc.traveler_id = t.id
+              and doc.kind = req.kind
+              and doc.status <> 'rejected'
+          )
+      )
+    )`;
+
+export async function accountStats(userId: string): Promise<AccountStats> {
+  const row = await one<{ open: number; done: number; gaps: number; visas: number }>(
+    `select
+       (select count(*)::int from applications where user_id = $1 and status not in ('approved', 'rejected', 'cancelled', 'refunded')) as open,
+       (select count(*)::int from applications where user_id = $1 and status in ('approved', 'rejected', 'cancelled', 'refunded')) as done,
+       (select count(*)::int from documents doc join applications a on a.id = doc.application_id where a.user_id = $1 and doc.kind = 'issued_visa') as visas,
+       (${gapCountSql}) as gaps`,
+    [userId],
+  );
+  return {
+    open: row?.open ?? 0,
+    done: row?.done ?? 0,
+    gaps: row?.gaps ?? 0,
+    visas: row?.visas ?? 0,
+  };
+}
+
+export async function listPaymentsForUser(userId: string): Promise<UserPaymentRow[]> {
+  const rows = await sql(
+    `select p.id, p.application_id, p.provider, p.provider_ref, p.amount, p.currency, p.status, p.created_at,
+            p.merchant_order_id, a.reference, d.name as destination_name, d.slug as destination_slug
+     from payments p
+     join applications a on a.id = p.application_id
+     join destinations d on d.id = a.destination_id
+     where a.user_id = $1
+     order by p.created_at desc`,
+    [userId],
+  );
+  return rows.map((row) => ({
+    id: String(row.id),
+    applicationId: String(row.application_id),
+    reference: String(row.reference),
+    destinationName: String(row.destination_name),
+    destinationSlug: String(row.destination_slug),
+    provider: String(row.provider),
+    providerRef: (row.provider_ref as string) ?? null,
+    amount: num(row.amount),
+    currency: String(row.currency).trim(),
+    status: row.status as UserPaymentRow["status"],
+    createdAt: iso(row.created_at),
+    merchantOrderId: (row.merchant_order_id as string) ?? null,
+  }));
+}
+
+export async function listIssuedVisasForUser(userId: string): Promise<IssuedVisaRow[]> {
+  const rows = await sql(
+    `select doc.id, doc.application_id, doc.file_name, doc.storage_path, doc.mime_type, doc.size_bytes, doc.created_at,
+            a.reference, a.delivered_at, d.name as destination_name, d.slug as destination_slug
+     from documents doc
+     join applications a on a.id = doc.application_id
+     join destinations d on d.id = a.destination_id
+     where a.user_id = $1 and doc.kind = 'issued_visa'
+     order by doc.created_at desc`,
+    [userId],
+  );
+  return rows.map((row) => ({
+    id: String(row.id),
+    applicationId: String(row.application_id),
+    reference: String(row.reference),
+    destinationName: String(row.destination_name),
+    destinationSlug: String(row.destination_slug),
+    fileName: String(row.file_name),
+    storagePath: String(row.storage_path),
+    mimeType: (row.mime_type as string) ?? null,
+    sizeBytes: numOrNull(row.size_bytes),
+    createdAt: iso(row.created_at),
+    deliveredAt: isoOrNull(row.delivered_at),
+  }));
+}
+
+export async function listDocumentsForUser(userId: string): Promise<UserFileRow[]> {
+  const rows = await sql(
+    `select doc.id, doc.application_id, doc.kind, doc.file_name, doc.storage_path, doc.status, doc.reject_reason, doc.created_at,
+            a.reference, d.name as destination_name,
+            nullif(trim(coalesce(t.first_name, '') || ' ' || coalesce(t.last_name, '')), '') as traveler_name
+     from documents doc
+     join applications a on a.id = doc.application_id
+     join destinations d on d.id = a.destination_id
+     left join travelers t on t.id = doc.traveler_id
+     where a.user_id = $1 and doc.kind <> 'issued_visa'
+     order by a.created_at desc, doc.created_at desc`,
+    [userId],
+  );
+  return rows.map((row) => ({
+    id: String(row.id),
+    applicationId: String(row.application_id),
+    reference: String(row.reference),
+    destinationName: String(row.destination_name),
+    travelerName: (row.traveler_name as string) ?? null,
+    kind: String(row.kind),
+    fileName: String(row.file_name),
+    storagePath: String(row.storage_path),
+    status: row.status as UserFileRow["status"],
+    rejectReason: (row.reject_reason as string) ?? null,
+    createdAt: iso(row.created_at),
+  }));
 }
 
 export async function findOpenApplication(userId: string, destinationId: string) {
@@ -246,15 +377,23 @@ export async function setStatus(id: string, status: ApplicationStatus, event?: {
   );
   if (event) await addEvent(id, { status, ...event });
   const app = await getApplication(id);
-  if (app?.userEmail) {
+  if (app) {
     const locale = app.locale || "en-EG";
     const statusLabel = t(locale, `status.${status}` as MessageKey);
     const when = app.guaranteedAt ? formatAt(app.guaranteedAt, locale) : "—";
-    await sendMail({
-      to: app.userEmail,
-      subject: tf(locale, "mail.statusSubject", { ref: app.reference, status: statusLabel }),
-      text: tf(locale, "mail.statusBody", { ref: app.reference, status: statusLabel, date: when }),
+    await notifyUser({
+      userId: app.userId,
+      applicationId: app.id,
+      title: tf(locale, "notify.statusTitle", { ref: app.reference, status: statusLabel }),
+      body: tf(locale, "notify.statusBody", { ref: app.reference, status: statusLabel, date: when }),
     });
+    if (app.userEmail) {
+      await sendMail({
+        to: app.userEmail,
+        subject: tf(locale, "mail.statusSubject", { ref: app.reference, status: statusLabel }),
+        text: tf(locale, "mail.statusBody", { ref: app.reference, status: statusLabel, date: when }),
+      });
+    }
   }
   return { ok: true as const };
 }

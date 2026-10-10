@@ -3,6 +3,7 @@ import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { HomeShell } from "@/components/home/home-shell";
 import { siteConfig } from "@/config/site.config";
 import { getCurrentUser } from "@/lib/auth";
+import { unreadNotificationCount } from "@/lib/data/notifications";
 import { listDestinations, listEvents, listHolidays } from "@/lib/data/catalog";
 import { isArabicLocale } from "@/lib/i18n";
 import { getCitizenship } from "@/lib/preferences";
@@ -23,12 +24,14 @@ export default async function HomePage({ params }: Page) {
   ]);
   const arabic = isArabicLocale(locale);
   const announcement = arabic ? settings.extras.announcementAr : settings.extras.announcementEn;
+  const unread = user ? await unreadNotificationCount(user.id) : 0;
   return (
     <>
       {announcement && <p className="bg-brand px-4 py-2 text-center text-sm text-white">{announcement}</p>}
       <HomeShell
         locale={locale}
         user={user}
+        unread={unread}
         citizenship={citizenship}
         destinations={destinations}
         events={events}

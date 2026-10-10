@@ -1,40 +1,53 @@
 import { localizedMetadata } from "@/lib/seo";
 import type { Page } from "@/lib/page";
-import Link from "next/link";
-import { ApplicationCard } from "@/components/account/application-tracker";
+import { AccountDashboard } from "@/components/account/account-dashboard";
 import { requireUser } from "@/lib/auth";
-import { listApplicationsForUser } from "@/lib/data/applications";
-import { href } from "@/lib/href";
-import { t } from "@/lib/i18n";
-
+import { accountStats, listApplicationsForUser, listDocumentsForUser, listIssuedVisasForUser, listPaymentsForUser } from "@/lib/data/applications";
+import { listRefundsForUser } from "@/lib/data/inbox";
+import { listNotifications } from "@/lib/data/notifications";
+import { getProfileVault } from "@/lib/data/profile-vault";
 
 export async function generateMetadata({ params }: Page) {
   const { locale } = await params;
   return localizedMetadata(locale, "/account", { en: "My applications", ar: "طلباتي" });
 }
 
-export default async function AccountPage({ params }: Page) {
+export default async function AccountPage({ params, searchParams }: Page) {
   const { locale } = await params;
+  const query = await searchParams;
   const user = await requireUser(locale, `/${locale}/account`);
-  const apps = await listApplicationsForUser(user.id);
+  const [apps, visas, documents, payments, notifications, stats, vault, refunds] = await Promise.all([
+    listApplicationsForUser(user.id),
+    listIssuedVisasForUser(user.id),
+    listDocumentsForUser(user.id),
+    listPaymentsForUser(user.id),
+    listNotifications(user.id),
+    accountStats(user.id),
+    getProfileVault(user.id),
+    listRefundsForUser(user.id),
+  ]);
+  const tab = typeof query.tab === "string" ? query.tab : "overview";
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-semibold">{t(locale, "account.title")}</h1>
-          <p className="mt-1 text-sm text-muted-ink">{user.email}</p>
-          <p className="mt-1 text-sm text-muted-ink">{t(locale, "account.reuse")}</p>
-        </div>
-        <Link href={href("/account/profile", locale)} className="text-sm text-brand">
-          {t(locale, "account.profile")}
-        </Link>
-      </div>
-      <div className="mt-6 space-y-3">
-        {apps.length === 0 && <p className="text-sm text-muted-ink">{t(locale, "account.empty")}</p>}
-        {apps.map((app) => (
-          <ApplicationCard key={app.id} app={app} locale={locale} />
-        ))}
-      </div>
-    </div>
+    <AccountDashboard
+      locale={locale}
+      email={user.email}
+      initialTab={tab}
+      apps={apps}
+      visas={visas}
+      documents={documents}
+      profileDocuments={vault?.documents ?? []}
+      payments={payments}
+      refunds={refunds.map((refund) => ({ applicationId: refund.applicationId, status: refund.status }))}
+      notifications={notifications}
+      stats={stats}
+      profile={{
+        firstName: vault?.firstName ?? "",
+        lastName: vault?.lastName ?? "",
+        phone: vault?.phone ?? user.phone ?? "",
+        nationality: vault?.nationality ?? "",
+        passportNumber: vault?.passportNumber ?? "",
+        passportExpiry: vault?.passportExpiry ?? "",
+      }}
+    />
   );
 }

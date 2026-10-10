@@ -4,10 +4,10 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useLiveApplication } from "@/components/account/live-application";
 import { requestRefundAction } from "@/app/actions/inbox";
-import { documentLabels } from "@/data/seed/content";
 import { documentGaps, isPastGuarantee } from "@/lib/application-rules";
-import { href } from "@/lib/href";
+import { href, visaHref } from "@/lib/href";
 import { t, type MessageKey } from "@/lib/i18n";
+import { docLabel } from "@/lib/localize";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Traveler } from "@/lib/types";
 import { formatAt, formatMoney } from "@/lib/visa";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,10 @@ export function ApplicationTracker({
   const gaps = documentGaps(application.documentsRequired, travelers, documents);
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <p className="text-sm text-muted-ink">{application.reference}</p>
+      <Link href={href("/account", locale)} className="text-sm text-brand">
+        {t(locale, "account.back")}
+      </Link>
+      <p className="mt-4 text-sm text-muted-ink">{application.reference}</p>
       <h1 className="font-display text-3xl font-semibold">{application.destinationName}</h1>
       <p className="mt-2 text-sm">
         {t(locale, "account.status")}: <span className="font-medium">{statusLabel(locale, application.status)}</span>
@@ -93,10 +96,18 @@ export function ApplicationTracker({
           {t(locale, "account.continue")}
         </Link>
       ) : null}
+      {(application.status === "approved" || application.status === "rejected" || application.status === "cancelled" || application.status === "refunded") && (
+        <Link href={visaHref(application.destinationSlug, locale)} className="mt-4 ms-2 inline-flex rounded-full border border-line px-4 py-2 text-sm">
+          {t(locale, "account.reapply")}
+        </Link>
+      )}
       <RefundRequestBox locale={locale} application={application} refundStatus={refundStatus} />
       {documents.some((document) => document.kind === "issued_visa") && (
         <div className="mt-6 rounded-xl border border-line px-3 py-3 text-sm">
           <p className="font-medium">{t(locale, "account.issued")}</p>
+          <a href={`/api/account/visas/${application.id}/zip`} className="mt-1 inline-block text-xs text-brand">
+            {t(locale, "account.downloadAll")}
+          </a>
           {documents
             .filter((document) => document.kind === "issued_visa")
             .map((document) => (
@@ -118,10 +129,10 @@ export function ApplicationTracker({
             .filter((document) => document.kind !== "issued_visa")
             .map((document) => (
             <li key={document.id} className="rounded-xl border border-line px-3 py-2">
-              {documentLabels[document.kind]?.label ?? document.kind} · {document.fileName}
+              {docLabel(document.kind, locale)} · {document.fileName}
               {document.status === "rejected" && (
                 <span className="mt-1 block text-xs text-red-600">
-                  Rejected{document.rejectReason ? `: ${document.rejectReason}` : ""}
+                  {t(locale, "account.docRejected")}{document.rejectReason ? `: ${document.rejectReason}` : ""}
                 </span>
               )}
             </li>
@@ -132,8 +143,10 @@ export function ApplicationTracker({
         <ul className="mt-4 space-y-1 text-sm text-red-700">
           {gaps.map((gap) => (
             <li key={`${gap.travelerId}-${gap.kind}`}>
-              {gap.travelerName}: {documentLabels[gap.kind]?.label ?? gap.kind}{" "}
-              {gap.reason === "rejected" ? `rejected${gap.rejectReason ? ` — ${gap.rejectReason}` : ""}` : "is still missing"}
+              {gap.travelerName}: {docLabel(gap.kind, locale)}{" "}
+              {gap.reason === "rejected"
+                ? `${t(locale, "account.docRejected")}${gap.rejectReason ? ` — ${gap.rejectReason}` : ""}`
+                : t(locale, "account.docMissing")}
             </li>
           ))}
         </ul>
@@ -146,8 +159,8 @@ export function ApplicationTracker({
               <p className="font-medium">{e.title}</p>
               {e.description && <p className="text-sm text-body">{e.description}</p>}
               <p className="text-xs text-muted-ink">
-                {formatAt(e.createdAt)}
-                {e.onTime ? " · On time" : ""}
+                {formatAt(e.createdAt, locale)}
+                {e.onTime ? ` · ${t(locale, "account.onTime")}` : ""}
               </p>
             </div>
           </li>

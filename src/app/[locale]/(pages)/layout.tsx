@@ -3,6 +3,7 @@ import { FooterGate } from "@/components/layout/footer-gate";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { SiteHeader } from "@/components/layout/site-header";
 import { getCurrentUser } from "@/lib/auth";
+import { unreadNotificationCount } from "@/lib/data/notifications";
 import { listDestinations } from "@/lib/data/catalog";
 import type { Layout } from "@/lib/page";
 import { getCitizenship } from "@/lib/preferences";
@@ -18,11 +19,13 @@ export default async function PagesLayout({ children, params }: Layout) {
     getSiteSettings(),
     getCitizenshipCodes(),
   ]);
+  const unread = user ? await unreadNotificationCount(user.id) : 0;
   return (
     <>
       <SiteHeader
         locale={locale}
         user={user}
+        unread={unread}
         citizenship={citizenship}
         hits={destinations.map(toSearchHit)}
         brandName={settings.name}

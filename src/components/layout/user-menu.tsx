@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, LogOut, Plane, User as UserIcon } from "lucide-react";
+import { Bell, LayoutDashboard, LogOut, Plane, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import { signOutAction } from "@/app/actions/session";
 import {
@@ -25,9 +25,9 @@ export function ProfileGlyph({ className }: { className?: string }) {
   );
 }
 
-export function UserMenu({ user, locale, className }: { user: User | null; locale: string; className?: string }) {
+export function UserMenu({ user, locale, className, unread = 0 }: { user: User | null; locale: string; className?: string; unread?: number }) {
   const trigger = cn(
-    "flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line bg-white text-black",
+    "relative flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-line bg-white text-black",
     className,
   );
   if (!user) {
@@ -41,11 +41,19 @@ export function UserMenu({ user, locale, className }: { user: User | null; local
     <DropdownMenu>
       <DropdownMenuTrigger aria-label={t(locale, "menu.account")} className={cn(trigger, "bg-brand-50 text-brand-600")}>
         <span className="text-sm font-semibold">{(user.fullName || user.email || "?").trim().charAt(0).toUpperCase() || "?"}</span>
+        {unread > 0 && (
+          <span className="absolute -top-1 -end-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-semibold text-white">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuGroup>
         <DropdownMenuLabel className="truncate text-xs text-muted-ink">{user.email}</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem render={<Link href={href("/account?tab=overview", locale)} />}>
+          <Bell /> {t(locale, "account.notifications")}{unread > 0 ? ` (${unread})` : ""}
+        </DropdownMenuItem>
         <DropdownMenuItem render={<Link href={href("/account", locale)} />}>
           <Plane /> {t(locale, "menu.applications")}
         </DropdownMenuItem>

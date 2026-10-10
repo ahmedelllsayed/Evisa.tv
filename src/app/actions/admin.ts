@@ -6,6 +6,7 @@ import type { CmsContent, CmsTemplate } from "@/lib/cms/registry";
 import { addDocument, addEvent, deleteDocument, getApplication, getDocument, patchTraveler, setAssignee, setDocumentStatus, setStatus } from "@/lib/data/applications";
 import { sendMail } from "@/lib/email";
 import { tf } from "@/lib/i18n";
+import { notifyUser } from "@/lib/data/notifications";
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, readStoredBytes, removeFile, storeFile } from "@/lib/storage";
 import { deleteContactMessage, setMessageRead, setRefundRequestStatus } from "@/lib/data/inbox";
 import { refundApplication } from "@/lib/payments";
@@ -65,7 +66,19 @@ export async function adminSetStatus(locale: string, id: string, status: Applica
 export async function adminRefund(locale: string, id: string) {
   await guard(locale);
   const result = await refundApplication(id);
-  if (result.ok) await setRefundRequestStatus(id, "approved");
+  if (result.ok) {
+    await setRefundRequestStatus(id, "approved");
+    const app = await getApplication(id);
+    if (app) {
+      const mailLocale = app.locale || locale;
+      await notifyUser({
+        userId: app.userId,
+        applicationId: app.id,
+        title: tf(mailLocale, "notify.refundTitle", { ref: app.reference }),
+        body: tf(mailLocale, "notify.refundApproved", { ref: app.reference }),
+      });
+    }
+  }
   refresh(locale, "/admin");
   refresh(locale, `/admin/applications/${id}`);
   refresh(locale, "/account");
@@ -82,6 +95,16 @@ export async function adminDeclineRefund(locale: string, id: string) {
     internal: true,
     onTime: true,
   });
+  const declined = await getApplication(id);
+  if (declined) {
+    const mailLocale = declined.locale || locale;
+    await notifyUser({
+      userId: declined.userId,
+      applicationId: declined.id,
+      title: tf(mailLocale, "notify.refundTitle", { ref: declined.reference }),
+      body: tf(mailLocale, "notify.refundDeclined", { ref: declined.reference }),
+    });
+  }
   refresh(locale, `/admin/applications/${id}`);
   refresh(locale, `/account/applications/${id}`);
   return { ok: true as const };
@@ -137,6 +160,12 @@ export async function adminUploadIssuedVisa(locale: string, applicationId: strin
     onTime: true,
   });
   const mailLocale = app.locale || locale;
+  await notifyUser({
+    userId: app.userId,
+    applicationId: app.id,
+    title: tf(mailLocale, "notify.visaTitle", { ref: app.reference }),
+    body: tf(mailLocale, "notify.visaBody", { ref: app.reference, n: files.length }),
+  });
   if (app.userEmail) {
     const mailed = await sendMail({
       to: app.userEmail,
@@ -176,6 +205,18 @@ export async function adminSetDocumentStatus(
 ) {
   await guard(locale);
   const result = await setDocumentStatus(documentId, status, reason);
+  if (result.ok && status === "rejected") {
+    const [doc, app] = await Promise.all([getDocument(documentId), getApplication(applicationId)]);
+    if (doc && app) {
+      const mailLocale = app.locale || locale;
+      await notifyUser({
+        userId: app.userId,
+        applicationId: app.id,
+        title: tf(mailLocale, "notify.docTitle", { ref: app.reference }),
+        body: tf(mailLocale, "notify.docBody", { ref: app.reference, reason: reason?.trim() || "" }),
+      });
+    }
+  }
   refresh(locale, `/admin/applications/${applicationId}`);
   refresh(locale, `/apply/${applicationId}`);
   refresh(locale, `/account/applications/${applicationId}`);

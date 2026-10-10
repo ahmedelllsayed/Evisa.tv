@@ -38,6 +38,7 @@ export function HomeShell({
   citizenshipCodes = [],
   showMap = siteConfig.features.mapView,
   showEvents = siteConfig.features.events,
+  unread = 0,
 }: {
   locale: string;
   user: User | null;
@@ -51,6 +52,7 @@ export function HomeShell({
   citizenshipCodes?: string[];
   showMap?: boolean;
   showEvents?: boolean;
+  unread?: number;
 }) {
   const [tab, setTab] = useState<"explore" | "events">("explore");
   const [view, setView] = useState<"grid" | "map">("grid");
@@ -177,7 +179,7 @@ export function HomeShell({
             )}
             <CitizenshipButton initial={citizenship} codes={citizenshipCodes} className="border-0" />
             <LocaleSwitch locale={locale} />
-            <UserMenu user={user} locale={locale} className="border-0" />
+            <UserMenu user={user} locale={locale} unread={unread} className="border-0" />
           </div>
         </div>
         <div

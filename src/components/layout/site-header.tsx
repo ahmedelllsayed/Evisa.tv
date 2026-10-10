@@ -57,6 +57,7 @@ export function SiteHeader({
   logoUrl,
   whatsapp,
   citizenshipCodes = [],
+  unread = 0,
 }: {
   locale: string;
   user: User | null;
@@ -66,6 +67,7 @@ export function SiteHeader({
   logoUrl: string;
   whatsapp: string;
   citizenshipCodes?: string[];
+  unread?: number;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -143,7 +145,7 @@ export function SiteHeader({
             )}
             {full && <CitizenshipButton initial={citizenship} codes={citizenshipCodes} className="hidden border-0 sm:flex" />}
             <LocaleSwitch locale={locale} />
-            <UserMenu user={user} locale={locale} className="border-0" />
+            <UserMenu user={user} locale={locale} unread={unread} className="border-0" />
           </div>
         </div>
       </header>

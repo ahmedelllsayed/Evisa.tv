@@ -36,6 +36,11 @@ export async function getRefundRequest(applicationId: string) {
   return row ? toRefund(row) : null;
 }
 
+export async function listRefundsForUser(userId: string) {
+  const rows = await sql("select * from refund_requests where user_id = $1 order by created_at desc", [userId]);
+  return rows.map(toRefund);
+}
+
 export async function createRefundRequest(input: { applicationId: string; userId: string; reason: string }) {
   const existing = await getRefundRequest(input.applicationId);
   if (existing) return existing;
