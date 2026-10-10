@@ -3,6 +3,7 @@ import type { Page } from "@/lib/page";
 import { PageHero } from "@/components/layout/page-hero";
 import { linesOf } from "@/lib/cms/registry";
 import { requirePageContent } from "@/lib/data/pages";
+import { t, tf } from "@/lib/i18n";
 
 
 export async function generateMetadata({ params }: Page) {
@@ -10,7 +11,8 @@ export async function generateMetadata({ params }: Page) {
   return localizedMetadata(locale, "/transparency/status", { en: "Status", ar: "الحالة" });
 }
 
-export default async function StatusPage() {
+export default async function StatusPage({ params }: Page) {
+  const { locale } = await params;
   const content = await requirePageContent("transparency/status");
   const systems = linesOf(content.systems).map((parts) => ({
     name: parts[0] ?? "",
@@ -22,7 +24,7 @@ export default async function StatusPage() {
       <PageHero align="left" large title={content.title}>
         <p>{content.intro}</p>
       </PageHero>
-      <div className="mx-auto max-w-3xl px-4 pb-4 text-sm text-muted-ink">Government portal statuses</div>
+      <div className="mx-auto max-w-3xl px-4 pb-4 text-sm text-muted-ink">{t(locale, "status.portals")}</div>
       <ul className="mx-auto max-w-3xl space-y-3 px-4 pb-16">
         {systems.map((s) => (
           <li key={s.name} className="rounded-2xl border border-line px-4 py-3">
@@ -33,7 +35,7 @@ export default async function StatusPage() {
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface">
               <div className="h-full rounded-full bg-success" style={{ width: /^\d+(\.\d+)?%$/.test(s.uptime.trim()) ? s.uptime.trim() : "0%" }} />
             </div>
-            <p className="mt-1 text-xs text-muted-ink">{s.uptime} uptime · last 90 days</p>
+            <p className="mt-1 text-xs text-muted-ink">{tf(locale, "status.uptime", { uptime: s.uptime })}</p>
           </li>
         ))}
       </ul>

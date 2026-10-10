@@ -11,6 +11,7 @@ import { FilterBar } from "@/components/home/filter-bar";
 import { DestinationGrid } from "@/components/home/destination-card";
 import { MapView } from "@/components/home/map-view";
 import { CitizenshipButton } from "@/components/layout/citizenship-picker";
+import { LocaleSwitch } from "@/components/layout/locale-switch";
 import { UserMenu } from "@/components/layout/user-menu";
 import { CountrySearchOverlay } from "@/components/search/country-search";
 import { siteConfig } from "@/config/site.config";
@@ -125,6 +126,7 @@ export function HomeShell({
     <>
       <header
         ref={headerRef}
+        dir="ltr"
         style={{ overflowAnchor: "none" }}
         className={cn("sticky top-0 z-40 bg-white", (compact || mapOpen) && "shadow-[0_8px_24px_rgba(17,24,39,0.06)]")}
       >
@@ -174,6 +176,7 @@ export function HomeShell({
               </button>
             )}
             <CitizenshipButton initial={citizenship} codes={citizenshipCodes} className="border-0" />
+            <LocaleSwitch locale={locale} />
             <UserMenu user={user} locale={locale} className="border-0" />
           </div>
         </div>
@@ -209,6 +212,7 @@ export function HomeShell({
                   <SearchIcon />
                 </button>
                 <CitizenshipButton initial={citizenship} codes={citizenshipCodes} />
+                <LocaleSwitch locale={locale} />
               </div>
             </div>
           ) : (
@@ -222,7 +226,10 @@ export function HomeShell({
                       </Link>
                       <span className="text-[11px] font-semibold tracking-[0.08em]">{t(locale, "home.visasOnTime")}</span>
                     </div>
-                    <CitizenshipButton initial={citizenship} codes={citizenshipCodes} />
+                    <div className="flex items-center gap-3">
+                      <LocaleSwitch locale={locale} />
+                      <CitizenshipButton initial={citizenship} codes={citizenshipCodes} />
+                    </div>
                   </div>
                   <div className="mt-3">
                     <ExploreTabs tab={tab} onTab={setTab} showEvents={showEvents} />
@@ -237,6 +244,7 @@ export function HomeShell({
                 >
                   <Search className="size-4" /> {t(locale, "home.searchCountry")}
                 </button>
+                {compact && <LocaleSwitch locale={locale} />}
                 <button
                   type="button"
                   aria-label={t(locale, "home.filters")}

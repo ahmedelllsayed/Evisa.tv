@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { passportRanks, passportRegions, type PassportRank } from "@/data/passport-ranks";
+import { countries, countryName } from "@/lib/countries";
 import { href } from "@/lib/href";
 import { isArabicLocale, t, tf, type MessageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,14 @@ const regionKeys: Record<string, MessageKey> = {
 function regionLabel(locale: string, region: string) {
   const key = regionKeys[region];
   return key ? t(locale, key) : region;
+}
+
+const passportCodes = new Map(countries.map((country) => [country.name, country.code]));
+
+function passportName(name: string, locale: string) {
+  if (!isArabicLocale(locale)) return name;
+  const code = passportCodes.get(name);
+  return code ? countryName(code, locale) : name;
 }
 
 const faqsAr = [
@@ -58,11 +67,11 @@ export function PassportBoard({
   const rows = useMemo(() => {
     const list = passportRanks.filter((p) => region === "All" || p.region === region);
     return [...list].sort((a, b) => {
-      if (sort === "name") return a.name.localeCompare(b.name);
+      if (sort === "name") return passportName(a.name, locale).localeCompare(passportName(b.name, locale), locale);
       if (sort === "visa") return b.visaFree - a.visaFree || a.rank - b.rank;
       return a.rank - b.rank || b.visaFree - a.visaFree;
     });
-  }, [region, sort]);
+  }, [locale, region, sort]);
 
   const top = passportRanks.slice(0, 3);
 
@@ -85,7 +94,7 @@ export function PassportBoard({
               className={cn("rounded-2xl border p-4 text-start", active.name === p.name ? "border-white bg-white/10" : "border-white/10 bg-white/5")}
             >
               <p className="text-[11px] tracking-[0.16em] text-white/50">{t(locale, "tool.rank")} #{p.rank}</p>
-              <p className="mt-2 font-medium">{p.name}</p>
+              <p className="mt-2 font-medium">{passportName(p.name, locale)}</p>
               <p className="mt-1 text-xs text-white/50">{t(locale, "tool.score")} {p.score} · {p.visaFree} {t(locale, "tool.visaFree")}</p>
             </button>
           ))}
@@ -94,7 +103,7 @@ export function PassportBoard({
 
       <section className="mx-auto max-w-3xl px-4 pb-12 text-center">
         <div className="mx-auto h-36 w-24 rounded-lg bg-linear-to-b from-amber-200 to-amber-700 shadow-[0_20px_50px_rgba(0,0,0,0.45)]" />
-        <p className="mt-6 text-xl font-medium">{active.name}</p>
+        <p className="mt-6 text-xl font-medium">{passportName(active.name, locale)}</p>
         <dl className="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
           <div><dt className="text-[11px] tracking-widest text-white/40">{t(locale, "tool.rank")}</dt><dd className="mt-1 text-2xl font-semibold">#{active.rank}</dd></div>
           <div><dt className="text-[11px] tracking-widest text-white/40">{t(locale, "tool.score")}</dt><dd className="mt-1 text-2xl font-semibold">{active.score}</dd></div>
@@ -104,7 +113,7 @@ export function PassportBoard({
 
       <section className="mx-auto grid max-w-5xl gap-px border-y border-white/10 px-4 py-8 sm:grid-cols-3">
         <Stat k={t(locale, "tool.tracked")} v="147" />
-        <Stat k={t(locale, "tool.mostFree")} v={tf(locale, "tool.countries", { n: passportRanks[0].visaFree })} d={tf(locale, "tool.heldBy", { name: passportRanks[0].name })} />
+        <Stat k={t(locale, "tool.mostFree")} v={tf(locale, "tool.countries", { n: passportRanks[0].visaFree })} d={tf(locale, "tool.heldBy", { name: passportName(passportRanks[0].name, locale) })} />
         <Stat k={t(locale, "tool.top10")} v={t(locale, "tool.topMix")} d={t(locale, "tool.topNote")} />
       </section>
 
@@ -133,7 +142,7 @@ export function PassportBoard({
               className="rounded-2xl border border-white/10 bg-white/5 p-4 text-start hover:border-white/30"
             >
               <p className="text-[11px] tracking-[0.14em] text-amber-200/80">#{p.rank} · {t(locale, "tool.elite")}</p>
-              <p className="mt-1 font-medium">{p.name}</p>
+              <p className="mt-1 font-medium">{passportName(p.name, locale)}</p>
               <p className="text-xs text-white/45">{tf(locale, "tool.regionScore", { region: regionLabel(locale, p.region), score: p.score })}</p>
               <p className="mt-3 text-[11px] tracking-widest text-white/40">{t(locale, "tool.visaFree")}</p>
               <p className="text-lg font-semibold">{p.visaFree}</p>

@@ -3,6 +3,7 @@ import type { Page } from "@/lib/page";
 import { PageHero } from "@/components/layout/page-hero";
 import { listFeeChanges } from "@/lib/data/catalog";
 import { requirePageContent } from "@/lib/data/pages";
+import { t } from "@/lib/i18n";
 import { formatMoney } from "@/lib/visa";
 
 
@@ -11,7 +12,8 @@ export async function generateMetadata({ params }: Page) {
   return localizedMetadata(locale, "/transparency/price-change-log", { en: "Fee Change Audit", ar: "سجل الرسوم" });
 }
 
-export default async function FeeChangePage() {
+export default async function FeeChangePage({ params }: Page) {
+  const { locale } = await params;
   const [changes, content] = await Promise.all([listFeeChanges(), requirePageContent("transparency/price-change-log")]);
   return (
     <>
@@ -22,24 +24,24 @@ export default async function FeeChangePage() {
         <table className="w-full min-w-[40rem] text-start text-sm">
           <thead>
             <tr className="border-b border-line text-muted-ink">
-              <th className="py-2 font-medium">Date</th>
-              <th className="py-2 font-medium">Destination</th>
-              <th className="py-2 font-medium">Was</th>
-              <th className="py-2 font-medium">Now</th>
-              <th className="py-2 font-medium">Reason</th>
+              <th className="py-2 font-medium">{t(locale, "fees.date")}</th>
+              <th className="py-2 font-medium">{t(locale, "fees.destination")}</th>
+              <th className="py-2 font-medium">{t(locale, "fees.was")}</th>
+              <th className="py-2 font-medium">{t(locale, "fees.now")}</th>
+              <th className="py-2 font-medium">{t(locale, "fees.reason")}</th>
             </tr>
           </thead>
           <tbody>
             {changes.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-6 text-muted-ink">
-                  No fee changes have been recorded yet.
+                  {t(locale, "fees.empty")}
                 </td>
               </tr>
             )}
             {changes.map((c) => (
               <tr key={c.id} className="border-b border-line/70">
-                <td className="py-3">{new Date(c.changedAt).toLocaleDateString("en-GB")}</td>
+                <td className="py-3">{new Date(c.changedAt).toLocaleDateString(locale)}</td>
                 <td>{c.destinationName}</td>
                 <td>{formatMoney(c.oldTotal)}</td>
                 <td>{formatMoney(c.newTotal)}</td>

@@ -81,7 +81,7 @@ export function SiteHeader({
   }, [prompts.length]);
   return (
     <>
-      <header className={cn("sticky top-0 z-40 border-b", dark ? "border-white/10 bg-black text-white" : "border-line/80 bg-white")}>
+      <header dir="ltr" className={cn("sticky top-0 z-40 border-b", dark ? "border-white/10 bg-black text-white" : "border-line/80 bg-white")}>
         <div className="mx-auto flex h-16 max-w-site min-w-0 items-center gap-2 px-4 lg:h-[72px] lg:gap-3 lg:px-8">
           <button
             type="button"

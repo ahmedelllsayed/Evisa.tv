@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { countries, countryName } from "@/lib/countries";
 import { href } from "@/lib/href";
-import { t } from "@/lib/i18n";
+import { t, tf } from "@/lib/i18n";
 
 export function RejectionPicker({
   locale,
@@ -41,9 +41,7 @@ export function RejectionPicker({
       <Link href={href("/", locale)} className="mt-6 inline-flex rounded-full bg-black px-5 py-3 text-sm font-medium text-white">
         {t(locale, "reject.browse")}
       </Link>
-      <p className="mt-8 max-w-sm text-xs text-muted-ink">
-        {brandName} currently publishes rejection recovery for a limited set of routes. Visa applications for covered destinations still include the on-time guarantee.
-      </p>
+      <p className="mt-8 max-w-sm text-xs text-muted-ink">{tf(locale, "reject.note", { name: brandName })}</p>
     </section>
   );
 }

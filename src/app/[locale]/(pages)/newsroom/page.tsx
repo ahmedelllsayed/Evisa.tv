@@ -5,6 +5,7 @@ import { linesOf } from "@/lib/cms/registry";
 import { getSiteSettings } from "@/lib/data/settings";
 import { requirePageContent } from "@/lib/data/pages";
 import { href } from "@/lib/href";
+import { t } from "@/lib/i18n";
 
 
 export async function generateMetadata({ params }: Page) {
@@ -23,9 +24,9 @@ export default async function NewsroomPage({ params }: Page) {
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 lg:px-10">
       <p className="text-sm text-muted-ink">
-        <Link href={href("/", locale)} className="hover:text-ink">Home</Link>
+        <Link href={href("/", locale)} className="hover:text-ink">{t(locale, "nav.home")}</Link>
         <span className="mx-2">&gt;</span>
-        <span>Newsroom</span>
+        <span>{t(locale, "footer.newsroom")}</span>
       </p>
       <h1 className="mt-6 font-sans text-4xl font-semibold tracking-tight">{content.title}</h1>
       <h2 className="mt-4 text-2xl font-semibold">{content.subtitle}</h2>

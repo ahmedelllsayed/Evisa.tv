@@ -5,6 +5,7 @@ import { OnTimeCircles } from "@/components/marketing/on-time-circles";
 import { getSiteSettings } from "@/lib/data/settings";
 import { linesOf } from "@/lib/cms/registry";
 import { requirePageContent } from "@/lib/data/pages";
+import { t } from "@/lib/i18n";
 
 
 function Asterisk() {
@@ -24,7 +25,8 @@ export async function generateMetadata({ params }: Page) {
   return localizedMetadata(locale, "/on-time-guaranteed", { en: "On Time Guaranteed", ar: "في الموعد" });
 }
 
-export default async function OnTimePage() {
+export default async function OnTimePage({ params }: Page) {
+  const { locale } = await params;
   const [content, settings] = await Promise.all([requirePageContent("on-time-guaranteed"), getSiteSettings()]);
   const bands = [
     { title: content.band1Title, body: content.band1Body },
@@ -40,9 +42,9 @@ export default async function OnTimePage() {
           <div className="mb-8 flex items-center gap-1.5 text-white">
             <Logo name={settings.name} src={settings.logoUrl} className="text-white" />
             <span className="text-[8px] leading-[1.05] font-bold tracking-[0.12em] uppercase">
-              Visas on
+              {t(locale, "ontime.visasOn")}
               <br />
-              time
+              {t(locale, "ontime.word")}
             </span>
           </div>
           <h1 className="text-5xl font-black leading-tight tracking-tight text-white md:text-8xl lg:text-9xl">{content.hero1}</h1>
@@ -96,8 +98,8 @@ export default async function OnTimePage() {
       </section>
 
       <section data-ontime-band className="relative z-10 bg-blue-600 px-8 py-24 text-center text-white">
-        <h2 className="text-4xl font-black tracking-tight md:text-5xl lg:text-7xl">On Time</h2>
-        <p className="-mt-1 text-4xl font-black tracking-tight md:text-5xl lg:-mt-3 lg:text-7xl">Guaranteed!</p>
+        <h2 className="text-4xl font-black tracking-tight md:text-5xl lg:text-7xl">{t(locale, "ontime.line1")}</h2>
+        <p className="-mt-1 text-4xl font-black tracking-tight md:text-5xl lg:-mt-3 lg:text-7xl">{t(locale, "ontime.line2")}</p>
       </section>
     </div>
   );
