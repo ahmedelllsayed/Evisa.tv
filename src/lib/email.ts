@@ -2,7 +2,13 @@ import "server-only";
 import { getSiteSettings } from "@/lib/data/settings";
 
 /** Sends through Resend when RESEND_API_KEY is set. Otherwise the caller keeps the local fallback. */
-export async function sendMail(input: { to: string; subject: string; text: string; idempotencyKey?: string }) {
+export async function sendMail(input: {
+  to: string;
+  subject: string;
+  text: string;
+  idempotencyKey?: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string | null }[];
+}) {
   const key = process.env.RESEND_API_KEY;
   if (!key) return { sent: false as const };
   const settings = await getSiteSettings();
@@ -14,7 +20,21 @@ export async function sendMail(input: { to: string; subject: string; text: strin
       "Content-Type": "application/json",
       ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
     },
-    body: JSON.stringify({ from, to: [input.to], subject: input.subject, text: input.text }),
+    body: JSON.stringify({
+      from,
+      to: [input.to],
+      subject: input.subject,
+      text: input.text,
+      ...(input.attachments?.length
+        ? {
+            attachments: input.attachments.map((file) => ({
+              filename: file.filename,
+              content: file.content.toString("base64"),
+              ...(file.contentType ? { content_type: file.contentType } : {}),
+            })),
+          }
+        : {}),
+    }),
   });
   if (!res.ok) {
     console.error("[email]", res.status, await res.text());

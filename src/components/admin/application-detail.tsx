@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { adminAddEvent, adminDeclineRefund, adminPatchTraveler, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
+import { adminAddEvent, adminDeclineRefund, adminDeleteIssuedVisa, adminPatchTraveler, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
 import { AdminCard, AdminEmpty, AdminPage, adminGhostClass, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
 import { statusLabels } from "@/components/admin/status";
 import { documentGaps } from "@/lib/application-rules";
@@ -62,7 +62,7 @@ export function AdminApplicationDetail({
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const reviewDocs = documents.filter((document) => document.kind !== "issued_visa");
-  const issued = documents.find((document) => document.kind === "issued_visa");
+  const issued = documents.filter((document) => document.kind === "issued_visa");
   const gaps = documentGaps(application.documentsRequired, travelers, reviewDocs);
   const waitingReview = reviewDocs.some((document) => document.status === "uploaded");
   const paid = payments.some((payment) => payment.status === "paid");
@@ -70,7 +70,7 @@ export function AdminApplicationDetail({
     ? "عيّن مسؤولًا عن هذا الطلب."
     : gaps.length || waitingReview
       ? "راجع المستندات المطلوبة."
-      : application.status === "approved" && !issued
+      : application.status === "approved" && issued.length === 0
         ? "ارفع ملف التأشيرة الصادرة."
         : application.status === "submitted" || application.status === "payment_pending"
           ? "حدّث الحالة بعد المراجعة."
@@ -146,6 +146,7 @@ export function AdminApplicationDetail({
               </button>
             </form>
             {application.status === "approved" && (
+              <>
               <form
                 className="mt-4 grid gap-2"
                 action={(fd) =>
@@ -153,23 +154,45 @@ export function AdminApplicationDetail({
                     setError(null);
                     const result = await adminUploadIssuedVisa(locale, application.id, fd);
                     if (!result.ok) setError(result.error);
-                    else setNote("تم رفع ملف التأشيرة وإرسال البريد.");
+                    else setNote("تم رفع الملفات وإرسالها مرفقة في البريد.");
                   })
                 }
               >
                 <label className="text-sm">
-                  ملف التأشيرة الصادرة
-                  <input name="file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block text-sm" />
+                  ملفات التأشيرة الصادرة
+                  <input name="file" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block text-sm" />
                 </label>
+                <p className="text-xs text-muted-ink">يمكن اختيار أكثر من صورة أو PDF. تُرفق الملفات في بريد العميل.</p>
                 <button disabled={pending} className={adminPrimaryClass}>
                   رفع التأشيرة
                 </button>
-                {issued && (
-                  <a href={fileHref(issued.storagePath)} target="_blank" rel="noreferrer" className="text-sm text-brand">
-                    {issued.fileName}
-                  </a>
-                )}
               </form>
+              {issued.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {issued.map((document) => (
+                    <li key={document.id} className="flex items-center justify-between gap-2 text-sm">
+                      <a href={fileHref(document.storagePath)} target="_blank" rel="noreferrer" className="min-w-0 truncate text-brand">
+                        {document.fileName}
+                      </a>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        className="shrink-0 text-xs text-red-600"
+                        onClick={() =>
+                          start(async () => {
+                            setError(null);
+                            const result = await adminDeleteIssuedVisa(locale, application.id, document.id);
+                            if (!result.ok) setError(result.error);
+                          })
+                        }
+                      >
+                        حذف
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              </>
             )}
             {note && <p className="mt-3 text-sm text-muted-ink">{note}</p>}
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}

@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import type { CmsContent, CmsTemplate } from "@/lib/cms/registry";
-import { addDocument, addEvent, getApplication, patchTraveler, setAssignee, setDocumentStatus, setStatus } from "@/lib/data/applications";
+import { addDocument, addEvent, deleteDocument, getApplication, getDocument, patchTraveler, setAssignee, setDocumentStatus, setStatus } from "@/lib/data/applications";
 import { sendMail } from "@/lib/email";
-import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, storeFile } from "@/lib/storage";
+import { tf } from "@/lib/i18n";
+import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, readStoredBytes, removeFile, storeFile } from "@/lib/storage";
 import { deleteContactMessage, setMessageRead, setRefundRequestStatus } from "@/lib/data/inbox";
 import { refundApplication } from "@/lib/payments";
 import {
@@ -103,11 +104,19 @@ export async function adminUploadIssuedVisa(locale: string, applicationId: strin
   const app = await getApplication(applicationId);
   if (!app) return { ok: false as const, error: "الطلب غير موجود." };
   if (app.status !== "approved") return { ok: false as const, error: "ارفع التأشيرة بعد الموافقة على الطلب." };
-  const file = formData.get("file");
-  if (!(file instanceof File) || !file.size) return { ok: false as const, error: "اختر ملف التأشيرة." };
-  if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: "الملف أكبر من 10 ميغابايت." };
-  if (!ALLOWED_TYPES.includes(file.type)) return { ok: false as const, error: "استخدم JPG أو PNG أو WebP أو PDF." };
-  const storagePath = await storeFile(app.userId, app.id, file);
+  const files = formData.getAll("file").filter((item): item is File => item instanceof File && item.size > 0);
+  if (!files.length) return { ok: false as const, error: "اختر ملف التأشيرة." };
+  if (files.length > 8) return { ok: false as const, error: "يمكن رفع 8 ملفات في المرة الواحدة." };
+  if (files.reduce((sum, file) => sum + file.size, 0) > 25 * 1024 * 1024) {
+    return { ok: false as const, error: "مجموع الملفات أكبر من 25 ميغابايت." };
+  }
+  for (const file of files) {
+    if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: "كل ملف يجب أن يكون أصغر من 10 ميغابايت." };
+    if (!ALLOWED_TYPES.includes(file.type)) return { ok: false as const, error: "استخدم JPG أو PNG أو WebP أو PDF." };
+  }
+  const attachments: { filename: string; content: Buffer; contentType: string }[] = [];
+  for (const file of files) {
+    const storagePath = await storeFile(app.userId, app.id, file);
     const saved = await addDocument({
       applicationId: app.id,
       travelerId: null,
@@ -118,20 +127,41 @@ export async function adminUploadIssuedVisa(locale: string, applicationId: strin
       sizeBytes: file.size,
       issuedByAdmin: true,
     });
-  await setDocumentStatus(saved.id, "verified");
+    await setDocumentStatus(saved.id, "verified");
+    attachments.push({ filename: file.name, content: await readStoredBytes(storagePath), contentType: file.type });
+  }
   await addEvent(app.id, {
     status: "approved",
     title: "Visa file ready",
-    description: "The issued visa file is available in your account.",
+    description: "The issued visa files are available in your account.",
     onTime: true,
   });
+  const mailLocale = app.locale || locale;
   if (app.userEmail) {
-    await sendMail({
+    const mailed = await sendMail({
       to: app.userEmail,
-      subject: `${app.reference}: visa file ready`,
-      text: `Application ${app.reference}\nYour issued visa file is ready in your account.`,
+      subject: tf(mailLocale, "mail.visaSubject", { ref: app.reference }),
+      text: tf(mailLocale, "mail.visaBody", { ref: app.reference, n: files.length }),
+      attachments,
     });
+    refresh(locale, `/admin/applications/${applicationId}`);
+    refresh(locale, `/account/applications/${applicationId}`);
+    if (!mailed.sent) return { ok: false as const, error: "حُفظت الملفات، لكن تعذر إرفاقها في البريد." };
+  } else {
+    refresh(locale, `/admin/applications/${applicationId}`);
+    refresh(locale, `/account/applications/${applicationId}`);
   }
+  return { ok: true as const };
+}
+
+export async function adminDeleteIssuedVisa(locale: string, applicationId: string, documentId: string) {
+  await guard(locale);
+  const doc = await getDocument(documentId);
+  if (!doc || doc.applicationId !== applicationId || doc.kind !== "issued_visa") {
+    return { ok: false as const, error: "الملف غير موجود." };
+  }
+  await deleteDocument(documentId, { allowIssuedVisa: true });
+  await removeFile(doc.storagePath);
   refresh(locale, `/admin/applications/${applicationId}`);
   refresh(locale, `/account/applications/${applicationId}`);
   return { ok: true as const };

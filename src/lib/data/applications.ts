@@ -455,11 +455,11 @@ export async function addDocument(input: Omit<ApplicationDocument, "id" | "statu
     if (!app || (app.status !== "draft" && app.status !== "payment_pending")) {
       throw new Error("This application can no longer be edited.");
     }
+    await sql(
+      `delete from documents where application_id = $1 and kind = $2 and traveler_id is not distinct from $3::uuid`,
+      [input.applicationId, input.kind, input.travelerId],
+    );
   }
-  await sql(
-    `delete from documents where application_id = $1 and kind = $2 and traveler_id is not distinct from $3::uuid`,
-    [input.applicationId, input.kind, input.travelerId],
-  );
   const r = await one(
     `insert into documents (application_id, traveler_id, kind, storage_path, file_name, mime_type, size_bytes)
      values ($1,$2,$3,$4,$5,$6,$7) returning *`,

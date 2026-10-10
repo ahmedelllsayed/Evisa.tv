@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ protocol: "https", hostname: "flagcdn.com" }],
   },
   experimental: {
-    serverActions: { bodySizeLimit: "20mb" },
+    serverActions: { bodySizeLimit: "32mb" },
   },
   async redirects() {
     return [
