@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronDown, ChevronUp, Copy, Plus, Trash2 } from "lucide-react";
 import { DurationField, FeeSummary, PairedSelect, SpanField, money } from "@/components/admin/destination-fields";
 import { adminInputClass } from "@/components/admin/chrome";
-import { documentLabels } from "@/data/seed/content";
+import { DocumentChecklist } from "@/components/admin/document-checklist";
 import { entryOptions, withCurrent } from "@/lib/destination-fields";
 import { href } from "@/lib/href";
 import type { VisaOption, VisaType } from "@/lib/types";
@@ -102,11 +102,6 @@ function suggest(stay: string | null, entry: string | null, stayAr: string | nul
     label: [stay, entry].filter(Boolean).join(" · ") || "Standard",
     labelAr: [stayAr, entryAr].filter(Boolean).join(" · "),
   };
-}
-
-function documentChoices(selected: string[]) {
-  const known = Object.keys(documentLabels);
-  return [...known, ...selected.filter((kind) => !known.includes(kind))];
 }
 
 export function VisaOptionsEditor({
@@ -323,25 +318,11 @@ export function VisaOptionsEditor({
                 مستندات خاصة بهذا النوع
               </label>
               {draft.customDocs ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {documentChoices(draft.documents).map((kind) => (
-                    <label key={kind} className="flex items-center gap-2 rounded-xl border border-line px-3 py-2 text-sm">
-                      <input
-                        type="checkbox"
-                        name={`${prefix}.documents`}
-                        value={kind}
-                        checked={draft.documents.includes(kind)}
-                        onChange={(event) =>
-                          patch(draft.key, (item) => ({
-                            ...item,
-                            documents: event.target.checked ? [...item.documents, kind] : item.documents.filter((value) => value !== kind),
-                          }))
-                        }
-                      />
-                      {documentLabels[kind]?.labelAr ?? kind}
-                    </label>
-                  ))}
-                </div>
+                <DocumentChecklist
+                  name={`${prefix}.documents`}
+                  selected={draft.documents}
+                  onChange={(documents) => patch(draft.key, (item) => ({ ...item, documents }))}
+                />
               ) : (
                 <p className="text-xs text-muted-ink">يستخدم هذا النوع قائمة المستندات الخاصة بالدولة.</p>
               )}

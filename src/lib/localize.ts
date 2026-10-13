@@ -1,6 +1,7 @@
 import { isArabicLocale } from "@/lib/i18n";
 import { countryName } from "@/lib/countries";
 import { documentLabels } from "@/data/seed/content";
+import { customDocumentParts } from "@/lib/documents";
 import type { Faq, Review } from "@/lib/types";
 
 const phrases: Record<string, string> = {
@@ -57,12 +58,15 @@ export function categoryLabel(category: string, locale: string, override?: strin
 }
 
 export function docLabel(kind: string, locale: string) {
+  const custom = customDocumentParts(kind);
+  if (custom) return isArabicLocale(locale) ? custom.ar : custom.en;
   const row = documentLabels[kind];
   if (!row) return kind;
   return isArabicLocale(locale) ? row.labelAr : row.label;
 }
 
 export function docHint(kind: string, locale: string) {
+  if (customDocumentParts(kind)) return "";
   const row = documentLabels[kind];
   if (!row) return "";
   return isArabicLocale(locale) ? row.hintAr : row.hint;

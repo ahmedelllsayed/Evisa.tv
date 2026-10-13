@@ -6,8 +6,8 @@ import { ExternalLink, Play, Plus, Search, Upload } from "lucide-react";
 import { adminDeleteDestination, adminSaveDestinationForm } from "@/app/actions/admin";
 import { PairedSelect } from "@/components/admin/destination-fields";
 import { VisaOptionsEditor } from "@/components/admin/visa-options-editor";
+import { DocumentChecklist } from "@/components/admin/document-checklist";
 import { AdminError, AdminField, AdminPage, adminDangerClass, adminInputClass, adminPrimaryClass, adminTextareaClass } from "@/components/admin/chrome";
-import { documentLabels } from "@/data/seed/content";
 import type { DestinationInput } from "@/lib/data/catalog";
 import { portOptions, regionOptions, visaTypeOptions, withCurrent } from "@/lib/destination-fields";
 import { visaHref } from "@/lib/href";
@@ -360,14 +360,7 @@ export function DestinationEditor({
             <div className={tab === "sources" ? "mt-4 grid gap-3" : "hidden"}>
               <fieldset className="text-sm">
                 <legend className="font-medium">المستندات المطلوبة</legend>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {documentChoices(initial.documents).map((kind) => (
-                    <label key={kind} className="flex items-center gap-2 rounded-xl border border-line px-3 py-2">
-                      <input type="checkbox" name="documents" value={kind} defaultChecked={initial.documents.includes(kind)} />
-                      {documentLabels[kind]?.labelAr ?? kind}
-                    </label>
-                  ))}
-                </div>
+                <DocumentChecklist name="documents" selected={initial.documents} />
               </fieldset>
               <label className="text-sm">
                 المدن (مفصولة بفاصلة)
@@ -423,11 +416,6 @@ export function DestinationEditor({
 
 function Field(props: { name: string; label: string; defaultValue: string; type?: string; required?: boolean }) {
   return <AdminField {...props} />;
-}
-
-function documentChoices(selected: string[]) {
-  const known = Object.keys(documentLabels);
-  return [...known, ...selected.filter((kind) => !known.includes(kind))];
 }
 
 function MediaTile({

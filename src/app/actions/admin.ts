@@ -230,6 +230,18 @@ function optionField(fd: FormData, key: string, name: string) {
   return String(fd.get(`opt.${key}.${name}`) ?? "");
 }
 
+function cleanDocumentList(values: FormDataEntryValue[]) {
+  const seen = new Set<string>();
+  const documents: string[] = [];
+  for (const raw of values) {
+    const kind = String(raw).trim().replace(/\s+/g, " ").slice(0, 180);
+    if (!kind || kind === "issued_visa" || seen.has(kind)) continue;
+    seen.add(kind);
+    documents.push(kind);
+  }
+  return documents;
+}
+
 function parseVisaOptions(fd: FormData): { ok: true; options: VisaOptionInput[] } | { ok: false; error: string } {
   const keys = fd.getAll("optionKey").map(String).filter(Boolean);
   if (!keys.length) return { ok: false, error: "أضف نوع تأشيرة واحداً على الأقل." };
@@ -258,7 +270,7 @@ function parseVisaOptions(fd: FormData): { ok: true; options: VisaOptionInput[] 
     const expressHours = expressOn ? Number(optionField(fd, key, "expressHours")) || null : null;
     const expressFee = expressOn ? Number(optionField(fd, key, "expressFee") || 0) : null;
     const custom = optionField(fd, key, "documentsMode") === "custom";
-    const documents = custom ? fd.getAll(`opt.${key}.documents`).map((item) => String(item).trim()).filter(Boolean) : null;
+    const documents = custom ? cleanDocumentList(fd.getAll(`opt.${key}.documents`)) : null;
     const active = optionField(fd, key, "active") === "on";
     if (!Number.isFinite(govFee) || govFee < 0 || !Number.isFinite(serviceFee) || serviceFee < 0 || (expressFee != null && expressFee < 0)) {
       return { ok: false, error: `رسوم «${label}» يجب أن تكون صفراً أو أكثر.` };
@@ -395,7 +407,7 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
     expressHours: Number(fd.get("expressHours")) || null,
     expressFee: Number(fd.get("expressFee")) || null,
     embassyVisit: false,
-    documents: fd.getAll("documents").map((item) => String(item).trim()).filter(Boolean),
+    documents: cleanDocumentList(fd.getAll("documents")),
     image: optional("image"),
     heroImage: optional("heroImage"),
     flag: optional("flag"),

@@ -9,7 +9,7 @@ import { documentGaps } from "@/lib/application-rules";
 import { href } from "@/lib/href";
 import type { AccountRow } from "@/lib/data/users";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Payment, Traveler } from "@/lib/types";
-import { localizedPhrase } from "@/lib/localize";
+import { docLabel, localizedPhrase } from "@/lib/localize";
 import { formatAt, formatMoney, processingLabel } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
@@ -287,7 +287,7 @@ export function AdminApplicationDetail({
               {reviewDocs.map((document) => (
                 <li key={document.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-4 py-3">
                   <span>
-                    {document.kind} · {document.fileName}
+                    {docLabel(document.kind, "ar-EG")} · {document.fileName}
                     <span className="mt-1 block text-xs text-muted-ink">
                       {document.status}
                       {document.rejectReason ? ` · ${document.rejectReason}` : ""}
