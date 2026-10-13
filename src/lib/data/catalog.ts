@@ -1,9 +1,10 @@
 import "server-only";
 import { cache } from "react";
-import type { Destination, Faq, FeeChange, Holiday, Review, TravelEvent, VisaType } from "@/lib/types";
-import { day, iso, json, num, numOrNull, one, sql } from "./db";
+import type { Destination, Faq, FeeChange, Holiday, Review, TravelEvent, VisaOptionInput, VisaType } from "@/lib/types";
+import { getDb, day, iso, json, num, numOrNull, one, sql } from "./db";
+import type { Db } from "@/lib/db/core";
 import { clearDestinationMedia } from "@/lib/destination-media";
-import { governmentFeeCharged } from "@/lib/visa";
+import { saveVisaOptions } from "./visa-options";
 
 type Row = Record<string, unknown>;
 
@@ -258,13 +259,18 @@ function toHoliday(r: Row): Holiday {
 
 export async function listFeeChanges(): Promise<FeeChange[]> {
   const rows = await sql(
-    `select f.*, d.name as destination_name from fee_changes f join destinations d on d.id = f.destination_id
+    `select f.*, d.name as destination_name, o.label_ar as option_label_ar
+     from fee_changes f
+     join destinations d on d.id = f.destination_id
+     left join visa_options o on o.id = f.visa_option_id
      order by f.changed_at desc`,
   );
   return rows.map((r) => ({
     id: String(r.id),
     destinationId: String(r.destination_id),
     destinationName: String(r.destination_name),
+    optionLabel: (r.option_label as string) ?? null,
+    optionLabelAr: (r.option_label_ar as string) ?? null,
     oldTotal: num(r.old_total),
     newTotal: num(r.new_total),
     reason: (r.reason as string) ?? null,
@@ -309,29 +315,47 @@ export type DestinationInput = {
   isActive: boolean;
 };
 
-export async function updateDestination(id: string, input: DestinationInput) {
-  const before = await getDestinationById(id);
-  await sql(
-    `update destinations set name=$2, name_ar=$3, slug=$4, code=$5, region=$6, visa_required=$7, visa_type=$8, validity=$9, validity_ar=$10, stay=$11, stay_ar=$12,
+function destinationParams(id: string, input: DestinationInput) {
+  return [
+    id, input.name, input.nameAr, input.slug, input.code, input.region, input.visaRequired, input.visaType, input.validity, input.validityAr, input.stay, input.stayAr,
+    input.entry, input.entryAr, input.acceptedAt, input.method, input.methodAr, input.govFee, input.serviceFee, input.processingHours, input.expressHours,
+    input.expressFee, JSON.stringify(input.documents), input.image, input.heroImage, input.flag,
+    JSON.stringify(input.cities), JSON.stringify(input.rejectionReasons), JSON.stringify(input.sources), input.sortOrder, input.isActive,
+    input.videoUrl, input.embassyVisit,
+  ];
+}
+
+const DESTINATION_UPDATE = `update destinations set name=$2, name_ar=$3, slug=$4, code=$5, region=$6, visa_required=$7, visa_type=$8, validity=$9, validity_ar=$10, stay=$11, stay_ar=$12,
        entry=$13, entry_ar=$14, accepted_at=$15, method=$16, method_ar=$17, gov_fee=$18, service_fee=$19, processing_hours=$20, express_hours=$21,
        express_fee=$22, documents=$23::jsonb, image=$24, hero_image=$25, flag=$26, cities=$27::jsonb,
        rejection_reasons=$28::jsonb, sources=$29::jsonb, sort_order=$30, is_active=$31, video_url=$32, embassy_visit=$33, updated_at=now()
-     where id=$1`,
-    [
-      id, input.name, input.nameAr, input.slug, input.code, input.region, input.visaRequired, input.visaType, input.validity, input.validityAr, input.stay, input.stayAr,
-      input.entry, input.entryAr, input.acceptedAt, input.method, input.methodAr, input.govFee, input.serviceFee, input.processingHours, input.expressHours,
-      input.expressFee, JSON.stringify(input.documents), input.image, input.heroImage, input.flag,
-      JSON.stringify(input.cities), JSON.stringify(input.rejectionReasons), JSON.stringify(input.sources), input.sortOrder, input.isActive,
-      input.videoUrl, input.embassyVisit,
-    ],
-  );
-  const oldTotal = before ? governmentFeeCharged(before) + before.serviceFee : null;
-  const newTotal = governmentFeeCharged(input) + input.serviceFee;
-  if (before && oldTotal !== newTotal) {
-    await sql("insert into fee_changes (destination_id, old_total, new_total, reason) values ($1,$2,$3,$4)", [
-      id, oldTotal, newTotal, "Fee updated",
-    ]);
-  }
+     where id=$1`;
+
+async function writeDestination(tx: Pick<Db, "query">, id: string, input: DestinationInput) {
+  await tx.query(DESTINATION_UPDATE, destinationParams(id, input));
+}
+
+export async function updateDestination(id: string, input: DestinationInput) {
+  const db = await getDb();
+  await writeDestination(db, id, input);
+}
+
+export async function saveDestinationWithOptions(id: string | null, input: DestinationInput, options: VisaOptionInput[]) {
+  const db = await getDb();
+  return db.transaction(async (tx) => {
+    let destinationId = id;
+    if (!destinationId) {
+      const rows = await tx.query<{ id: string }>(
+        `insert into destinations (name, slug, code, currency) values ($1, $2, $3, 'EGP') returning id`,
+        [input.name, input.slug, input.code],
+      );
+      destinationId = rows[0]?.id ?? null;
+    }
+    if (!destinationId) throw new Error("تعذر إنشاء الوجهة.");
+    await writeDestination(tx, destinationId, input);
+    await saveVisaOptions(tx, destinationId, options);
+    return destinationId;
+  });
 }
 
 export async function createDestination(input: DestinationInput) {

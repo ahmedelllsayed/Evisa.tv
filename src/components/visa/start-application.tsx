@@ -8,11 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { track } from "@/lib/analytics";
 import { t, tf } from "@/lib/i18n";
 import { localizedDestinationName } from "@/lib/localize";
-import type { Destination } from "@/lib/types";
-import { formatAt, formatMoney, guaranteedDate, processingLabel, totalFee } from "@/lib/visa";
+import type { Destination, VisaOption } from "@/lib/types";
+import { formatAt, formatMoney, guaranteedDate, optionHours, optionTotal, processingLabel } from "@/lib/visa";
 
 export function StartApplication({
   destination,
+  option,
   locale,
   express,
   existingId,
@@ -20,6 +21,7 @@ export function StartApplication({
   now,
 }: {
   destination: Destination;
+  option: VisaOption;
   locale: string;
   express: boolean;
   existingId?: string | null;
@@ -29,7 +31,8 @@ export function StartApplication({
   const [open, setOpen] = useState(defaultOpen);
   const [date, setDate] = useState<Date | undefined>();
   const [pending, start] = useTransition();
-  const hours = express && destination.expressHours ? destination.expressHours : destination.processingHours ?? 72;
+  const hours = optionHours(option, express);
+  const fee = optionTotal(option, express);
 
   const name = localizedDestinationName(destination, locale);
   if (!destination.visaRequired) return null;
@@ -80,12 +83,13 @@ export function StartApplication({
             disabled={pending}
             onClick={() =>
               start(() => {
-                track("begin_checkout", { item_id: destination.slug, value: totalFee(destination) });
+                track("begin_checkout", { item_id: destination.slug, item_variant: option.label, value: fee });
                 return startApplicationAction({
                   locale,
                   destinationId: destination.id,
                   departureDate: date ? date.toISOString().slice(0, 10) : null,
                   express,
+                  visaOptionId: option.id || null,
                 });
               })
             }
@@ -94,7 +98,7 @@ export function StartApplication({
             {pending ? t(locale, "visa.starting") : t(locale, "visa.proceed")}
           </button>
           <p className="text-center text-xs text-muted-ink">
-            {t(locale, "visa.total")} {formatMoney(totalFee(destination) + (express ? (destination.expressFee ?? 0) : 0), destination.currency, locale)}
+            {t(locale, "visa.total")} {formatMoney(fee, option.currency, locale)}
           </p>
         </DialogContent>
       </Dialog>

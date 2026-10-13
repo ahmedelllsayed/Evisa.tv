@@ -4,6 +4,8 @@ import { AdminPage, adminInputClass, adminPrimaryClass } from "@/components/admi
 import { statusLabels } from "@/components/admin/status";
 import { requireAdmin } from "@/lib/auth";
 import { applicationStats, countApplications, listAllApplications } from "@/lib/data/applications";
+import { listDestinations } from "@/lib/data/catalog";
+import { listAllVisaOptions, visaOptionStats } from "@/lib/data/visa-options";
 import { href } from "@/lib/href";
 import type { Page } from "@/lib/page";
 import { cn } from "@/lib/utils";
@@ -19,12 +21,18 @@ export default async function AdminApplicationsPage({ params, searchParams }: Pa
   const from = typeof sp.from === "string" ? sp.from : undefined;
   const to = typeof sp.to === "string" ? sp.to : undefined;
   const destination = typeof sp.destination === "string" ? sp.destination : undefined;
+  const rawOption = typeof sp.option === "string" ? sp.option : undefined;
+  const option = rawOption && /^[0-9a-f-]{36}$/i.test(rawOption) ? rawOption : undefined;
   const page = Math.max(1, Number(sp.page) || 1);
   const pageSize = 50;
-  const [apps, stats, total] = await Promise.all([
-    listAllApplications({ status, q, from, to, destination, limit: pageSize, offset: (page - 1) * pageSize }),
+  const filter = { status, q, from, to, destination, option };
+  const [apps, stats, total, destinations, visaOptions, optionStats] = await Promise.all([
+    listAllApplications({ ...filter, limit: pageSize, offset: (page - 1) * pageSize }),
     applicationStats(),
-    countApplications({ status, q }),
+    countApplications(filter),
+    listDestinations({ includeInactive: true }),
+    listAllVisaOptions(),
+    visaOptionStats(destination),
   ]);
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const query = new URLSearchParams();
@@ -33,6 +41,15 @@ export default async function AdminApplicationsPage({ params, searchParams }: Pa
   if (from) query.set("from", from);
   if (to) query.set("to", to);
   if (destination) query.set("destination", destination);
+  if (option) query.set("option", option);
+  const visibleOptions = destination ? visaOptions.filter((item) => item.destinationId === destinations.find((row) => row.slug === destination)?.id) : visaOptions;
+  const groups = new Map<string, typeof visibleOptions>();
+  for (const item of visibleOptions) {
+    const name = destinations.find((row) => row.id === item.destinationId)?.name ?? item.destinationId;
+    const list = groups.get(name) ?? [];
+    list.push(item);
+    groups.set(name, list);
+  }
   return (
     <AdminPage title="الطلبات" description="ابحث برقم الطلب أو البريد، وصفِّ حسب الحالة.">
       <div className="flex flex-wrap gap-2 text-sm">
@@ -49,13 +66,46 @@ export default async function AdminApplicationsPage({ params, searchParams }: Pa
       </div>
       <form className="mt-4 flex flex-wrap gap-2">
         <input name="q" defaultValue={q} placeholder="ابحث برقم الطلب أو البريد" className={cn(adminInputClass, "mt-0 min-w-0 flex-1")} />
-        <input name="destination" defaultValue={destination} placeholder="رمز الوجهة" className={cn(adminInputClass, "mt-0 w-32")} />
+        <select name="destination" defaultValue={destination ?? ""} className={cn(adminInputClass, "mt-0 w-44")}>
+          <option value="">كل الدول</option>
+          {destinations.map((row) => (
+            <option key={row.id} value={row.slug}>{row.name}</option>
+          ))}
+        </select>
+        <select name="option" defaultValue={option ?? ""} className={cn(adminInputClass, "mt-0 w-52")}>
+          <option value="">كل الأنواع</option>
+          {[...groups.entries()].map(([name, items]) => (
+            <optgroup key={name} label={name}>
+              {items.map((item) => (
+                <option key={item.id} value={item.id}>{item.labelAr || item.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
         <input name="from" type="date" defaultValue={from} className={cn(adminInputClass, "mt-0 w-36")} />
         <input name="to" type="date" defaultValue={to} className={cn(adminInputClass, "mt-0 w-36")} />
         {status && <input type="hidden" name="status" value={status} />}
         <button className={adminPrimaryClass}>بحث</button>
         <a className="rounded-full border border-line px-4 py-2 text-sm" href={`/api/admin/applications.csv?${query.toString()}`}>CSV</a>
       </form>
+      {destination && optionStats.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2 text-sm">
+          {optionStats.map((row) => {
+            const next = new URLSearchParams(query);
+            next.set("destination", destination);
+            next.set("option", row.id);
+            return (
+              <FilterLink
+                key={row.id}
+                locale={locale}
+                href={`/admin/applications?${next.toString()}`}
+                active={option === row.id}
+                label={`${row.labelAr || row.label} · ${row.total}`}
+              />
+            );
+          })}
+        </div>
+      )}
       <div className="mt-4">
         <ApplicationTable locale={locale} applications={apps} />
       </div>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AdminCard, AdminPage } from "@/components/admin/chrome";
 import { requireAdmin } from "@/lib/auth";
 import { applicationStats, applicationsByDay, queueCounts } from "@/lib/data/applications";
+import { recentVisaOptionStats } from "@/lib/data/visa-options";
 import { href } from "@/lib/href";
 import type { Page } from "@/lib/page";
 
@@ -10,7 +11,7 @@ export const metadata = { title: "لوحة التحكم" };
 export default async function AdminHome({ params }: Page) {
   const { locale } = await params;
   const user = await requireAdmin(locale);
-  const [counts, stats, days] = await Promise.all([queueCounts(user.id), applicationStats(), applicationsByDay()]);
+  const [counts, stats, days, optionRows] = await Promise.all([queueCounts(user.id), applicationStats(), applicationsByDay(), recentVisaOptionStats()]);
   const revenue = stats.reduce((sum, row) => sum + row.revenue, 0);
   const max = Math.max(1, ...days.map((day) => day.n));
   const cards = [
@@ -59,6 +60,23 @@ export default async function AdminHome({ params }: Page) {
           </ul>
         </AdminCard>
       </div>
+      <AdminCard className="mt-6">
+        <p className="text-sm text-muted-ink">الطلبات حسب نوع التأشيرة · آخر 30 يوماً</p>
+        {optionRows.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-ink">لا توجد طلبات مرتبطة بنوع تأشيرة في هذه الفترة.</p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-sm">
+            {optionRows.map((row) => (
+              <li key={row.id}>
+                <Link href={href(`/admin/applications?destination=${row.destinationSlug}&option=${row.id}`, locale)} className="flex items-center justify-between gap-3 hover:text-brand">
+                  <span>{row.destinationName} · {row.labelAr || row.label}</span>
+                  <span className="text-muted-ink">{row.total} · مدفوع {row.paid}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </AdminCard>
     </AdminPage>
   );
 }

@@ -7,7 +7,7 @@ import { requestRefundAction } from "@/app/actions/inbox";
 import { documentGaps, isPastGuarantee } from "@/lib/application-rules";
 import { href, visaHref } from "@/lib/href";
 import { t, type MessageKey } from "@/lib/i18n";
-import { docLabel } from "@/lib/localize";
+import { docLabel, localizedVisaLabel } from "@/lib/localize";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Traveler } from "@/lib/types";
 import { formatAt, formatMoney } from "@/lib/visa";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,7 @@ export function ApplicationCard({ app, locale }: { app: Application; locale: str
     >
       <div>
         <p className="font-medium">{app.destinationName}</p>
+        {app.visaLabel ? <p className="text-xs text-muted-ink">{localizedVisaLabel(app, locale)}</p> : null}
         <p className="text-xs text-muted-ink">{app.reference}</p>
         {late && <p className="mt-1 text-xs font-medium text-red-700">{t(locale, "account.late")}</p>}
       </div>
@@ -76,6 +77,7 @@ export function ApplicationTracker({
       </Link>
       <p className="mt-4 text-sm text-muted-ink">{application.reference}</p>
       <h1 className="font-display text-3xl font-semibold">{application.destinationName}</h1>
+      {application.visaLabel ? <p className="mt-1 text-sm text-muted-ink">{t(locale, "account.visaType")}: {localizedVisaLabel(application, locale)}</p> : null}
       <p className="mt-2 text-sm">
         {t(locale, "account.status")}: <span className="font-medium">{statusLabel(locale, application.status)}</span>
       </p>

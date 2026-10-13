@@ -1,31 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ExternalLink, Play, Plus, Search, Upload } from "lucide-react";
 import { adminDeleteDestination, adminSaveDestinationForm } from "@/app/actions/admin";
+import { PairedSelect } from "@/components/admin/destination-fields";
+import { VisaOptionsEditor } from "@/components/admin/visa-options-editor";
 import { AdminError, AdminField, AdminPage, adminDangerClass, adminInputClass, adminPrimaryClass, adminTextareaClass } from "@/components/admin/chrome";
 import { documentLabels } from "@/data/seed/content";
 import type { DestinationInput } from "@/lib/data/catalog";
-import {
-  entryOptions,
-  hoursToParts,
-  methodOptions,
-  parseSpan,
-  partsToHours,
-  portOptions,
-  regionOptions,
-  spanPhrase,
-  timePreview,
-  visaTypeOptions,
-  withCurrent,
-  type SpanUnit,
-  type TimeUnit,
-} from "@/lib/destination-fields";
+import { portOptions, regionOptions, visaTypeOptions, withCurrent } from "@/lib/destination-fields";
 import { visaHref } from "@/lib/href";
-import type { Destination, VisaType } from "@/lib/types";
+import type { Destination, VisaOption } from "@/lib/types";
 
-type Tab = "basics" | "fees" | "media" | "sources";
+type Tab = "basics" | "options" | "media" | "sources";
 type Picked = { url: string; name: string };
 
 const empty: DestinationInput = {
@@ -126,10 +114,14 @@ export function DestinationEditor({
   locale,
   destinations,
   storedMedia = [],
+  options = [],
+  optionCounts = {},
 }: {
   locale: string;
   destinations: Destination[];
   storedMedia?: { destination_id: string; kind: string }[];
+  options?: VisaOption[];
+  optionCounts?: Record<string, number>;
 }) {
   const [pending, start] = useTransition();
   const [selected, setSelected] = useState<string>(destinations[0]?.id ?? "new");
@@ -140,13 +132,6 @@ export function DestinationEditor({
   const [visibility, setVisibility] = useState<"all" | "visible" | "hidden">("all");
   const [picked, setPicked] = useState<Record<string, Picked>>({});
   const [formKey, setFormKey] = useState(0);
-  const [visaType, setVisaType] = useState<VisaType>(destinations[0]?.visaType ?? "e-visa");
-  const [embassy, setEmbassy] = useState(Boolean(destinations[0]?.embassyVisit));
-  const [method, setMethod] = useState(destinations[0]?.method || "Paperless");
-  const [govFee, setGovFee] = useState(String(destinations[0]?.govFee ?? 0));
-  const [serviceFee, setServiceFee] = useState(String(destinations[0]?.serviceFee ?? 0));
-  const [expressFee, setExpressFee] = useState(String(destinations[0]?.expressFee ?? 0));
-  const [expressOn, setExpressOn] = useState(destinations[0]?.expressHours != null);
   const current = destinations.find((d) => d.id === selected);
   const missing = useMemo(() => missingMediaKinds(current, storedMedia), [current, storedMedia]);
   const initial = current ? fromDestination(current) : empty;
@@ -160,19 +145,7 @@ export function DestinationEditor({
     });
   }, [destinations, query, visibility]);
 
-  const syncKey = `${selected}:${current?.updatedAt ?? "new"}:${formKey}`;
-  useEffect(() => {
-    const row = selected === "new" ? undefined : destinations.find((destination) => destination.id === selected);
-    setVisaType(row?.visaType ?? "e-visa");
-    setEmbassy(Boolean(row?.embassyVisit));
-    setMethod(row?.method || "Paperless");
-    setGovFee(String(row?.govFee ?? 0));
-    setServiceFee(String(row?.serviceFee ?? 0));
-    setExpressFee(String(row?.expressFee ?? 0));
-    setExpressOn(row?.expressHours != null);
-    // syncKey already includes the selected id and the saved timestamp.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncKey]);
+  const currentOptions = current ? options.filter((option) => option.destinationId === current.id) : [];
 
   function choose(id: string) {
     setSelected(id);
@@ -288,7 +261,7 @@ export function DestinationEditor({
               {(
                 [
                   ["basics", "الأساسيات"],
-                  ["fees", "الرسوم"],
+                  ["options", "أنواع التأشيرة"],
                   ["media", "الوسائط"],
                   ["sources", "المصادر"],
                 ] as const
@@ -310,50 +283,7 @@ export function DestinationEditor({
               <Field name="slug" label="الرابط" defaultValue={initial.slug} />
               <Field name="code" label="رمز الدولة" defaultValue={initial.code} />
               <PairedSelect label="المنطقة" name="region" value={initial.region} options={withCurrent(regionOptions, initial.region)} />
-              <label className="text-sm">
-                نوع التأشيرة
-                <select
-                  name="visaType"
-                  value={visaType}
-                  onChange={(event) => {
-                    const next = event.target.value as VisaType;
-                    setVisaType(next);
-                    if (next !== "sticker") setEmbassy(false);
-                  }}
-                  className={adminInputClass}
-                >
-                  {visaTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <SpanField key={`stay-${syncKey}`} label="مدة الإقامة" name="stay" nameAr="stayAr" en={initial.stay} ar={initial.stayAr} />
-              <SpanField key={`validity-${syncKey}`} label="صلاحية التأشيرة" name="validity" nameAr="validityAr" en={initial.validity} ar={initial.validityAr} />
-              <PairedSelect label="مرات الدخول" name="entry" nameAr="entryAr" value={initial.entry} options={withCurrent(entryOptions, initial.entry)} />
               <PairedSelect label="منافذ الدخول" name="acceptedAt" value={initial.acceptedAt} options={withCurrent(portOptions, initial.acceptedAt)} />
-              <label className="text-sm">
-                طريقة التقديم
-                <select
-                  name="method"
-                  value={method || "Paperless"}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setMethod(next);
-                    if (next === "Embassy" && visaType === "sticker") setEmbassy(true);
-                    if (next !== "Embassy") setEmbassy(false);
-                  }}
-                  className={adminInputClass}
-                >
-                  {withCurrent(methodOptions, method).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <input type="hidden" name="methodAr" value={methodOptions.find((option) => option.value === method)?.ar ?? ""} />
-              </label>
               <Field name="sortOrder" label="ترتيب الظهور" type="number" defaultValue={String(initial.sortOrder)} />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="visaRequired" defaultChecked={initial.visaRequired} /> التأشيرة مطلوبة
@@ -363,73 +293,14 @@ export function DestinationEditor({
               </label>
             </div>
 
-            <div className={tab === "fees" ? "mt-4 space-y-5" : "hidden"}>
-              <input type="hidden" name="embassyVisit" value={embassy ? "on" : ""} />
-              <section className="rounded-2xl border border-line bg-surface p-4">
-                <h3 className="text-sm font-semibold text-ink">ماذا يدفع العميل</h3>
-                <label className="mt-3 block text-sm">
-                  طريقة التحصيل
-                  <select
-                    value={embassy ? "service" : "both"}
-                    onChange={(event) => {
-                      const serviceOnly = event.target.value === "service";
-                      setEmbassy(serviceOnly);
-                      if (serviceOnly) {
-                        setVisaType("sticker");
-                        setMethod("Embassy");
-                      }
-                    }}
-                    className={adminInputClass}
-                  >
-                    <option value="both">الرسوم الحكومية + رسوم المعالجة</option>
-                    <option value="service">ملصق سفارة: رسوم المعالجة فقط</option>
-                  </select>
-                </label>
-                <FeeSummary embassy={embassy} govFee={govFee} serviceFee={serviceFee} expressFee={expressFee} expressOn={expressOn} />
-              </section>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm">
-                  {embassy ? "رسوم الحكومة (مرجع، لا تُحصّل هنا)" : "رسوم الحكومة"}
-                  <input name="govFee" type="number" min="0" value={govFee} onChange={(event) => setGovFee(event.target.value)} className={adminInputClass} />
-                </label>
-                <label className="text-sm">
-                  رسوم المعالجة
-                  <input name="serviceFee" type="number" min="0" value={serviceFee} onChange={(event) => setServiceFee(event.target.value)} className={adminInputClass} />
-                </label>
-              </div>
-              <section className="rounded-2xl border border-line p-4">
-                <h3 className="text-sm font-semibold text-ink">وقت المعالجة العادي</h3>
-                <p className="mt-1 text-xs text-muted-ink">اختر الوحدة ثم اكتب العدد. الشهر يحسب 30 يوماً.</p>
-                <DurationField key={`std-${syncKey}`} hours={initial.processingHours} name="processingHours" />
-              </section>
-              <section className="rounded-2xl border border-line p-4">
-                <label className="flex items-center gap-2 text-sm font-semibold">
-                  <input
-                    type="checkbox"
-                    checked={expressOn}
-                    onChange={(event) => setExpressOn(event.target.checked)}
-                  />
-                  تفعيل المعالجة السريعة
-                </label>
-                {expressOn ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-sm">مدة المعالجة السريعة</p>
-                      <DurationField key={`exp-${syncKey}`} hours={initial.expressHours} name="expressHours" />
-                    </div>
-                    <label className="text-sm">
-                      زيادة رسوم السرعة
-                      <input name="expressFee" type="number" min="0" value={expressFee} onChange={(event) => setExpressFee(event.target.value)} className={adminInputClass} />
-                    </label>
-                  </div>
-                ) : (
-                  <>
-                    <input type="hidden" name="expressHours" value="" />
-                    <input type="hidden" name="expressFee" value="0" />
-                    <p className="mt-2 text-xs text-muted-ink">بدون هذا الخيار تظهر للعميل المدة العادية فقط.</p>
-                  </>
-                )}
-              </section>
+            <div className={tab === "options" ? "mt-4" : "hidden"}>
+              <VisaOptionsEditor
+                key={`${selected}-${formKey}`}
+                locale={locale}
+                destinationSlug={current?.slug ?? ""}
+                options={currentOptions}
+                counts={optionCounts}
+              />
             </div>
 
             <div className={tab === "media" ? "mt-4" : "hidden"}>
@@ -557,162 +428,6 @@ function Field(props: { name: string; label: string; defaultValue: string; type?
 function documentChoices(selected: string[]) {
   const known = Object.keys(documentLabels);
   return [...known, ...selected.filter((kind) => !known.includes(kind))];
-}
-
-function money(value: number) {
-  return `${Math.max(0, Math.round(Number.isFinite(value) ? value : 0)).toLocaleString("ar-EG")} ج.م`;
-}
-
-function FeeSummary({
-  embassy,
-  govFee,
-  serviceFee,
-  expressFee,
-  expressOn,
-}: {
-  embassy: boolean;
-  govFee: string;
-  serviceFee: string;
-  expressFee: string;
-  expressOn: boolean;
-}) {
-  const gov = Number(govFee) || 0;
-  const service = Number(serviceFee) || 0;
-  const extra = expressOn ? Number(expressFee) || 0 : 0;
-  const chargedGov = embassy ? 0 : gov;
-  return (
-    <div className="mt-3 rounded-xl bg-white p-3 text-sm">
-      <p>
-        يدفع في المدة العادية: <strong>{money(chargedGov + service)}</strong>
-      </p>
-      {expressOn && (
-        <p className="mt-1">
-          يدفع مع السرعة: <strong>{money(chargedGov + service + extra)}</strong>
-        </p>
-      )}
-      <p className="mt-2 text-xs leading-5 text-muted-ink">
-        {embassy
-          ? "العميل يدفع رسوم المعالجة فقط. الرسوم الحكومية تُسدد في السفارة ولا تُضاف إلى الطلب."
-          : `يشمل ${money(chargedGov)} رسوماً حكومية و${money(service)} رسوم معالجة.`}
-      </p>
-    </div>
-  );
-}
-
-function DurationField({ hours, name }: { hours: number | null; name: string }) {
-  const initial = hoursToParts(hours);
-  const [amount, setAmount] = useState(initial.amount);
-  const [unit, setUnit] = useState<TimeUnit>(initial.unit);
-  const total = partsToHours(amount, unit);
-  return (
-    <div className="mt-2">
-      <div className="flex gap-2">
-        <input
-          type="number"
-          min="1"
-          value={amount}
-          onChange={(event) => setAmount(event.target.value)}
-          className="h-10 w-24 rounded-lg border border-line px-3 text-sm"
-          aria-label="العدد"
-        />
-        <select value={unit} onChange={(event) => setUnit(event.target.value as TimeUnit)} className="h-10 min-w-0 flex-1 rounded-lg border border-line px-3 text-sm" aria-label="الوحدة">
-          <option value="hour">ساعة</option>
-          <option value="day">يوم</option>
-          <option value="month">شهر</option>
-        </select>
-      </div>
-      <p className="mt-1 text-xs text-muted-ink">{timePreview(amount, unit)}</p>
-      <input type="hidden" name={name} value={total ?? ""} />
-    </div>
-  );
-}
-
-function SpanField({
-  label,
-  name,
-  nameAr,
-  en,
-  ar,
-}: {
-  label: string;
-  name: string;
-  nameAr: string;
-  en: string | null;
-  ar: string | null;
-}) {
-  const parsed = parseSpan(en, ar);
-  const [custom, setCustom] = useState(parsed == null && Boolean(en || ar));
-  const [amount, setAmount] = useState(parsed?.amount ?? "");
-  const [unit, setUnit] = useState<SpanUnit>(parsed?.unit ?? "day");
-  const phrase = spanPhrase(amount, unit);
-  return (
-    <div className="text-sm">
-      <div className="flex items-center justify-between gap-2">
-        <span>{label}</span>
-        <button type="button" className="text-xs text-brand" onClick={() => setCustom((value) => !value)}>
-          {custom ? "قائمة" : "نص حر"}
-        </button>
-      </div>
-      {custom ? (
-        <div className="mt-1 grid gap-2">
-          <input name={name} defaultValue={en ?? ""} placeholder="بالإنجليزية" className={adminInputClass} />
-          <input name={nameAr} defaultValue={ar ?? ""} placeholder="بالعربية" className={adminInputClass} />
-        </div>
-      ) : (
-        <>
-          <div className="mt-1 flex gap-2">
-            <input
-              type="number"
-              min="1"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              className="h-10 w-24 rounded-lg border border-line px-3 text-sm"
-              aria-label={`${label} العدد`}
-            />
-            <select value={unit} onChange={(event) => setUnit(event.target.value as SpanUnit)} className="h-10 min-w-0 flex-1 rounded-lg border border-line px-3 text-sm" aria-label={`${label} الوحدة`}>
-              <option value="day">يوم</option>
-              <option value="month">شهر</option>
-              <option value="year">سنة</option>
-            </select>
-          </div>
-          <input type="hidden" name={name} value={phrase?.en ?? ""} />
-          <input type="hidden" name={nameAr} value={phrase?.ar ?? ""} />
-        </>
-      )}
-    </div>
-  );
-}
-
-function PairedSelect({
-  label,
-  name,
-  nameAr,
-  value,
-  options,
-}: {
-  label: string;
-  name: string;
-  nameAr?: string;
-  value: string | null;
-  options: { value: string; label: string; ar?: string }[];
-}) {
-  const fallback = options[0]?.value ?? "";
-  const [current, setCurrent] = useState(value && options.some((option) => option.value === value) ? value : fallback);
-  const ar = options.find((option) => option.value === current)?.ar ?? "";
-  return (
-    <label className="text-sm">
-      {label}
-      <select value={current} onChange={(event) => setCurrent(event.target.value)} className={adminInputClass}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <input type="hidden" name={name} value={current} />
-      {nameAr ? <input type="hidden" name={nameAr} value={ar} /> : null}
-    </label>
-  );
 }
 
 function MediaTile({

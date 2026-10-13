@@ -5,6 +5,7 @@ import { siteConfig } from "@/config/site.config";
 import { getCurrentUser } from "@/lib/auth";
 import { findOpenApplication } from "@/lib/data/applications";
 import { getDestinationBySlug, listDestinations, listFaqs, listReviews, computedApprovalRate } from "@/lib/data/catalog";
+import { listVisaOptions } from "@/lib/data/visa-options";
 import { getCitizenshipCodes, getSiteSettings } from "@/lib/data/settings";
 import type { Page } from "@/lib/page";
 import { getCitizenship, hasChosenCitizenship } from "@/lib/preferences";
@@ -32,10 +33,11 @@ export default async function VisaPage({ params, searchParams }: Page<{ locale: 
   const sp = await searchParams;
   const destination = await getDestinationBySlug(slug);
   if (!destination) notFound();
-  const [faqs, reviews, all, user, chosen, citizenship, settings, approvalRate, citizenshipCodes] = await Promise.all([
+  const [faqs, reviews, all, options, user, chosen, citizenship, settings, approvalRate, citizenshipCodes] = await Promise.all([
     listFaqs("visa", destination.id),
     listReviews("visa", destination.id),
     listDestinations(),
+    listVisaOptions(destination.id),
     getCurrentUser(),
     hasChosenCitizenship(),
     getCitizenship(),
@@ -59,10 +61,14 @@ export default async function VisaPage({ params, searchParams }: Page<{ locale: 
       <VisaView
         locale={locale}
         destination={destination}
+        options={options}
+        initialOptionId={typeof sp.type === "string" ? sp.type : null}
         faqs={faqs}
         reviews={reviews}
         nearby={nearby}
         existingId={existing?.id}
+        existingOptionId={existing?.visaOptionId}
+        existingExpress={existing?.express}
         applyOpen={String(sp.apply ?? "") === "1"}
         nowIso={new Date().toISOString()}
         approvalRate={approvalRate}

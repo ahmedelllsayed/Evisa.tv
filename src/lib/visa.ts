@@ -1,6 +1,6 @@
 import { siteConfig } from "@/config/site.config";
 import { isArabicLocale, t } from "@/lib/i18n";
-import type { Destination, VisaType } from "@/lib/types";
+import type { Destination, VisaOption, VisaType } from "@/lib/types";
 
 const { market } = siteConfig;
 
@@ -28,6 +28,69 @@ export function governmentFeeCharged(d: { govFee: number; visaType?: VisaType; e
 
 export function totalFee(d: { govFee: number; serviceFee: number; visaType?: VisaType; embassyVisit?: boolean }) {
   return governmentFeeCharged(d) + d.serviceFee;
+}
+
+export function optionExpress(o: { expressHours: number | null }, express: boolean) {
+  return express && o.expressHours !== null;
+}
+
+export function optionHours(o: { processingHours: number | null; expressHours: number | null }, express: boolean) {
+  return optionExpress(o, express) ? o.expressHours! : (o.processingHours ?? 72);
+}
+
+export function optionServiceFee(
+  o: { serviceFee: number; expressHours: number | null; expressFee: number | null },
+  express: boolean,
+) {
+  return o.serviceFee + (optionExpress(o, express) ? (o.expressFee ?? 0) : 0);
+}
+
+export function optionTotal(
+  o: { govFee: number; serviceFee: number; visaType?: VisaType; embassyVisit?: boolean; expressHours: number | null; expressFee: number | null },
+  express: boolean,
+) {
+  return governmentFeeCharged(o) + optionServiceFee(o, express);
+}
+
+export function optionDaysSooner(o: { processingHours: number | null; expressHours: number | null }) {
+  if (o.expressHours == null || o.processingHours == null || o.expressHours >= o.processingHours) return null;
+  return Math.max(1, Math.round((o.processingHours - o.expressHours) / 24));
+}
+
+export function optionLabel(o: { label: string; labelAr?: string | null }, locale?: string) {
+  if (locale && isArabicLocale(locale) && o.labelAr) return o.labelAr;
+  return o.label;
+}
+
+export function fallbackVisaOption(d: Destination): VisaOption {
+  const label = [d.stay, d.entry].filter(Boolean).join(" · ") || "Standard";
+  const labelAr = [d.stayAr, d.entryAr].filter(Boolean).join(" · ") || null;
+  return {
+    id: "",
+    destinationId: d.id,
+    label,
+    labelAr,
+    visaType: d.visaType,
+    embassyVisit: d.embassyVisit,
+    method: d.method,
+    methodAr: d.methodAr ?? null,
+    validity: d.validity,
+    validityAr: d.validityAr ?? null,
+    stay: d.stay,
+    stayAr: d.stayAr ?? null,
+    entry: d.entry,
+    entryAr: d.entryAr ?? null,
+    govFee: d.govFee,
+    serviceFee: d.serviceFee,
+    currency: d.currency,
+    processingHours: d.processingHours,
+    expressHours: d.expressHours,
+    expressFee: d.expressFee,
+    documents: null,
+    isDefault: true,
+    isActive: true,
+    sortOrder: 0,
+  };
 }
 
 export function guaranteedDate(hours: number, from: Date = new Date()) {

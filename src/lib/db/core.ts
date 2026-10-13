@@ -160,6 +160,40 @@ export async function seed(db: Db, { force = false, log = (_: string) => {} } = 
       ids.set(d.code, row.id);
     }
 
+    await tx.query(`
+      insert into visa_options (
+        destination_id, label, label_ar, visa_type, embassy_visit, method, method_ar,
+        validity, validity_ar, stay, stay_ar, entry, entry_ar,
+        gov_fee, service_fee, processing_hours, express_hours, express_fee,
+        documents, is_default, is_active, sort_order
+      )
+      select
+        d.id,
+        coalesce(nullif(btrim(concat_ws(' · ', nullif(btrim(d.stay), ''), nullif(btrim(d.entry), '')), ' ·'), ''), 'Standard'),
+        nullif(btrim(concat_ws(' · ', nullif(btrim(d.stay_ar), ''), nullif(btrim(d.entry_ar), '')), ' ·'), ''),
+        d.visa_type,
+        coalesce(d.embassy_visit, false),
+        d.method,
+        d.method_ar,
+        d.validity,
+        d.validity_ar,
+        d.stay,
+        d.stay_ar,
+        d.entry,
+        d.entry_ar,
+        d.gov_fee,
+        d.service_fee,
+        d.processing_hours,
+        d.express_hours,
+        d.express_fee,
+        null,
+        true,
+        true,
+        0
+      from destinations d
+      where not exists (select 1 from visa_options o where o.destination_id = d.id)
+    `);
+
     await tx.query("delete from faqs where destination_id is null");
     for (const [i, f] of content.faqs.entries()) {
       await tx.query("insert into faqs (scope, category, question, answer, sort_order) values ($1,$2,$3,$4,$5)", [

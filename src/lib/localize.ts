@@ -22,6 +22,16 @@ export function localizedPhrase(text: string | null | undefined, locale: string,
   return text;
 }
 
+export function localizedVisaLabel(
+  row: { label?: string | null; labelAr?: string | null; visaLabel?: string | null; visaLabelAr?: string | null },
+  locale: string,
+) {
+  const english = row.visaLabel ?? row.label ?? "";
+  const arabic = row.visaLabelAr ?? row.labelAr ?? null;
+  if (isArabicLocale(locale) && arabic) return arabic;
+  return english;
+}
+
 export function localizedDestinationName(d: { name: string; nameAr?: string | null; code?: string | null }, locale: string) {
   if (!isArabicLocale(locale)) return d.name;
   if (d.nameAr) return d.nameAr;

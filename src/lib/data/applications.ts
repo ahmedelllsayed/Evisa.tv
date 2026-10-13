@@ -8,26 +8,35 @@ import type {
   ApplicationStep,
   Payment,
   Traveler,
+  VisaDetails,
 } from "@/lib/types";
 import type { AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { documentGaps } from "@/lib/application-rules";
 import { t, tf, type MessageKey } from "@/lib/i18n";
 import { sendMail } from "@/lib/email";
 import { notifyUser } from "./notifications";
-import { formatAt, governmentFeeCharged, guaranteedDate } from "@/lib/visa";
+import { formatAt, governmentFeeCharged, guaranteedDate, optionHours, optionServiceFee } from "@/lib/visa";
 import { getDestinationById } from "./catalog";
+import { getActiveVisaOption, getDefaultVisaOption, snapshotVisaOption } from "./visa-options";
 import { day, getDb, iso, isoOrNull, json, num, numOrNull, one, sql } from "./db";
 
 type Row = Record<string, unknown>;
 
+const requiredDocsSql = `
+  case
+    when vo.documents is not null and jsonb_typeof(vo.documents) = 'array' and jsonb_array_length(vo.documents) > 0 then vo.documents
+    else d.documents
+  end`;
+
 const APP_SELECT = `
   select a.*, d.name as destination_name, d.slug as destination_slug, d.flag as destination_flag,
-         d.image as destination_image, d.documents as destination_documents, p.email as user_email,
+         d.image as destination_image, ${requiredDocsSql} as destination_documents, p.email as user_email,
          assignee.email as assignee_email
   from applications a
   join destinations d on d.id = a.destination_id
   join profiles p on p.id = a.user_id
-  left join profiles assignee on assignee.id = a.assignee_id`;
+  left join profiles assignee on assignee.id = a.assignee_id
+  left join visa_options vo on vo.id = a.visa_option_id`;
 
 function toApplication(r: Row): Application {
   return {
@@ -41,6 +50,10 @@ function toApplication(r: Row): Application {
     destinationFlag: (r.destination_flag as string) ?? null,
     destinationImage: (r.destination_image as string) ?? null,
     documentsRequired: json<string[]>(r.destination_documents, []),
+    visaOptionId: (r.visa_option_id as string) ?? null,
+    visaLabel: (r.visa_label as string) ?? null,
+    visaLabelAr: (r.visa_label_ar as string) ?? null,
+    visaDetails: r.visa_details == null ? null : json<VisaDetails | null>(r.visa_details, null),
     status: r.status as ApplicationStatus,
     step: r.step as ApplicationStep,
     departureDate: day(r.departure_date),
@@ -72,24 +85,55 @@ export async function createApplication(input: {
   departureDate: string | null;
   express: boolean;
   locale?: string;
+  visaOptionId?: string | null;
 }) {
   const d = await getDestinationById(input.destinationId);
   if (!d || !d.isActive || !d.visaRequired) throw new Error("This destination is not available for applications");
-  const express = input.express && d.expressHours !== null;
-  const hours = express ? d.expressHours! : (d.processingHours ?? 72);
-  const govFee = governmentFeeCharged(d);
-  const serviceFee = d.serviceFee + (express ? (d.expressFee ?? 0) : 0);
+  const option = input.visaOptionId
+    ? await getActiveVisaOption(d.id, input.visaOptionId)
+    : await getDefaultVisaOption(d.id);
+  if (!option) throw new Error("This visa type is not available");
+  const express = input.express && option.expressHours !== null;
+  const hours = optionHours(option, express);
+  const govFee = governmentFeeCharged(option);
+  const serviceFee = optionServiceFee(option, express);
   const row = await one<{ id: string }>(
     `insert into applications (reference, user_id, destination_id, departure_date, express, guaranteed_at,
-       gov_fee, service_fee, total_amount, currency, locale)
-     values ($1,$2,$3,$4::date,$5,$6::timestamptz,$7,$8,$9,$10,$11) returning id`,
+       gov_fee, service_fee, total_amount, currency, locale, visa_option_id, visa_label, visa_label_ar, visa_details)
+     values ($1,$2,$3,$4::date,$5,$6::timestamptz,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb) returning id`,
     [
       newReference(), input.userId, d.id, input.departureDate, express, guaranteedDate(hours).toISOString(),
       govFee, serviceFee, govFee + serviceFee, d.currency, input.locale || "en-EG",
+      option.id, option.label, option.labelAr, JSON.stringify(snapshotVisaOption(option)),
     ],
   );
-  await addEvent(row!.id, { status: "draft", title: "Application started", description: `${d.name} visa application created` });
+  await addEvent(row!.id, { status: "draft", title: "Application started", description: `${d.name} · ${option.label}` });
   return row!.id;
+}
+
+export async function changeApplicationOption(id: string, optionId: string, expressWanted: boolean) {
+  const app = await getApplication(id);
+  if (!app) return { ok: false as const, error: "الطلب غير موجود." };
+  if ((app.status !== "draft" && app.status !== "payment_pending") || app.paidAt) {
+    return { ok: false as const, error: "لا يمكن تغيير نوع تأشيرة مدفوعة." };
+  }
+  const option = await getActiveVisaOption(app.destinationId, optionId);
+  if (!option) return { ok: false as const, error: "نوع التأشيرة غير متاح." };
+  const express = expressWanted && option.expressHours !== null;
+  const hours = optionHours(option, express);
+  const count = Math.max(1, app.travelerCount);
+  const govFee = governmentFeeCharged(option) * count;
+  const serviceFee = optionServiceFee(option, express) * count;
+  const row = await one<{ id: string }>(
+    `update applications set visa_option_id = $2, visa_label = $3, visa_label_ar = $4, visa_details = $5::jsonb,
+       express = $6, guaranteed_at = $7::timestamptz, gov_fee = $8, service_fee = $9, total_amount = $8::numeric + $9::numeric, updated_at = now()
+     where id = $1 and paid_at is null and status in ('draft', 'payment_pending')
+     returning id`,
+    [id, option.id, option.label, option.labelAr, JSON.stringify(snapshotVisaOption(option)), express, guaranteedDate(hours).toISOString(), govFee, serviceFee],
+  );
+  if (!row) return { ok: false as const, error: "لا يمكن تغيير نوع تأشيرة مدفوعة." };
+  await addEvent(id, { status: app.status, title: "تغيير نوع التأشيرة", description: option.labelAr || option.label });
+  return { ok: true as const };
 }
 
 export async function getApplication(id: string) {
@@ -105,6 +149,7 @@ const gapCountSql = `
   select count(*)::int as n
   from applications a
   join destinations d on d.id = a.destination_id
+  left join visa_options vo on vo.id = a.visa_option_id
   where a.user_id = $1
     and a.status not in ('draft', 'approved', 'rejected', 'cancelled', 'refunded')
     and (
@@ -117,6 +162,7 @@ const gapCountSql = `
         from travelers t
         cross join lateral jsonb_array_elements_text(
           case
+            when vo.documents is not null and jsonb_typeof(vo.documents) = 'array' and jsonb_array_length(vo.documents) > 0 then vo.documents
             when jsonb_typeof(d.documents) = 'array' and jsonb_array_length(d.documents) > 0 then d.documents
             else '["passport"]'::jsonb
           end
@@ -179,7 +225,7 @@ export async function listPaymentsForUser(userId: string): Promise<UserPaymentRo
 export async function listIssuedVisasForUser(userId: string): Promise<IssuedVisaRow[]> {
   const rows = await sql(
     `select doc.id, doc.application_id, doc.file_name, doc.storage_path, doc.mime_type, doc.size_bytes, doc.created_at,
-            a.reference, a.delivered_at, d.name as destination_name, d.slug as destination_slug
+            a.reference, a.delivered_at, a.visa_label, a.visa_label_ar, d.name as destination_name, d.slug as destination_slug
      from documents doc
      join applications a on a.id = doc.application_id
      join destinations d on d.id = a.destination_id
@@ -193,6 +239,8 @@ export async function listIssuedVisasForUser(userId: string): Promise<IssuedVisa
     reference: String(row.reference),
     destinationName: String(row.destination_name),
     destinationSlug: String(row.destination_slug),
+    visaLabel: (row.visa_label as string) ?? null,
+    visaLabelAr: (row.visa_label_ar as string) ?? null,
     fileName: String(row.file_name),
     storagePath: String(row.storage_path),
     mimeType: (row.mime_type as string) ?? null,
@@ -239,17 +287,20 @@ export async function findOpenApplication(userId: string, destinationId: string)
   return r ? toApplication(r) : null;
 }
 
-export async function listAllApplications(filter: {
+export type ApplicationListFilter = {
   status?: string;
   q?: string;
   queue?: QueueFilter;
   assigneeId?: string;
   destination?: string;
+  option?: string;
   from?: string;
   to?: string;
   limit?: number;
   offset?: number;
-} = {}) {
+};
+
+function buildApplicationWhere(filter: ApplicationListFilter) {
   const where: string[] = [];
   const params: unknown[] = [];
   if (filter.status) {
@@ -289,6 +340,10 @@ export async function listAllApplications(filter: {
     params.push(filter.destination);
     where.push(`d.slug = $${params.length}`);
   }
+  if (filter.option) {
+    params.push(filter.option);
+    where.push(`a.visa_option_id = $${params.length}::uuid`);
+  }
   if (filter.from) {
     params.push(filter.from);
     where.push(`a.created_at >= $${params.length}::date`);
@@ -297,6 +352,11 @@ export async function listAllApplications(filter: {
     params.push(filter.to);
     where.push(`a.created_at < ($${params.length}::date + interval '1 day')`);
   }
+  return { where, params };
+}
+
+export async function listAllApplications(filter: ApplicationListFilter = {}) {
+  const { where, params } = buildApplicationWhere(filter);
   const limit = Math.min(100, Math.max(1, filter.limit ?? 50));
   const offset = Math.max(0, filter.offset ?? 0);
   params.push(limit, offset);
@@ -307,17 +367,8 @@ export async function listAllApplications(filter: {
   return rows.map(toApplication);
 }
 
-export async function countApplications(filter: { status?: string; q?: string } = {}) {
-  const where: string[] = [];
-  const params: unknown[] = [];
-  if (filter.status) {
-    params.push(filter.status);
-    where.push(`a.status = $${params.length}`);
-  }
-  if (filter.q) {
-    params.push(`%${filter.q.toLowerCase()}%`);
-    where.push(`(lower(a.reference) like $${params.length} or lower(p.email) like $${params.length} or lower(d.name) like $${params.length})`);
-  }
+export async function countApplications(filter: ApplicationListFilter = {}) {
+  const { where, params } = buildApplicationWhere(filter);
   const row = await one<{ n: number }>(
     `select count(*)::int as n from applications a join profiles p on p.id = a.user_id join destinations d on d.id = a.destination_id ${where.length ? "where " + where.join(" and ") : ""}`,
     params,

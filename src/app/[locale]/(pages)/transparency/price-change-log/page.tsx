@@ -42,7 +42,7 @@ export default async function FeeChangePage({ params }: Page) {
             {changes.map((c) => (
               <tr key={c.id} className="border-b border-line/70">
                 <td className="py-3">{new Date(c.changedAt).toLocaleDateString(locale)}</td>
-                <td>{c.destinationName}</td>
+                <td>{c.destinationName}{c.optionLabel ? ` · ${locale.startsWith("ar") ? c.optionLabelAr || c.optionLabel : c.optionLabel}` : ""}</td>
                 <td>{formatMoney(c.oldTotal)}</td>
                 <td>{formatMoney(c.newTotal)}</td>
                 <td>{c.reason ?? "—"}</td>

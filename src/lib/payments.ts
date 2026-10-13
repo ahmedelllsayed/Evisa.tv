@@ -46,7 +46,7 @@ export async function createCheckout(application: Application, locale: string, c
       amountCents,
       currency: fresh.currency || "EGP",
       merchantOrderId,
-      description: `${fresh.destinationName} visa ${fresh.reference}`,
+      description: `${fresh.destinationName}${fresh.visaLabel ? ` (${fresh.visaLabel})` : ""} visa ${fresh.reference}`,
       billing: { name: customer.fullName || customer.email, email: customer.email, phone },
       notificationUrl: `${env.siteUrl}/api/payments/paymob`,
       redirectionUrl: `${env.siteUrl}/${locale}/payment/result`,
@@ -88,7 +88,7 @@ export async function createCheckout(application: Application, locale: string, c
             currency: fresh.currency.toLowerCase(),
             unit_amount: Math.round(fresh.totalAmount * 100),
             product_data: {
-              name: `${fresh.destinationName} visa — ${fresh.reference}`,
+              name: `${fresh.destinationName}${fresh.visaLabel ? ` (${fresh.visaLabel})` : ""} visa — ${fresh.reference}`,
               description: `${settings.name} government + processing fees`,
             },
           },

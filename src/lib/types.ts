@@ -86,10 +86,79 @@ export type FeeChange = {
   id: string;
   destinationId: string;
   destinationName: string;
+  optionLabel: string | null;
+  optionLabelAr: string | null;
   oldTotal: number;
   newTotal: number;
   reason: string | null;
   changedAt: string;
+};
+
+export type VisaDetails = {
+  stay: string | null;
+  stayAr: string | null;
+  validity: string | null;
+  validityAr: string | null;
+  entry: string | null;
+  entryAr: string | null;
+  visaType: VisaType;
+  method: string | null;
+  methodAr: string | null;
+  embassyVisit: boolean;
+  processingHours: number | null;
+  expressHours: number | null;
+};
+
+export type VisaOption = {
+  id: string;
+  destinationId: string;
+  label: string;
+  labelAr: string | null;
+  visaType: VisaType;
+  embassyVisit: boolean;
+  method: string | null;
+  methodAr: string | null;
+  validity: string | null;
+  validityAr: string | null;
+  stay: string | null;
+  stayAr: string | null;
+  entry: string | null;
+  entryAr: string | null;
+  govFee: number;
+  serviceFee: number;
+  currency: string;
+  processingHours: number | null;
+  expressHours: number | null;
+  expressFee: number | null;
+  documents: string[] | null;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder: number;
+};
+
+export type VisaOptionInput = {
+  id?: string | null;
+  label: string;
+  labelAr: string | null;
+  visaType: VisaType;
+  embassyVisit: boolean;
+  method: string | null;
+  methodAr: string | null;
+  validity: string | null;
+  validityAr: string | null;
+  stay: string | null;
+  stayAr: string | null;
+  entry: string | null;
+  entryAr: string | null;
+  govFee: number;
+  serviceFee: number;
+  processingHours: number | null;
+  expressHours: number | null;
+  expressFee: number | null;
+  documents: string[] | null;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder: number;
 };
 
 export type ApplicationStatus =
@@ -116,6 +185,10 @@ export type Application = {
   destinationFlag: string | null;
   destinationImage: string | null;
   documentsRequired: string[];
+  visaOptionId: string | null;
+  visaLabel: string | null;
+  visaLabelAr: string | null;
+  visaDetails: VisaDetails | null;
   status: ApplicationStatus;
   step: ApplicationStep;
   departureDate: string | null;

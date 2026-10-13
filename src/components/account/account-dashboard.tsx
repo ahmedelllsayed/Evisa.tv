@@ -7,7 +7,7 @@ import { markNotificationsRead } from "@/app/actions/account";
 import type { AccountNotification, AccountProfileSummary, AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { href, visaHref } from "@/lib/href";
 import { t, tf, type MessageKey } from "@/lib/i18n";
-import { docLabel } from "@/lib/localize";
+import { docLabel, localizedVisaLabel } from "@/lib/localize";
 import type { ProfileDocument } from "@/lib/profile";
 import type { Application, ApplicationStatus } from "@/lib/types";
 import { formatAt, formatMoney } from "@/lib/visa";
@@ -341,6 +341,7 @@ function Orders({ locale, apps }: { locale: string; apps: Application[] }) {
                 )}
                 <div className="min-w-0">
                   <p className="truncate font-medium">{app.destinationName}</p>
+                  {app.visaLabel ? <p className="truncate text-xs text-muted-ink">{localizedVisaLabel(app, locale)}</p> : null}
                   <p className="text-xs text-muted-ink">{app.reference}</p>
                 </div>
               </div>
@@ -409,6 +410,7 @@ function Visas({ locale, visas }: { locale: string; visas: IssuedVisaRow[] }) {
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-medium">{first.destinationName}</p>
+                {first.visaLabel ? <p className="truncate text-xs text-muted-ink">{localizedVisaLabel(first, locale)}</p> : null}
                 <p className="text-xs text-muted-ink">{first.reference}</p>
               </div>
               <a href={`/api/account/visas/${first.applicationId}/zip`} className="rounded-full bg-brand px-3 py-1.5 text-xs text-white">

@@ -9,7 +9,8 @@ import { documentGaps } from "@/lib/application-rules";
 import { href } from "@/lib/href";
 import type { AccountRow } from "@/lib/data/users";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Payment, Traveler } from "@/lib/types";
-import { formatAt, formatMoney } from "@/lib/visa";
+import { localizedPhrase } from "@/lib/localize";
+import { formatAt, formatMoney, processingLabel } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
 const statuses: ApplicationStatus[] = [
@@ -32,6 +33,33 @@ const tabs = [
 ] as const;
 
 type Tab = (typeof tabs)[number][0];
+
+function VisaTypeCard({ application }: { application: Application }) {
+  const details = application.visaDetails;
+  const hours = application.express ? details?.expressHours ?? null : details?.processingHours ?? null;
+  const rows = [
+    ["الاسم", application.visaLabelAr || application.visaLabel],
+    ["الإقامة", details ? localizedPhrase(details.stay, "ar-EG", details.stayAr) : ""],
+    ["الصلاحية", details ? localizedPhrase(details.validity, "ar-EG", details.validityAr) : ""],
+    ["الدخول", details ? localizedPhrase(details.entry, "ar-EG", details.entryAr) : ""],
+    ["الطريقة", details ? localizedPhrase(details.method, "ar-EG", details.methodAr) : ""],
+    ["المدة", `${processingLabel(hours, "ar-EG")}${application.express ? " · سريع" : ""}`],
+    ["الموعد المستهدف", application.guaranteedAt ? formatAt(application.guaranteedAt) : "—"],
+  ];
+  return (
+    <AdminCard className="mb-4">
+      <h2 className="font-semibold">نوع التأشيرة</h2>
+      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs text-muted-ink">{label}</dt>
+            <dd>{value || "—"}</dd>
+          </div>
+        ))}
+      </dl>
+    </AdminCard>
+  );
+}
 
 function fileHref(storagePath: string) {
   return `/api/files/${storagePath.split("/").map((part) => encodeURIComponent(part)).join("/")}`;
@@ -199,6 +227,7 @@ export function AdminApplicationDetail({
           </AdminCard>
         </aside>
         <div className="min-w-0">
+          {application.visaLabel ? <VisaTypeCard application={application} /> : null}
           <div className="mb-4 flex gap-2 overflow-x-auto">
             {tabs.map(([id, label]) => (
               <button

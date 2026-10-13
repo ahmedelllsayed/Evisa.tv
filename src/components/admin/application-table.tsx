@@ -3,6 +3,7 @@ import { AdminCard, AdminEmpty } from "@/components/admin/chrome";
 import { statusLabels } from "@/components/admin/status";
 import { isPastGuarantee } from "@/lib/application-rules";
 import { href } from "@/lib/href";
+import { localizedVisaLabel } from "@/lib/localize";
 import type { Application } from "@/lib/types";
 import { formatMoney } from "@/lib/visa";
 
@@ -16,6 +17,7 @@ export function ApplicationTable({ locale, applications }: { locale: string; app
             <Link href={href(`/admin/applications/${app.id}`, locale)} className="block px-4 py-3">
               <span className="font-medium">{app.reference}</span>
               <span className="mt-1 block text-sm">{app.destinationName}</span>
+              {app.visaLabel ? <span className="mt-0.5 block text-xs text-muted-ink">{localizedVisaLabel(app, locale)}{app.express ? " · سريع" : ""}</span> : null}
               <span className="mt-1 block text-xs text-muted-ink">{app.userEmail}</span>
               <span className="mt-1 block text-xs">{statusLabels[app.status] ?? app.status} · {formatMoney(app.totalAmount, app.currency)}</span>
             </Link>
@@ -43,7 +45,10 @@ export function ApplicationTable({ locale, applications }: { locale: string; app
                   <span className="relative font-medium text-ink">{app.reference}</span>
                   {late && <span className="relative mt-1 block text-xs font-medium text-red-700">متأخر</span>}
                 </td>
-                <td className="px-5 py-3">{app.destinationName}</td>
+                <td className="px-5 py-3">
+                  {app.destinationName}
+                  {app.visaLabel ? <span className="mt-0.5 block text-xs text-muted-ink">{localizedVisaLabel(app, locale)}{app.express ? " · سريع" : ""}</span> : null}
+                </td>
                 <td className="px-5 py-3">{app.userEmail}</td>
                 <td className="px-5 py-3">{app.assigneeEmail || "غير معيّن"}</td>
                 <td className="px-5 py-3">{statusLabels[app.status] ?? app.status}</td>

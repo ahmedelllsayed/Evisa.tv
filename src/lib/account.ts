@@ -26,6 +26,8 @@ export type IssuedVisaRow = {
   reference: string;
   destinationName: string;
   destinationSlug: string;
+  visaLabel: string | null;
+  visaLabelAr: string | null;
   fileName: string;
   storagePath: string;
   mimeType: string | null;

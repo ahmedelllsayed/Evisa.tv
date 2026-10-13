@@ -13,6 +13,7 @@ import { refundApplication } from "@/lib/payments";
 import {
   createDestination,
   deleteDestination,
+  saveDestinationWithOptions,
   deleteFaq,
   deleteHoliday,
   deleteReview,
@@ -31,7 +32,7 @@ import { saveDestinationMedia, type DestinationMediaKind } from "@/lib/destinati
 import { saveCitizenshipCodes, saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
 import { sql } from "@/lib/data/db";
 import { createUser, deleteUser, setUserBanned, setUserRole, updateUser, type UserInput } from "@/lib/data/users";
-import type { ApplicationDocument, ApplicationStatus } from "@/lib/types";
+import type { ApplicationDocument, ApplicationStatus, VisaOptionInput, VisaType } from "@/lib/types";
 
 async function guard(locale: string) {
   return requireAdmin(locale);
@@ -223,16 +224,118 @@ export async function adminSetDocumentStatus(
   return result;
 }
 
-export async function adminSaveDestination(locale: string, id: string | null, input: DestinationInput) {
+const optionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function optionField(fd: FormData, key: string, name: string) {
+  return String(fd.get(`opt.${key}.${name}`) ?? "");
+}
+
+function parseVisaOptions(fd: FormData): { ok: true; options: VisaOptionInput[] } | { ok: false; error: string } {
+  const keys = fd.getAll("optionKey").map(String).filter(Boolean);
+  if (!keys.length) return { ok: false, error: "أضف نوع تأشيرة واحداً على الأقل." };
+  const defaultKey = String(fd.get("defaultOption") || "");
+  const options: VisaOptionInput[] = [];
+  for (const [index, key] of keys.entries()) {
+    const kind = optionField(fd, key, "kind");
+    const embassy = kind === "sticker";
+    const visaType: VisaType = kind === "eta" ? "eta" : embassy ? "sticker" : "e-visa";
+    const method = embassy ? "Embassy" : kind === "eta" ? "e-Visa portal" : "Paperless";
+    const methodAr = embassy ? "عبر السفارة" : kind === "eta" ? "بوابة التأشيرة" : "بدون ورق";
+    const stay = optionField(fd, key, "stay").trim() || null;
+    const stayAr = optionField(fd, key, "stayAr").trim() || null;
+    const entry = optionField(fd, key, "entry").trim() || null;
+    const entryAr = optionField(fd, key, "entryAr").trim() || null;
+    const validity = optionField(fd, key, "validity").trim() || null;
+    const validityAr = optionField(fd, key, "validityAr").trim() || null;
+    let label = optionField(fd, key, "label").trim();
+    let labelAr = optionField(fd, key, "labelAr").trim();
+    if (!label) label = [stay, entry].filter(Boolean).join(" · ") || "Standard";
+    if (!labelAr) labelAr = [stayAr, entryAr].filter(Boolean).join(" · ");
+    const govFee = Number(optionField(fd, key, "govFee") || 0);
+    const serviceFee = Number(optionField(fd, key, "serviceFee") || 0);
+    const processingHours = Number(optionField(fd, key, "processingHours")) || null;
+    const expressOn = optionField(fd, key, "expressOn") === "on";
+    const expressHours = expressOn ? Number(optionField(fd, key, "expressHours")) || null : null;
+    const expressFee = expressOn ? Number(optionField(fd, key, "expressFee") || 0) : null;
+    const custom = optionField(fd, key, "documentsMode") === "custom";
+    const documents = custom ? fd.getAll(`opt.${key}.documents`).map((item) => String(item).trim()).filter(Boolean) : null;
+    const active = optionField(fd, key, "active") === "on";
+    if (!Number.isFinite(govFee) || govFee < 0 || !Number.isFinite(serviceFee) || serviceFee < 0 || (expressFee != null && expressFee < 0)) {
+      return { ok: false, error: `رسوم «${label}» يجب أن تكون صفراً أو أكثر.` };
+    }
+    if (!processingHours) return { ok: false, error: `حدد وقت المعالجة العادي لنوع «${label}».` };
+    if (expressOn && !expressHours) return { ok: false, error: `حدد مدة المعالجة السريعة لنوع «${label}».` };
+    if (expressHours != null && expressHours >= processingHours) {
+      return { ok: false, error: `وقت السرعة في «${label}» يجب أن يكون أقصر من الوقت العادي.` };
+    }
+    if (custom && !documents?.length) return { ok: false, error: `اختر مستندات «${label}» أو أعدها لمستندات الدولة.` };
+    options.push({
+      id: optionIdPattern.test(key) ? key : null,
+      label,
+      labelAr: labelAr || null,
+      visaType,
+      embassyVisit: embassy,
+      method,
+      methodAr,
+      validity,
+      validityAr,
+      stay,
+      stayAr,
+      entry,
+      entryAr,
+      govFee,
+      serviceFee,
+      processingHours,
+      expressHours,
+      expressFee,
+      documents,
+      isDefault: key === defaultKey,
+      isActive: active,
+      sortOrder: index,
+    });
+  }
+  if (!options.some((option) => option.isDefault && option.isActive)) {
+    const fallback = options.find((option) => option.isActive);
+    for (const option of options) option.isDefault = option === fallback;
+  }
+  return { ok: true, options };
+}
+
+function mirrorOption(input: DestinationInput, option: VisaOptionInput) {
+  input.visaType = option.visaType;
+  input.embassyVisit = option.embassyVisit;
+  input.method = option.method;
+  input.methodAr = option.methodAr;
+  input.validity = option.validity;
+  input.validityAr = option.validityAr;
+  input.stay = option.stay;
+  input.stayAr = option.stayAr;
+  input.entry = option.entry;
+  input.entryAr = option.entryAr;
+  input.govFee = option.govFee;
+  input.serviceFee = option.serviceFee;
+  input.processingHours = option.processingHours;
+  input.expressHours = option.expressHours;
+  input.expressFee = option.expressFee;
+}
+
+export async function adminSaveDestination(locale: string, id: string | null, input: DestinationInput, options?: VisaOptionInput[]) {
   await guard(locale);
   try {
-    const savedId = id ? (await updateDestination(id, input), id) : await createDestination(input);
+    const savedId = options
+      ? await saveDestinationWithOptions(id, input, options)
+      : id
+        ? (await updateDestination(id, input), id)
+        : await createDestination(input);
     refresh(locale, "");
     refresh(locale, "/admin/destinations");
     refresh(locale, `/visa/${input.slug}`);
     return { ok: true as const, id: savedId };
   } catch (error) {
     const text = String(error);
+    if (text.includes("لا يتبع هذه الدولة")) {
+      return { ok: false as const, error: "نوع التأشيرة لا يتبع هذه الدولة." };
+    }
     if (text.includes("23505") || text.includes("duplicate") || text.includes("unique")) {
       return { ok: false as const, error: "الرابط أو رمز الدولة مستخدم لوجهة أخرى." };
     }
@@ -291,7 +394,7 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
     processingHours: Number(fd.get("processingHours")) || null,
     expressHours: Number(fd.get("expressHours")) || null,
     expressFee: Number(fd.get("expressFee")) || null,
-    embassyVisit: fd.get("embassyVisit") === "on",
+    embassyVisit: false,
     documents: fd.getAll("documents").map((item) => String(item).trim()).filter(Boolean),
     image: optional("image"),
     heroImage: optional("heroImage"),
@@ -309,18 +412,14 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
   if (!input.name || !input.slug || !input.code) {
     return { ok: false as const, error: "الاسم والرابط ورمز الدولة مطلوبة." };
   }
-  if (input.embassyVisit) {
-    input.visaType = "sticker";
-    input.method = "Embassy";
-    input.methodAr = "عبر السفارة";
+  const parsed = parseVisaOptions(fd);
+  if (!parsed.ok) return parsed;
+  if (input.visaRequired && !parsed.options.some((option) => option.isActive)) {
+    return { ok: false as const, error: "أبقِ نوع تأشيرة ظاهراً واحداً على الأقل." };
   }
-  if (input.visaRequired && !input.processingHours) {
-    return { ok: false as const, error: "حدد وقت المعالجة العادي بالساعة أو اليوم أو الشهر." };
-  }
-  if (input.expressHours != null && input.processingHours != null && input.expressHours >= input.processingHours) {
-    return { ok: false as const, error: "وقت المعالجة السريعة يجب أن يكون أقصر من الوقت العادي." };
-  }
-  const saved = await adminSaveDestination(locale, id, input);
+  const mirror = parsed.options.find((option) => option.isDefault) ?? parsed.options[0];
+  if (mirror) mirrorOption(input, mirror);
+  const saved = await adminSaveDestination(locale, id, input, parsed.options);
   if (!saved.ok) return saved;
   const files: [string, DestinationMediaKind, "image" | "heroImage" | "flag" | "videoUrl"][] = [
     ["imageFile", "image", "image"],

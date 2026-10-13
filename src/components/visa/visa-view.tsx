@@ -9,21 +9,26 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { StarRow, WhatsAppIcon } from "@/components/brand/icons";
 import { useT } from "@/components/providers";
 import { StartApplication } from "@/components/visa/start-application";
+import { VisaOptions } from "@/components/visa/visa-options";
 import { siteConfig } from "@/config/site.config";
 import { track } from "@/lib/analytics";
 import { href, visaHref } from "@/lib/href";
 import { categoryLabel, docHint, docLabel, localizeFaq, localizeReview, localizedDestinationName, localizedPhrase } from "@/lib/localize";
-import type { Destination, Faq, Review } from "@/lib/types";
+import type { Destination, Faq, Review, VisaOption } from "@/lib/types";
 import {
+  fallbackVisaOption,
   fillTemplate,
   formatAt,
   formatMoney,
   formatOrdinalShort,
   guaranteedDate,
-  initials,
-  processingLabel,
   governmentFeeCharged,
-  totalFee,
+  initials,
+  optionDaysSooner,
+  optionHours,
+  optionServiceFee,
+  optionTotal,
+  processingLabel,
   visaTypeLabel,
 } from "@/lib/visa";
 import { cn } from "@/lib/utils";
@@ -31,10 +36,14 @@ import { cn } from "@/lib/utils";
 export function VisaView({
   locale,
   destination,
+  options,
+  initialOptionId,
   faqs,
   reviews,
   nearby,
   existingId,
+  existingOptionId,
+  existingExpress,
   applyOpen,
   nowIso,
   approvalRate,
@@ -43,38 +52,61 @@ export function VisaView({
 }: {
   locale: string;
   destination: Destination;
+  options: VisaOption[];
+  initialOptionId?: string | null;
   faqs: Faq[];
   reviews: Review[];
   nearby: Destination[];
   existingId?: string | null;
+  existingOptionId?: string | null;
+  existingExpress?: boolean;
   applyOpen?: boolean;
   nowIso: string;
   approvalRate: number | null;
   brandName: string;
   whatsapp: string;
 }) {
-  const [express, setExpress] = useState(false);
+  const choices = options.length ? options : [fallbackVisaOption(destination)];
+  const startId =
+    initialOptionId && choices.some((item) => item.id === initialOptionId)
+      ? initialOptionId
+      : (choices.find((item) => item.isDefault)?.id ?? choices[0]?.id ?? "");
+  const [optionId, setOptionId] = useState(startId);
+  const option = choices.find((item) => item.id === optionId) ?? choices[0]!;
+  const [express, setExpress] = useState(Boolean(existingExpress && existingOptionId === option.id && option.expressHours != null));
   const now = new Date(nowIso);
-  const hours = express && destination.expressHours ? destination.expressHours : destination.processingHours ?? 72;
+  const hours = optionHours(option, express);
   const due = guaranteedDate(hours, now);
-  const fee = totalFee(destination) + (express ? (destination.expressFee ?? 0) : 0);
+  const fee = optionTotal(option, express);
   const country = localizedDestinationName(destination, locale);
-  const typeName = visaTypeLabel(destination.visaType, locale);
-  const daysSooner =
-    destination.expressHours && destination.processingHours
-      ? Math.max(1, Math.round((destination.processingHours - destination.expressHours) / 24))
-      : null;
+  const typeName = visaTypeLabel(option.visaType, locale);
+  const daysSooner = optionDaysSooner(option);
+  const documents = option.documents?.length ? option.documents : destination.documents;
+  const resume = Boolean(existingId && existingOptionId === option.id && Boolean(existingExpress) === express);
+  function chooseOption(id: string) {
+    const next = choices.find((item) => item.id === id);
+    if (!next) return;
+    setOptionId(id);
+    setExpress((current) => Boolean(current && next.expressHours != null));
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("type", id);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    track("select_item", { item_id: destination.slug, item_variant: next.label, value: optionTotal(next, false), currency: next.currency });
+  }
   useEffect(() => {
     track("view_item", { item_id: destination.slug, item_name: destination.name, value: fee, currency: destination.currency });
   }, [destination.slug, destination.name, destination.currency, fee]);
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-6xl px-4 pt-4 pb-24 lg:px-0">
-      <Hero destination={destination} hours={hours} typeName={typeName} />
+      <Hero destination={destination} hours={hours} typeName={typeName} documents={documents} />
       <div className="mt-8 grid w-full min-w-0 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 overflow-x-clip max-lg:order-2">
-          <InfoGrid destination={destination} typeName={typeName} />
-          <GuaranteeBlock destination={destination} express={express} onExpress={setExpress} typeName={typeName} now={now} />
+          <div className="max-lg:hidden">
+            <VisaOptions options={choices} selectedId={option.id} onSelect={chooseOption} />
+          </div>
+          <InfoGrid option={option} typeName={typeName} />
+          <GuaranteeBlock option={option} visaRequired={destination.visaRequired} express={express} onExpress={setExpress} typeName={typeName} now={now} />
           {destination.visaRequired && approvalRate != null && (
             <ApprovalBlock name={country} approvalRate={approvalRate} brandName={brandName} />
           )}
@@ -87,15 +119,19 @@ export function VisaView({
           <SourcesBlock destination={destination} locale={locale} brandName={brandName} />
         </div>
         <aside className="min-w-0 max-lg:order-1 lg:sticky lg:top-24">
+          <div className="lg:hidden">
+            <VisaOptions options={choices} selectedId={option.id} onSelect={chooseOption} />
+          </div>
           <FeeCard
             destination={destination}
+            option={option}
             locale={locale}
             express={express}
             onExpress={setExpress}
             due={due}
             fee={fee}
             daysSooner={daysSooner}
-            existingId={existingId}
+            existingId={resume ? existingId : null}
             applyOpen={applyOpen}
             now={now}
             whatsapp={whatsapp}
@@ -115,7 +151,7 @@ function SectionHeading({ children }: { children: ReactNode }) {
   );
 }
 
-function Hero({ destination, hours, typeName }: { destination: Destination; hours: number; typeName: string }) {
+function Hero({ destination, hours, typeName, documents }: { destination: Destination; hours: number; typeName: string; documents: string[] }) {
   const { locale, t, tf } = useT();
   const [docsOpen, setDocsOpen] = useState(false);
   const demonym = siteConfig.market.demonym;
@@ -162,7 +198,7 @@ function Hero({ destination, hours, typeName }: { destination: Destination; hour
         <DialogContent className="max-w-md rounded-2xl p-5">
           <DialogTitle>{t("visa.docsTitle")}</DialogTitle>
           <ul className="mt-3 space-y-3">
-            {destination.documents.map((kind) => (
+            {documents.map((kind) => (
               <li key={kind}>
                 <p className="text-sm font-medium">{docLabel(kind, locale)}</p>
                 <p className="text-xs text-muted-ink">{docHint(kind, locale)}</p>
@@ -170,21 +206,21 @@ function Hero({ destination, hours, typeName }: { destination: Destination; hour
             ))}
           </ul>
           <p className="mt-4 text-sm font-medium">{t("visa.thatsIt")}</p>
-          <p className="text-xs text-muted-ink">{tf("visa.justSteps", { n: Math.max(destination.documents.length, 1) })}</p>
+          <p className="text-xs text-muted-ink">{tf("visa.justSteps", { n: Math.max(documents.length, 1) })}</p>
         </DialogContent>
       </Dialog>
     </section>
   );
 }
 
-function InfoGrid({ destination, typeName }: { destination: Destination; typeName: string }) {
+function InfoGrid({ option, typeName }: { option: VisaOption; typeName: string }) {
   const { locale, t, tf } = useT();
   const items = [
     { icon: Smartphone, label: t("visa.infoType"), value: typeName, tint: "bg-[#eef0fb] text-brand" },
-    { icon: CalendarDays, label: t("visa.infoStay"), value: localizedPhrase(destination.stay, locale, destination.stayAr), tint: "bg-[#e7f6ff] text-[#1d7bbf]", line: true },
-    { icon: Clock, label: t("visa.infoValidity"), value: localizedPhrase(destination.validity, locale, destination.validityAr), tint: "bg-[#e8f8ee] text-[#1f9d55]", line: true, mark: "check" },
-    { icon: FileText, label: t("visa.infoEntry"), value: localizedPhrase(destination.entry, locale, destination.entryAr), tint: "bg-[#2f2f9a] text-white" },
-    { icon: Folder, label: t("visa.infoMethod"), value: localizedPhrase(destination.method, locale, destination.methodAr), tint: "bg-[#eef0fb] text-brand" },
+    { icon: CalendarDays, label: t("visa.infoStay"), value: localizedPhrase(option.stay, locale, option.stayAr), tint: "bg-[#e7f6ff] text-[#1d7bbf]", line: true },
+    { icon: Clock, label: t("visa.infoValidity"), value: localizedPhrase(option.validity, locale, option.validityAr), tint: "bg-[#e8f8ee] text-[#1f9d55]", line: true, mark: "check" },
+    { icon: FileText, label: t("visa.infoEntry"), value: localizedPhrase(option.entry, locale, option.entryAr), tint: "bg-[#2f2f9a] text-white" },
+    { icon: Folder, label: t("visa.infoMethod"), value: localizedPhrase(option.method, locale, option.methodAr), tint: "bg-[#eef0fb] text-brand" },
   ];
   return (
     <section>
@@ -375,26 +411,25 @@ function DateChoice({
 }
 
 function GuaranteeBlock({
-  destination,
+  option,
+  visaRequired,
   express,
   onExpress,
   typeName,
   now,
 }: {
-  destination: Destination;
+  option: VisaOption;
+  visaRequired: boolean;
   express: boolean;
   onExpress: (v: boolean) => void;
   typeName: string;
   now: Date;
 }) {
   const { tf } = useT();
-  if (!destination.visaRequired) return null;
-  const standardDue = guaranteedDate(destination.processingHours ?? 72, now);
-  const expressDue = destination.expressHours ? guaranteedDate(destination.expressHours, now) : null;
-  const daysSooner =
-    destination.expressHours && destination.processingHours
-      ? Math.max(1, Math.round((destination.processingHours - destination.expressHours) / 24))
-      : null;
+  if (!visaRequired) return null;
+  const standardDue = guaranteedDate(option.processingHours ?? 72, now);
+  const expressDue = option.expressHours ? guaranteedDate(option.expressHours, now) : null;
+  const daysSooner = optionDaysSooner(option);
   return (
     <section className="relative mt-10 ps-6">
       <span className="absolute top-2.5 start-0 size-2.5 rounded-full bg-brand" />
@@ -429,6 +464,7 @@ function ApprovalBlock({ name, approvalRate, brandName }: { name: string; approv
 
 function FeeCard({
   destination,
+  option,
   locale,
   express,
   onExpress,
@@ -441,6 +477,7 @@ function FeeCard({
   whatsapp,
 }: {
   destination: Destination;
+  option: VisaOption;
   locale: string;
   express: boolean;
   onExpress: (express: boolean) => void;
@@ -454,7 +491,7 @@ function FeeCard({
 }) {
   const { t, tf } = useT();
   if (!destination.visaRequired) return null;
-  const standardDue = guaranteedDate(destination.processingHours ?? 72, now);
+  const standardDue = guaranteedDate(option.processingHours ?? 72, now);
   const otherDay = formatOrdinalShort(standardDue, locale).split(",")[0];
   return (
     <div className="select-none">
@@ -491,20 +528,20 @@ function FeeCard({
             <div className="flex items-center justify-between gap-2 border-b border-line py-3">
               <dt className="flex min-w-0 items-center gap-2 font-semibold"><Landmark className="size-4 shrink-0" /> {t("visa.gov")}</dt>
               <dd className="shrink-0 text-end font-semibold">
-                {destination.embassyVisit ? t("visa.govEmbassy") : formatMoney(governmentFeeCharged(destination), destination.currency, locale)}
+                {option.embassyVisit ? t("visa.govEmbassy") : formatMoney(governmentFeeCharged(option), option.currency, locale)}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-2 border-b border-line py-3">
               <dt className="flex min-w-0 items-center gap-2 font-semibold"><Zap className="size-4 shrink-0 text-brand" /> {t("visa.service")}</dt>
-              <dd className="shrink-0 font-semibold">{formatMoney(destination.serviceFee + (express ? (destination.expressFee ?? 0) : 0), destination.currency, locale)}</dd>
+              <dd className="shrink-0 font-semibold">{formatMoney(optionServiceFee(option, express), option.currency, locale)}</dd>
             </div>
             <div className="flex items-center justify-between gap-2 py-3 font-semibold">
               <dt className="flex min-w-0 items-center gap-2"><CreditCard className="size-4 shrink-0" /> {t("visa.total")}</dt>
-              <dd className="shrink-0">{formatMoney(fee, destination.currency, locale)}</dd>
+              <dd className="shrink-0">{formatMoney(fee, option.currency, locale)}</dd>
             </div>
           </dl>
           <div className="mt-2">
-            <StartApplication destination={destination} locale={locale} express={express} existingId={existingId} defaultOpen={applyOpen} now={now} />
+            <StartApplication destination={destination} option={option} locale={locale} express={express} existingId={existingId} defaultOpen={applyOpen} now={now} />
           </div>
         </div>
       </div>

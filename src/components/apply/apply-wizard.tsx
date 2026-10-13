@@ -15,7 +15,7 @@ import { documentGaps } from "@/lib/application-rules";
 import { countries, countryName } from "@/lib/countries";
 import { href } from "@/lib/href";
 import { t, tf } from "@/lib/i18n";
-import { docHint, docLabel } from "@/lib/localize";
+import { docHint, docLabel, localizedVisaLabel } from "@/lib/localize";
 import type { ProfileVault } from "@/lib/profile";
 import type { Application, ApplicationDocument, ApplicationStep, Traveler } from "@/lib/types";
 import { formatMoney, formatOrdinalShort } from "@/lib/visa";
@@ -97,7 +97,7 @@ export function ApplyWizard({
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
         <p className="text-sm text-muted-ink">
-          {application.destinationName} · {application.reference}
+          {application.destinationName}{application.visaLabel ? ` · ${localizedVisaLabel(application, locale)}` : ""} · {application.reference}
         </p>
         <h1 className="mt-1 font-display text-3xl font-semibold">{t(locale, "apply.lockedTitle")}</h1>
         <p className="mt-3 text-body">{t(locale, "apply.lockedBody")}</p>
@@ -114,7 +114,7 @@ export function ApplyWizard({
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <p className="text-sm text-muted-ink">
-        {application.destinationName} · {application.reference}
+        {application.destinationName}{application.visaLabel ? ` · ${localizedVisaLabel(application, locale)}` : ""} · {application.reference}
       </p>
       <h1 className="mt-1 font-display text-3xl font-semibold">{t(locale, "apply.title")}</h1>
       <ol className="mt-6 flex gap-2 overflow-x-auto scrollbar-none">
@@ -285,6 +285,12 @@ export function ApplyWizard({
               {application.guaranteedAt ? formatOrdinalShort(application.guaranteedAt, locale) : "—"}
             </p>
             <dl className="mt-4 space-y-1 text-sm">
+              {application.visaLabel ? (
+                <div className="flex justify-between">
+                  <dt>{t(locale, "apply.visaType")}</dt>
+                  <dd>{localizedVisaLabel(application, locale)}</dd>
+                </div>
+              ) : null}
               <div className="flex justify-between">
                 <dt>{t(locale, "apply.govFee")}</dt>
                 <dd>{formatMoney(application.govFee, application.currency, locale)}</dd>
