@@ -1,4 +1,4 @@
-import { Cairo, Inter, Outfit, Playfair_Display } from "next/font/google";
+import { IBM_Plex_Sans_Arabic, Inter, Outfit, Playfair_Display } from "next/font/google";
 
 /**
  * The reference design uses Inter (UI), Gilroy (display headings) and Denton
@@ -28,8 +28,9 @@ export const serifFont = Playfair_Display({
   display: "swap",
 });
 
-export const arabicFont = Cairo({
+export const arabicFont = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-arabic",
   display: "swap",
 });
