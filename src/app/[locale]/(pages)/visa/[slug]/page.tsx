@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { CitizenshipDialog } from "@/components/layout/citizenship-picker";
-import { VisaView } from "@/components/visa/visa-view";
+import { VisaPreview } from "@/components/visa-page/visa-preview";
 import { siteConfig } from "@/config/site.config";
 import { getCurrentUser } from "@/lib/auth";
 import { findOpenApplication } from "@/lib/data/applications";
@@ -58,7 +58,7 @@ export default async function VisaPage({ params, searchParams }: Page<{ locale: 
   return (
     <>
       <CitizenshipDialog initial={citizenship} codes={citizenshipCodes} defaultOpen={!chosen} />
-      <VisaView
+      <VisaPreview
         locale={locale}
         destination={destination}
         options={options}

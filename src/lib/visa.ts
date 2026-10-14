@@ -9,11 +9,11 @@ function numberLocale(locale?: string) {
 }
 
 function dateTag(locale?: string) {
-  return locale && isArabicLocale(locale) ? "ar-EG" : "en-GB";
+  return locale && isArabicLocale(locale) ? "ar-EG-u-nu-latn" : "en-GB";
 }
 
 function timeTag(locale?: string) {
-  return locale && isArabicLocale(locale) ? "ar-EG" : "en-US";
+  return locale && isArabicLocale(locale) ? "ar-EG-u-nu-latn" : "en-US";
 }
 
 export function formatMoney(amount: number, currency: string = market.currency, locale?: string) {
