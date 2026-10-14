@@ -27,7 +27,8 @@ export default async function RejectionRecoveryPage({ params }: Page) {
   }
   return (
     <article className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="font-sans text-3xl font-semibold tracking-tight">{content.title}</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-[#16182b]">{content.title}</h1>
+      <span className="mt-3 block h-[3px] w-10 rounded-full bg-brand" />
       <p className="mt-4 text-sm leading-relaxed text-body">{content.intro}</p>
       <ul className="mt-8 space-y-8">
         {covered.map((destination) => (

@@ -1,8 +1,10 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Heading, Swap, surfaceClass } from "@/components/motion/frame";
 import {
   deleteDocumentAction,
   goToStepAction,
@@ -95,11 +97,9 @@ export function ApplyWizard({
 
   if (!editable) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <p className="text-sm text-muted-ink">
-          {application.destinationName}{application.visaLabel ? ` · ${localizedVisaLabel(application, locale)}` : ""} · {application.reference}
-        </p>
-        <h1 className="mt-1 font-display text-3xl font-semibold">{t(locale, "apply.lockedTitle")}</h1>
+      <div className={cn("mx-auto max-w-3xl px-4 py-8", surfaceClass(locale))}>
+        <Heading title={t(locale, "apply.lockedTitle")} eyebrow={`${application.destinationName}${application.visaLabel ? ` · ${localizedVisaLabel(application, locale)}` : ""} · ${application.reference}`}>
+        </Heading>
         <p className="mt-3 text-body">{t(locale, "apply.lockedBody")}</p>
         <Link
           href={href(`/account/applications/${application.id}`, locale)}
@@ -112,28 +112,27 @@ export function ApplyWizard({
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <p className="text-sm text-muted-ink">
-        {application.destinationName}{application.visaLabel ? ` · ${localizedVisaLabel(application, locale)}` : ""} · {application.reference}
-      </p>
-      <h1 className="mt-1 font-display text-3xl font-semibold">{t(locale, "apply.title")}</h1>
+    <div className={cn("mx-auto max-w-3xl px-4 py-8", surfaceClass(locale))}>
+      <Heading title={t(locale, "apply.title")} eyebrow={`${application.destinationName}${application.visaLabel ? ` · ${localizedVisaLabel(application, locale)}` : ""} · ${application.reference}`} />
       <ol className="mt-6 flex gap-2 overflow-x-auto scrollbar-none">
-        {steps.map((s, i) => (
-          <li key={s.id}>
-            <button
-              type="button"
-              onClick={() => setStep(s.id)}
-              className={cn(
-                "rounded-full px-3 py-1 text-sm",
-                step === s.id ? "bg-black text-white" : "bg-surface text-muted-ink",
-              )}
-            >
-              {i + 1}. {t(locale, s.label)}
-            </button>
-          </li>
-        ))}
+        {steps.map((s, i) => {
+          const on = step === s.id;
+          return (
+            <li key={s.id}>
+              <button
+                type="button"
+                onClick={() => setStep(s.id)}
+                className={cn("relative rounded-full px-3.5 py-2 text-sm font-medium", on ? "text-white" : "bg-[#f1f2f7] text-[#4b5068]")}
+              >
+                {on ? <motion.span layoutId="apply-step" className="absolute inset-0 rounded-full bg-[#16182b]" transition={{ type: "spring", stiffness: 420, damping: 34 }} /> : null}
+                <span className="relative">{i + 1}. {t(locale, s.label)}</span>
+              </button>
+            </li>
+          );
+        })}
       </ol>
 
+      <Swap id={step}>
       {step === "travelers" && (
         <section className="mt-8 space-y-6">
           {drafts.map((t, i) => (
@@ -350,6 +349,7 @@ export function ApplyWizard({
           </button>
         </section>
       )}
+      </Swap>
     </div>
   );
 }
@@ -399,13 +399,13 @@ function TravelerForm({
               type={type}
               value={value[key] ?? ""}
               onChange={(e) => set(key, e.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-line px-3"
+              className="mt-1 h-11 w-full rounded-xl border border-line px-3 outline-none focus:border-brand-300"
             />
           </label>
         ))}
         <label className="text-sm">
           {t(locale, "apply.sex")}
-          <select value={value.sex} onChange={(e) => set("sex", e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-line px-3">
+          <select value={value.sex} onChange={(e) => set("sex", e.target.value)} className="mt-1 h-11 w-full rounded-xl border border-line px-3 outline-none focus:border-brand-300">
             <option value="">{t(locale, "common.select")}</option>
             <option value="female">{t(locale, "apply.female")}</option>
             <option value="male">{t(locale, "apply.male")}</option>
@@ -417,7 +417,7 @@ function TravelerForm({
           <select
             value={value.nationality}
             onChange={(e) => set("nationality", e.target.value)}
-            className="mt-1 h-10 w-full rounded-lg border border-line px-3"
+            className="mt-1 h-11 w-full rounded-xl border border-line px-3 outline-none focus:border-brand-300"
           >
             <option value="">{t(locale, "common.select")}</option>
             {countries.map((c) => (

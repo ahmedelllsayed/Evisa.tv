@@ -310,3 +310,9 @@ html[dir="rtl"] .visa-pin-link.is-flag {
 .visa-pin-link.is-current .visa-pin-flag {
   box-shadow: 0 0 0 3px rgba(80, 87, 234, 0.35);
 }
+.surface-ar {
+  text-align: left;
+}
+.surface-ar :where(p, h1, h2, h3, li, dt, dd, span, a, button, label, figcaption, input, textarea, select) {
+  unicode-bidi: plaintext;
+}

@@ -1,9 +1,11 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { markNotificationsRead } from "@/app/actions/account";
+import { Heading, Swap, surfaceClass } from "@/components/motion/frame";
 import type { AccountNotification, AccountProfileSummary, AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { href, visaHref } from "@/lib/href";
 import { t, tf, type MessageKey } from "@/lib/i18n";
@@ -116,30 +118,28 @@ export function AccountDashboard({
   }
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-5xl px-4 py-8">
-      <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="font-display text-3xl font-semibold">{t(locale, "account.title")}</h1>
-          <p className="mt-1 truncate text-sm text-muted-ink">{email}</p>
-        </div>
+    <div className={cn("mx-auto w-full min-w-0 max-w-5xl px-4 py-8", surfaceClass(locale))}>
+      <Heading title={t(locale, "account.title")}>
+        <p className="mt-3 truncate text-sm text-muted-ink">{email}</p>
+      </Heading>
+      <div className="mt-6 flex gap-1 overflow-x-auto border-b border-line scrollbar-none">
+        {tabs.map((id) => {
+          const on = tab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => choose(id)}
+              className={cn("relative shrink-0 px-3 py-3 text-sm font-medium whitespace-nowrap", on ? "text-brand-700" : "text-muted-ink")}
+            >
+              {t(locale, tabKeys[id])}
+              {id === "overview" && unread > 0 ? ` (${unread})` : ""}
+              {on ? <motion.span layoutId="account-tab" className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-brand" /> : null}
+            </button>
+          );
+        })}
       </div>
-      <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-        {tabs.map((id) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => choose(id)}
-            className={cn(
-              "shrink-0 rounded-full px-3 py-1.5 text-sm",
-              tab === id ? "bg-brand text-white" : "border border-line bg-white text-ink",
-            )}
-          >
-            {t(locale, tabKeys[id])}
-            {id === "overview" && unread > 0 ? ` (${unread})` : ""}
-          </button>
-        ))}
-      </div>
-      <div className="mt-6 min-w-0">
+      <Swap id={tab} className="mt-6 min-w-0">
         {tab === "overview" && (
           <Overview
             locale={locale}
@@ -164,7 +164,7 @@ export function AccountDashboard({
         {tab === "files" && <Files locale={locale} documents={documents} profileDocuments={profileDocuments} />}
         {tab === "payments" && <Payments locale={locale} payments={payments} refunds={refunds} />}
         {tab === "profile" && <Details locale={locale} profile={profile} profileDocuments={profileDocuments} />}
-      </div>
+      </Swap>
     </div>
   );
 }
@@ -208,18 +208,18 @@ function Overview({
         </p>
       )}
       {next && (
-        <div className="min-w-0 rounded-2xl border border-line bg-white p-4">
-          <p className="text-xs font-medium tracking-wide text-muted-ink uppercase">{t(locale, "account.next")}</p>
-          <p className="mt-2 text-sm">{next.text}</p>
-          <Link href={next.href} className="mt-3 inline-flex rounded-full bg-brand px-4 py-2 text-sm text-white">
+        <div className="min-w-0 rounded-[26px] bg-[#16182b] p-5 text-white">
+          <p className="text-sm text-white/60">{t(locale, "account.next")}</p>
+          <p className="mt-2 text-base font-medium">{next.text}</p>
+          <Link href={next.href} className="mt-4 inline-flex h-11 items-center rounded-full bg-[#ffd873] px-5 text-sm font-semibold text-black">
             {next.action}
           </Link>
         </div>
       )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {cards.map(([value, key, target]) => (
-          <button key={key} type="button" onClick={() => onTab(target)} className="min-w-0 rounded-2xl border border-line bg-white p-4 text-start">
-            <p className="font-display text-2xl font-semibold">{value}</p>
+          <button key={key} type="button" onClick={() => onTab(target)} className="min-w-0 rounded-2xl border border-line bg-white p-4 text-left transition-colors hover:border-brand-200">
+            <p className="text-2xl font-semibold text-[#16182b] tabular-nums">{value}</p>
             <p className="mt-1 text-xs text-muted-ink">{t(locale, key)}</p>
           </button>
         ))}

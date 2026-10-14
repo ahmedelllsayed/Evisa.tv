@@ -14,7 +14,8 @@ export default async function CustomPage({ params }: { params: Promise<{ locale:
   }
   return (
     <div className="mx-auto max-w-3xl px-4 py-16">
-      <h1 className="font-display text-4xl font-semibold">{content.title || page.title}</h1>
+      <h1 className="text-4xl font-semibold tracking-tight text-[#16182b]">{content.title || page.title}</h1>
+      <span className="mt-3 block h-[3px] w-10 rounded-full bg-brand" />
       {content.intro && <p className="mt-4 text-body">{content.intro}</p>}
       {content.heroBody && <p className="mt-4 text-body">{content.heroBody}</p>}
       {content.body && <p className="mt-4 whitespace-pre-wrap text-body">{content.body}</p>}

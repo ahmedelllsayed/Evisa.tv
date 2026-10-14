@@ -7,6 +7,7 @@ import { deleteProfileDocumentAction, updateProfileAction, uploadProfileDocument
 import { countries, countryName } from "@/lib/countries";
 import { href } from "@/lib/href";
 import { t, tf } from "@/lib/i18n";
+import { Heading, surfaceClass } from "@/components/motion/frame";
 import { docHint, docLabel } from "@/lib/localize";
 import { profileDocumentKinds, type ProfileVault } from "@/lib/profile";
 import type { User } from "@/lib/types";
@@ -25,16 +26,18 @@ export function ProfileForm({ locale, user, vault }: { locale: string; user: Use
   const ready = Boolean(vault.firstName && vault.lastName && vault.dateOfBirth && vault.passportNumber && vault.passportExpiry && saved.has("passport"));
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-10">
-      <Link href={href("/account", locale)} className="text-sm text-brand">{t(locale, "account.back")}</Link>
-      <h1 className="mt-4 font-display text-3xl font-semibold">{t(locale, "profile.title")}</h1>
-      <p className="mt-2 text-sm leading-6 text-muted-ink">{t(locale, "profile.intro")}</p>
+    <div className={`mx-auto max-w-xl px-4 py-10 ${surfaceClass(locale)}`}>
+      <Link href={href("/account", locale)} className="text-sm font-medium text-brand">{t(locale, "account.back")}</Link>
+      <div className="mt-4">
+        <Heading title={t(locale, "profile.title")} />
+      </div>
+      <p className="mt-3 text-sm leading-6 text-muted-ink">{t(locale, "profile.intro")}</p>
       <p className={`mt-3 text-sm ${ready ? "text-brand" : "text-muted-ink"}`}>
         {ready ? t(locale, "profile.ready") : t(locale, "profile.need")}
       </p>
 
       <form
-        className="mt-6 space-y-4"
+        className="mt-6 space-y-4 rounded-[26px] border border-[#e3e5f2] bg-white p-5"
         action={(fd) =>
           start(async () => {
             setError(null);

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
+import { Reveal } from "@/components/motion/frame";
 import { cn } from "@/lib/utils";
 
-export const adminInputClass = "mt-1 h-10 w-full rounded-lg border border-line bg-white px-3 text-sm";
-export const adminTextareaClass = "mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm";
+export const adminInputClass = "mt-1 h-10 w-full rounded-xl border border-line bg-white px-3 text-sm outline-none focus:border-brand-300";
+export const adminTextareaClass = "mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand-300";
 export const adminPrimaryClass = "h-10 rounded-full bg-brand px-5 text-sm font-medium text-white disabled:opacity-60";
 export const adminGhostClass = "h-10 rounded-full border border-line bg-white px-4 text-sm disabled:opacity-60";
 export const adminDangerClass = "h-10 rounded-full border border-red-200 bg-white px-4 text-sm text-red-700 disabled:opacity-60";
@@ -20,14 +21,19 @@ export function AdminPage({
 }) {
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-semibold text-ink">{title}</h1>
-          {description && <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-ink">{description}</p>}
+      <Reveal>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight text-[#16182b]">{title}</h1>
+            <span className="mt-3 block h-[3px] w-10 rounded-full bg-brand" />
+            {description && <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-ink">{description}</p>}
+          </div>
+          {action}
         </div>
-        {action}
-      </div>
-      <div className="mt-6">{children}</div>
+      </Reveal>
+      <Reveal delay={0.08} className="mt-6">
+        {children}
+      </Reveal>
     </div>
   );
 }

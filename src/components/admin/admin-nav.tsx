@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -44,19 +45,19 @@ export function AdminNav({ locale, attention }: { locale: string; attention: num
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mb-4 flex h-10 items-center gap-2 rounded-full border border-line px-4 text-sm lg:hidden"
+        className="mb-4 flex h-10 items-center gap-2 rounded-full bg-[#16182b] px-4 text-sm font-medium text-white lg:hidden"
       >
         <Menu className="size-4" /> القائمة
       </button>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-[min(100vw,20rem)] overflow-y-auto">
+        <SheetContent side="right" className="w-[min(100vw,20rem)] overflow-y-auto bg-[#16182b] text-white">
           <SheetHeader>
-            <SheetTitle>لوحة التحكم</SheetTitle>
+            <SheetTitle className="text-white">لوحة التحكم</SheetTitle>
           </SheetHeader>
           <nav className="space-y-5 px-4 pb-8">
             {groups.map((group) => (
               <div key={group.label}>
-                <p className="mb-1 px-3 text-[11px] font-medium text-slate-ink">{group.label}</p>
+                <p className="mb-1 px-3 text-[11px] font-medium text-white/45">{group.label}</p>
                 <div className="space-y-0.5">
                   {group.links.map((link) => (
                     <NavLink
@@ -75,12 +76,12 @@ export function AdminNav({ locale, attention }: { locale: string; attention: num
           </nav>
         </SheetContent>
       </Sheet>
-      <aside className="hidden w-56 shrink-0 lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:overflow-auto">
-        <p className="mb-4 text-xs font-semibold tracking-wide text-muted-ink uppercase">لوحة التحكم</p>
+      <aside className="hidden w-60 shrink-0 rounded-[26px] bg-[#16182b] p-4 text-white lg:sticky lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:overflow-auto">
+        <p className="mb-4 px-3 text-sm font-semibold">لوحة التحكم</p>
         <nav className="space-y-5">
           {groups.map((group) => (
             <div key={group.label}>
-              <p className="mb-1 px-3 text-[11px] font-medium text-slate-ink">{group.label}</p>
+              <p className="mb-1 px-3 text-[11px] font-medium text-white/45">{group.label}</p>
               <div className="space-y-0.5">
                 {group.links.map((link) => (
                   <NavLink
@@ -123,12 +124,14 @@ function NavLink({
       href={href(path, locale)}
       onClick={onNavigate}
       className={cn(
-        "flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm",
-        active ? "border-brand bg-brand-50 font-medium text-brand" : "border-line text-ink hover:bg-white",
+        "relative flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm",
+        active ? "font-semibold text-[#16182b]" : "text-white/75 hover:bg-white/10 hover:text-white",
       )}
     >
-      <span>{label}</span>
-      {count ? <span className="rounded-full bg-brand px-1.5 text-[11px] font-medium text-white">{count}</span> : null}
+      {active && !onNavigate ? <motion.span layoutId="admin-nav" className="absolute inset-0 rounded-xl bg-white" transition={{ type: "spring", stiffness: 420, damping: 36 }} /> : null}
+      {active && onNavigate ? <span className="absolute inset-0 rounded-xl bg-white" /> : null}
+      <span className="relative">{label}</span>
+      {count ? <span className={cn("relative rounded-full px-1.5 text-[11px] font-semibold", active ? "bg-brand text-white" : "bg-[#ffd873] text-black")}>{count}</span> : null}
     </Link>
   );
 }

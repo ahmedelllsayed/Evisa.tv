@@ -14,7 +14,7 @@ export function ContactForm({ locale }: { locale: string }) {
 
   return (
     <form
-      className="mt-8 grid max-w-xl gap-3"
+      className="mt-8 grid max-w-xl gap-3 rounded-[26px] border border-[#e3e5f2] bg-white p-5"
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);

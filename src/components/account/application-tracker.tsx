@@ -9,6 +9,7 @@ import { href, visaHref } from "@/lib/href";
 import { t, type MessageKey } from "@/lib/i18n";
 import { docLabel, localizedVisaLabel } from "@/lib/localize";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Traveler } from "@/lib/types";
+import { Heading, surfaceClass } from "@/components/motion/frame";
 import { formatAt, formatMoney } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
@@ -71,15 +72,16 @@ export function ApplicationTracker({
   const late = isPastGuarantee(application.status, application.guaranteedAt);
   const gaps = documentGaps(application.documentsRequired, travelers, documents);
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link href={href("/account", locale)} className="text-sm text-brand">
+    <div className={cn("mx-auto max-w-2xl px-4 py-10", surfaceClass(locale))}>
+      <Link href={href("/account", locale)} className="text-sm font-medium text-brand">
         {t(locale, "account.back")}
       </Link>
-      <p className="mt-4 text-sm text-muted-ink">{application.reference}</p>
-      <h1 className="font-display text-3xl font-semibold">{application.destinationName}</h1>
-      {application.visaLabel ? <p className="mt-1 text-sm text-muted-ink">{t(locale, "account.visaType")}: {localizedVisaLabel(application, locale)}</p> : null}
-      <p className="mt-2 text-sm">
-        {t(locale, "account.status")}: <span className="font-medium">{statusLabel(locale, application.status)}</span>
+      <div className="mt-4">
+        <Heading title={application.destinationName} eyebrow={application.reference} />
+      </div>
+      {application.visaLabel ? <p className="mt-3 text-sm text-muted-ink">{t(locale, "account.visaType")}: {localizedVisaLabel(application, locale)}</p> : null}
+      <p className="mt-3 inline-flex rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-700">
+        {statusLabel(locale, application.status)}
       </p>
       {application.guaranteedAt && (
         <p className={cn("mt-1 text-sm", late ? "font-medium text-red-700" : "text-body")}>
@@ -153,11 +155,12 @@ export function ApplicationTracker({
           ))}
         </ul>
       )}
-      <ol className="mt-8 space-y-4">
+      <ol className="relative mt-8 space-y-4">
+        <span className="absolute top-2 bottom-2 start-[7px] w-[2px] rounded-full bg-[#e6e7f2]" />
         {events.map((e) => (
-          <li key={e.id} className="flex gap-3">
-            <span className={cn("mt-1 size-2 rounded-full", e.onTime ? "bg-success" : "bg-warning")} />
-            <div>
+          <li key={e.id} className="relative flex gap-4">
+            <span className={cn("relative z-10 mt-1.5 size-4 shrink-0 rounded-full border-2 border-white", e.onTime ? "bg-success" : "bg-[#ffd873]")} />
+            <div className="min-w-0 flex-1 rounded-2xl border border-line bg-white px-4 py-3">
               <p className="font-medium">{e.title}</p>
               {e.description && <p className="text-sm text-body">{e.description}</p>}
               <p className="text-xs text-muted-ink">

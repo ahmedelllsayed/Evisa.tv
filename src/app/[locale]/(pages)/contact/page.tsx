@@ -17,7 +17,8 @@ export default async function ContactPage({ params }: Page) {
   return (
     <div className="min-h-[calc(100vh-72px)] bg-[#f7f8fa] px-6 py-16 lg:px-16">
       <div className="max-w-xl">
-        <h1 className="font-sans text-4xl font-semibold tracking-tight">{content.title}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight text-[#16182b]">{content.title}</h1>
+        <span className="mt-3 block h-[3px] w-10 rounded-full bg-brand" />
         <p className="mt-5 text-base leading-relaxed text-body">{content.intro}</p>
         <ContactForm locale={locale} />
         <h2 className="mt-10 text-sm font-semibold tracking-[0.14em] uppercase">{content.supportHeading}</h2>

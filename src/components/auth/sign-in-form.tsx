@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Reveal, surfaceClass } from "@/components/motion/frame";
 import { googleAction, sendCodeAction, verifyCodeAction } from "@/app/actions/auth";
 import { track } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
@@ -14,8 +15,9 @@ export function SignInForm({ locale, next, googleEnabled }: { locale: string; ne
   const [pending, start] = useTransition();
 
   return (
-    <div className="mx-auto w-full max-w-md px-4 py-16">
-      <div className="rounded-3xl border border-line p-8">
+    <div className={`mx-auto w-full max-w-md px-4 py-16 ${surfaceClass(locale)}`}>
+      <Reveal>
+      <div className="rounded-[26px] border border-[#e3e5f2] bg-white p-8">
         <div className="flex items-start gap-3">
           <span className="flex size-9 items-center justify-center rounded-full bg-brand-50 text-brand">
             <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden>
@@ -56,7 +58,7 @@ export function SignInForm({ locale, next, googleEnabled }: { locale: string; ne
               />
             </label>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <button disabled={pending} className="h-12 w-full rounded-xl bg-brand font-medium text-white disabled:opacity-60">
+            <button disabled={pending} className="h-12 w-full rounded-full bg-brand font-semibold text-white disabled:opacity-60">
               {t(locale, "signIn.send")}
             </button>
           </form>
@@ -110,6 +112,7 @@ export function SignInForm({ locale, next, googleEnabled }: { locale: string; ne
           </>
         )}
       </div>
+      </Reveal>
     </div>
   );
 }

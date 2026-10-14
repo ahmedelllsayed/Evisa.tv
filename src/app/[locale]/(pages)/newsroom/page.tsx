@@ -28,7 +28,8 @@ export default async function NewsroomPage({ params }: Page) {
         <span className="mx-2">&gt;</span>
         <span>{t(locale, "footer.newsroom")}</span>
       </p>
-      <h1 className="mt-6 font-sans text-4xl font-semibold tracking-tight">{content.title}</h1>
+      <h1 className="mt-6 text-4xl font-semibold tracking-tight text-[#16182b]">{content.title}</h1>
+      <span className="mt-3 block h-[3px] w-10 rounded-full bg-brand" />
       <h2 className="mt-4 text-2xl font-semibold">{content.subtitle}</h2>
       <p className="mt-2 text-sm text-muted-ink">
         Email: <a href={`mailto:${settings.pressEmail}`} className="underline">{settings.pressEmail}</a>
