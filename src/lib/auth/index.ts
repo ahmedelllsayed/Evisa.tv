@@ -2,10 +2,11 @@ import "server-only";
 import { createHash, createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { t, tf } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { cache } from "react";
 import { siteConfig } from "@/config/site.config";
 import { sendMail } from "@/lib/email";
+import { signInCodeMail } from "@/lib/email-template";
 import { getSiteSettings } from "@/lib/data/settings";
 import { one, sql } from "@/lib/data/db";
 import { env, serverEnv, supabaseEnabled } from "@/lib/env";
@@ -129,10 +130,12 @@ export async function sendEmailCode(email: string, locale = "en-EG"): Promise<Ot
     [normalized, hashCode(normalized, code)],
   );
   const settings = await getSiteSettings();
+  const mail = signInCodeMail(locale, settings.name, code, settings.tagline, settings.supportEmail);
   const mailed = await sendMail({
     to: normalized,
-    subject: tf(locale, "mail.codeSubject", { name: settings.name }),
-    text: tf(locale, "mail.codeBody", { code }),
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
     idempotencyKey: `otp/${normalized}/${hashCode(normalized, code)}`,
   });
   if (process.env.RESEND_API_KEY && !mailed.sent) {

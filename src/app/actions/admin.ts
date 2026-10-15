@@ -5,7 +5,9 @@ import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import type { CmsContent, CmsTemplate } from "@/lib/cms/registry";
 import { addDocument, addEvent, deleteDocument, getApplication, getDocument, patchTraveler, setAssignee, setDocumentStatus, setStatus } from "@/lib/data/applications";
 import { sendMail } from "@/lib/email";
-import { tf } from "@/lib/i18n";
+import { visaFilesMail, staffReplyMail } from "@/lib/email-template";
+import { isArabicLocale, tf } from "@/lib/i18n";
+import { localizedVisaLabel } from "@/lib/localize";
 import { notifyUser } from "@/lib/data/notifications";
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, readStoredBytes, removeFile, storeFile } from "@/lib/storage";
 import { deleteContactMessage, setMessageRead, setRefundRequestStatus } from "@/lib/data/inbox";
@@ -168,10 +170,24 @@ export async function adminUploadIssuedVisa(locale: string, applicationId: strin
     body: tf(mailLocale, "notify.visaBody", { ref: app.reference, n: files.length }),
   });
   if (app.userEmail) {
+    const settings = await getSiteSettings();
+    const country = isArabicLocale(mailLocale) && app.destinationNameAr ? app.destinationNameAr : app.destinationName;
+    const mail = visaFilesMail({
+      locale: mailLocale,
+      brand: settings.name,
+      country,
+      visaType: localizedVisaLabel(app, mailLocale) || country,
+      reference: app.reference,
+      files: files.length,
+      applicationId: app.id,
+      tagline: settings.tagline,
+      supportEmail: settings.supportEmail,
+    });
     const mailed = await sendMail({
       to: app.userEmail,
-      subject: tf(mailLocale, "mail.visaSubject", { ref: app.reference }),
-      text: tf(mailLocale, "mail.visaBody", { ref: app.reference, n: files.length }),
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
       attachments,
     });
     refresh(locale, `/admin/applications/${applicationId}`);
@@ -654,7 +670,9 @@ export async function adminReplyMessage(locale: string, id: string, email: strin
   await guard(locale);
   const text = body.trim();
   if (text.length < 2) return { ok: false as const, error: "اكتب الرد." };
-  const sent = await sendMail({ to: email, subject: "Evisa", text });
+  const settings = await getSiteSettings();
+  const mail = staffReplyMail(locale, settings.name, text, settings.tagline, settings.supportEmail);
+  const sent = await sendMail({ to: email, subject: mail.subject, text: mail.text, html: mail.html });
   if (!sent.sent) return { ok: false as const, error: "تعذر إرسال البريد. تحقق من إعداد Resend." };
   await setMessageRead(id, true);
   await recordAudit("message.reply", id);

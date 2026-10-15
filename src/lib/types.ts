@@ -181,6 +181,7 @@ export type Application = {
   userEmail?: string;
   destinationId: string;
   destinationName: string;
+  destinationNameAr?: string | null;
   destinationSlug: string;
   destinationFlag: string | null;
   destinationImage: string | null;

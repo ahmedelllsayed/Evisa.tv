@@ -12,10 +12,13 @@ import type {
 } from "@/lib/types";
 import type { AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { documentGaps } from "@/lib/application-rules";
-import { t, tf, type MessageKey } from "@/lib/i18n";
+import { statusUpdateMail } from "@/lib/email-template";
+import { t, tf, type MessageKey, isArabicLocale } from "@/lib/i18n";
 import { sendMail } from "@/lib/email";
+import { localizedVisaLabel } from "@/lib/localize";
+import { getSiteSettings } from "@/lib/data/settings";
 import { notifyUser } from "./notifications";
-import { formatAt, governmentFeeCharged, guaranteedDate, optionHours, optionServiceFee } from "@/lib/visa";
+import { formatAt, formatMoney, governmentFeeCharged, guaranteedDate, optionHours, optionServiceFee } from "@/lib/visa";
 import { getDestinationById } from "./catalog";
 import { getActiveVisaOption, getDefaultVisaOption, snapshotVisaOption } from "./visa-options";
 import { day, getDb, iso, isoOrNull, json, num, numOrNull, one, sql } from "./db";
@@ -29,7 +32,7 @@ const requiredDocsSql = `
   end`;
 
 const APP_SELECT = `
-  select a.*, d.name as destination_name, d.slug as destination_slug, d.flag as destination_flag,
+  select a.*, d.name as destination_name, d.name_ar as destination_name_ar, d.slug as destination_slug, d.flag as destination_flag,
          d.image as destination_image, ${requiredDocsSql} as destination_documents, p.email as user_email,
          assignee.email as assignee_email
   from applications a
@@ -46,6 +49,7 @@ function toApplication(r: Row): Application {
     userEmail: (r.user_email as string) ?? undefined,
     destinationId: String(r.destination_id),
     destinationName: String(r.destination_name),
+    destinationNameAr: (r.destination_name_ar as string) ?? null,
     destinationSlug: String(r.destination_slug),
     destinationFlag: (r.destination_flag as string) ?? null,
     destinationImage: (r.destination_image as string) ?? null,
@@ -399,18 +403,6 @@ export async function setStep(id: string, step: ApplicationStep) {
   return rows.length > 0;
 }
 
-const statusMail: Record<string, string> = {
-  draft: "Draft",
-  payment_pending: "Awaiting payment",
-  submitted: "Submitted",
-  in_review: "In review",
-  filed: "Ready for manual filing",
-  approved: "Approved",
-  rejected: "Rejected",
-  cancelled: "Cancelled",
-  refunded: "Refunded",
-};
-
 export async function setStatus(id: string, status: ApplicationStatus, event?: { title: string; description?: string; onTime?: boolean }) {
   if (status === "filed") {
     const current = await getApplication(id);
@@ -439,11 +431,26 @@ export async function setStatus(id: string, status: ApplicationStatus, event?: {
       body: tf(locale, "notify.statusBody", { ref: app.reference, status: statusLabel, date: when }),
     });
     if (app.userEmail) {
-      await sendMail({
-        to: app.userEmail,
-        subject: tf(locale, "mail.statusSubject", { ref: app.reference, status: statusLabel }),
-        text: tf(locale, "mail.statusBody", { ref: app.reference, status: statusLabel, date: when }),
+      const settings = await getSiteSettings();
+      const country = isArabicLocale(locale) && app.destinationNameAr ? app.destinationNameAr : app.destinationName;
+      const visaType = localizedVisaLabel(app, locale) || country;
+      const mail = statusUpdateMail({
+        locale,
+        brand: settings.name,
+        country,
+        visaType,
+        reference: app.reference,
+        status: statusLabel,
+        statusKey: status,
+        target: when,
+        travellers: app.travelerCount,
+        total: formatMoney(app.totalAmount, app.currency, locale),
+        express: app.express,
+        applicationId: app.id,
+        tagline: settings.tagline,
+        supportEmail: settings.supportEmail,
       });
+      await sendMail({ to: app.userEmail, subject: mail.subject, text: mail.text, html: mail.html });
     }
   }
   return { ok: true as const };

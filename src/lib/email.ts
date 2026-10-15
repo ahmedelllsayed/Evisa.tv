@@ -6,6 +6,7 @@ export async function sendMail(input: {
   to: string;
   subject: string;
   text: string;
+  html?: string;
   idempotencyKey?: string;
   attachments?: { filename: string; content: Buffer; contentType?: string | null }[];
 }) {
@@ -25,6 +26,7 @@ export async function sendMail(input: {
       to: [input.to],
       subject: input.subject,
       text: input.text,
+      ...(input.html ? { html: input.html } : {}),
       ...(input.attachments?.length
         ? {
             attachments: input.attachments.map((file) => ({
