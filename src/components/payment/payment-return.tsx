@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ResultPane, surfaceClass } from "@/components/motion/frame";
+import { ResultPane } from "@/components/motion/frame";
 import { paymentReturn } from "@/lib/payments";
 import { href } from "@/lib/href";
-import { t } from "@/lib/i18n";
+import { isArabicLocale, t } from "@/lib/i18n";
 
 export async function PaymentReturn({ locale, merchantOrderId }: { locale: string; merchantOrderId: string }) {
   const view = await paymentReturn(merchantOrderId);
@@ -26,7 +26,7 @@ export async function PaymentReturn({ locale, merchantOrderId }: { locale: strin
     </Link>
   );
   return (
-    <div className={surfaceClass(locale)}>
+    <div className={isArabicLocale(locale) ? "surface-ar" : ""}>
       <ResultPane title={title} body={body} action={action} tone={paid ? "paid" : failed ? "failed" : "plain"} />
     </div>
   );

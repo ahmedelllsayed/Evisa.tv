@@ -15,6 +15,7 @@ const groups = [
     links: [
       { href: "/admin", label: "نظرة عامة" },
       { href: "/admin/queue", label: "الطابور", badge: true },
+      { href: "/admin/growth", label: "القياس" },
       { href: "/admin/applications", label: "الطلبات" },
       { href: "/admin/messages", label: "الرسائل" },
     ],

@@ -267,3 +267,76 @@ export function staffReplyMail(locale: string, brand: string, message: string, t
   );
   return { subject, text: plain, html };
 }
+
+export function manualCustomerMail(input: {
+  locale: string;
+  brand: string;
+  tagline?: string;
+  supportEmail?: string;
+  kind: "resume" | "documents" | "review" | "referral";
+  country: string;
+  visaType: string;
+  reference: string;
+  href: string;
+}) {
+  const arabic = isArabicLocale(input.locale);
+  const copy = arabic
+    ? {
+        resume: {
+          subject: `أكمل طلب ${input.country} · ${input.reference}`,
+          intro: `طلب تأشيرة ${input.country} ما زال غير مكتمل. يمكنك الرجوع إليه من حسابك وإكماله بنفسك.`,
+          button: "أكمل الطلب",
+        },
+        documents: {
+          subject: `مستندات ناقصة في طلب ${input.country} · ${input.reference}`,
+          intro: `طلب ${input.country} يحتاج مستنداً. افتح الطلب لترى الناقص وترفعه.`,
+          button: "افتح الطلب",
+        },
+        review: {
+          subject: `كيف كانت تجربتك مع ${input.brand}؟`,
+          intro: `تمت مراجعة طلب ${input.country}. إن رغبت، اكتب رأيك بالرد على هذا البريد أو من صفحة التواصل. لا ننشر تقييماً إلا بعد أن ترسله.`,
+          button: "صفحة التواصل",
+        },
+        referral: {
+          subject: `رابط دعوتك من ${input.brand}`,
+          intro: `هذا رابطك الشخصي. عندما يبدأ أحد معارفك طلباً من خلاله نعرف أنه جاء عن طريقك.`,
+          button: "افتح رابط الدعوة",
+        },
+      }
+    : {
+        resume: {
+          subject: `Finish your ${input.country} application · ${input.reference}`,
+          intro: `Your ${input.country} application is still unfinished. You can return to it from your account.`,
+          button: "Continue the application",
+        },
+        documents: {
+          subject: `A document is missing · ${input.reference}`,
+          intro: `Your ${input.country} application needs a document. Open it to see what is missing.`,
+          button: "Open the application",
+        },
+        review: {
+          subject: `How was your experience with ${input.brand}?`,
+          intro: `Your ${input.country} application was reviewed. Reply to this email or use the contact page if you want to share a review. We only publish a review you send yourself.`,
+          button: "Contact page",
+        },
+        referral: {
+          subject: `Your invite link from ${input.brand}`,
+          intro: `This is your personal link. When someone starts an application through it, we can see they came from you.`,
+          button: "Open your invite link",
+        },
+      };
+  const text = copy[input.kind];
+  const plain = [`${input.country} — ${input.visaType}`, `${arabic ? "رقم الطلب" : "Reference"}: ${input.reference}`, text.intro, input.href].join("\n");
+  const html = shell(
+    input.locale,
+    input.brand,
+    text.intro,
+    `<p style="margin:0;font-size:13px;font-weight:700;color:#5057ea;">${esc(input.reference)}</p>
+     <h1 style="margin:8px 0 0;font-size:24px;line-height:1.3;font-weight:700;">${esc(input.country)}</h1>
+     <p style="margin:6px 0 0;font-size:15px;color:#3b3b3b;">${esc(input.visaType)}</p>
+     <p style="margin:14px 0 0;font-size:15px;line-height:1.7;color:#16182b;">${esc(text.intro)}</p>
+     ${button(input.href, text.button)}`,
+    { tagline: input.tagline, email: input.supportEmail },
+  );
+  return { subject: text.subject, text: plain, html };
+}

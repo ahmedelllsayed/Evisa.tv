@@ -13,6 +13,7 @@ import type {
 import type { AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { documentGaps } from "@/lib/application-rules";
 import { statusUpdateMail } from "@/lib/email-template";
+import { paymobDecision, paymentCanMarkPaid } from "@/lib/paymob-decision";
 import { t, tf, type MessageKey, isArabicLocale } from "@/lib/i18n";
 import { sendMail } from "@/lib/email";
 import { localizedVisaLabel } from "@/lib/localize";
@@ -40,6 +41,15 @@ const APP_SELECT = `
   join profiles p on p.id = a.user_id
   left join profiles assignee on assignee.id = a.assignee_id
   left join visa_options vo on vo.id = a.visa_option_id`;
+
+function staffChecks(value: unknown): Application["staffChecks"] {
+  const raw = json<Partial<Application["staffChecks"]>>(value, {});
+  return {
+    passport: raw.passport === true,
+    photo: raw.photo === true,
+    documents: raw.documents === true,
+  };
+}
 
 function toApplication(r: Row): Application {
   return {
@@ -73,6 +83,7 @@ function toApplication(r: Row): Application {
     assigneeId: (r.assignee_id as string) ?? null,
     assigneeEmail: (r.assignee_email as string) ?? null,
     locale: String(r.locale ?? "en-EG"),
+    staffChecks: staffChecks(r.staff_checks),
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
   };
@@ -327,6 +338,8 @@ function buildApplicationWhere(filter: ApplicationListFilter) {
     where.push("exists (select 1 from documents doc where doc.application_id = a.id and doc.status in ('uploaded', 'rejected') and doc.kind <> 'issued_visa')");
   } else if (filter.queue === "paid_review") {
     where.push("a.paid_at is not null", "a.status = 'submitted'");
+  } else if (filter.queue === "followup") {
+    where.push(followupSql);
   } else if (filter.queue === "attention") {
     where.push(
       "a.status not in ('approved', 'rejected', 'cancelled', 'refunded')",
@@ -364,8 +377,9 @@ export async function listAllApplications(filter: ApplicationListFilter = {}) {
   const limit = Math.min(100, Math.max(1, filter.limit ?? 50));
   const offset = Math.max(0, filter.offset ?? 0);
   params.push(limit, offset);
+  const order = filter.queue === "followup" ? "a.created_at asc" : "a.created_at desc";
   const rows = await sql(
-    `${APP_SELECT} ${where.length ? "where " + where.join(" and ") : ""} order by a.created_at desc limit $${params.length - 1} offset $${params.length}`,
+    `${APP_SELECT} ${where.length ? "where " + where.join(" and ") : ""} order by ${order} limit $${params.length - 1} offset $${params.length}`,
     params,
   );
   return rows.map(toApplication);
@@ -460,6 +474,14 @@ export async function setAssignee(id: string, assigneeId: string | null) {
   await sql("update applications set assignee_id = $2, updated_at = now() where id = $1", [id, assigneeId]);
 }
 
+export async function saveStaffChecks(id: string, checks: Application["staffChecks"]) {
+  const rows = await sql(
+    `update applications set staff_checks = $2::jsonb, updated_at = now() where id = $1 returning id`,
+    [id, JSON.stringify({ passport: checks.passport === true, photo: checks.photo === true, documents: checks.documents === true })],
+  );
+  return rows.length > 0;
+}
+
 const closedSql = "('approved', 'rejected', 'cancelled', 'refunded')";
 const paymentReviewSql = `exists (
   select 1 from application_events ev
@@ -470,17 +492,38 @@ const refundRequestSql = `exists (
   where rr.application_id = a.id and rr.status = 'open'
 )`;
 const editableStatusSql = "('draft', 'payment_pending')";
+const followupSql = `(
+  a.status in ('draft', 'payment_pending')
+  or (
+    a.status in ('submitted', 'in_review')
+    and (
+      exists (
+        select 1 from travelers tr
+        where tr.application_id = a.id
+          and not exists (
+            select 1 from documents doc
+            where doc.application_id = a.id and doc.traveler_id = tr.id and doc.kind <> 'issued_visa' and doc.status <> 'rejected'
+          )
+      )
+      or exists (
+        select 1 from documents doc
+        where doc.application_id = a.id and doc.kind <> 'issued_visa' and doc.status = 'rejected'
+      )
+    )
+  )
+)`;
 
-export type QueueFilter = "attention" | "mine" | "unassigned" | "late" | "documents" | "paid_review";
+export type QueueFilter = "attention" | "mine" | "unassigned" | "late" | "documents" | "paid_review" | "followup";
 
 export async function queueCounts(assigneeId: string) {
-  const row = await one<{ mine: number; unassigned: number; late: number; documents: number; paid_review: number }>(
+  const row = await one<{ mine: number; unassigned: number; late: number; documents: number; paid_review: number; followup: number }>(
     `select
        (select count(*)::int from applications where assignee_id = $1 and status not in ${closedSql}) as mine,
        (select count(*)::int from applications where assignee_id is null and status not in ('draft', 'approved', 'rejected', 'cancelled', 'refunded')) as unassigned,
        (select count(*)::int from applications where guaranteed_at is not null and guaranteed_at < now() and status not in ${closedSql}) as late,
        (select count(distinct application_id)::int from documents where status in ('uploaded', 'rejected') and kind <> 'issued_visa') as documents,
-       (select count(*)::int from applications where paid_at is not null and status = 'submitted') as paid_review`,
+       (select count(*)::int from applications where paid_at is not null and status = 'submitted') as paid_review,
+       (select count(*)::int from applications a where ${followupSql}) as followup`,
     [assigneeId],
   );
   return {
@@ -489,6 +532,7 @@ export async function queueCounts(assigneeId: string) {
     late: row?.late ?? 0,
     documents: row?.documents ?? 0,
     paidReview: row?.paid_review ?? 0,
+    followup: row?.followup ?? 0,
   };
 }
 
@@ -862,36 +906,28 @@ export async function applyPaymobCallback(input: {
     );
     if (!existing) return { ok: false as const, reason: "missing" as const };
     const payment = toPayment(existing);
-    if (input.merchantOrderId && payment.merchantOrderId && input.merchantOrderId !== payment.merchantOrderId) {
-      await notePaymentReview(
-        tx,
-        payment.applicationId,
-        `Paymob order ${input.paymobOrderId} arrived with merchant reference ${input.merchantOrderId}, which does not match the stored reference. The application was not marked paid.`,
-      );
-      return { ok: false as const, reason: "order" as const };
+    const decision = paymobDecision(
+      {
+        merchantOrderId: payment.merchantOrderId,
+        currency: payment.currency,
+        amount: payment.amount,
+        transactionId: payment.transactionId,
+        status: payment.status,
+      },
+      input,
+    );
+    if (!decision.ok) {
+      const detail =
+        decision.reason === "order"
+          ? `Paymob order ${input.paymobOrderId} arrived with merchant reference ${input.merchantOrderId}, which does not match the stored reference. The application was not marked paid.`
+          : decision.reason === "currency"
+            ? `Paymob reported currency ${input.currency || "unknown"} for order ${input.paymobOrderId}; the stored currency is ${payment.currency}. The application was not marked paid.`
+            : `Paymob reported ${input.amountCents} cents for order ${input.paymobOrderId}; the stored amount is ${Math.round(payment.amount * 100)} cents. The application was not marked paid.`;
+      await notePaymentReview(tx, payment.applicationId, detail);
+      return { ok: false as const, reason: decision.reason };
     }
-    const currency = input.currency.trim().toUpperCase();
-    if (!currency || currency !== payment.currency.toUpperCase()) {
-      await notePaymentReview(
-        tx,
-        payment.applicationId,
-        `Paymob reported currency ${currency || "unknown"} for order ${input.paymobOrderId}; the stored currency is ${payment.currency}. The application was not marked paid.`,
-      );
-      return { ok: false as const, reason: "currency" as const };
-    }
-    const expected = Math.round(payment.amount * 100);
-    if (expected !== input.amountCents) {
-      await notePaymentReview(
-        tx,
-        payment.applicationId,
-        `Paymob reported ${input.amountCents} cents for order ${input.paymobOrderId}; the stored amount is ${expected} cents. The application was not marked paid.`,
-      );
-      return { ok: false as const, reason: "amount" as const };
-    }
-    if (payment.transactionId && payment.transactionId === input.transactionId && (payment.status === "paid" || payment.status === "refunded" || payment.status === "failed")) {
-      return { ok: true as const, reason: "duplicate" as const };
-    }
-    if (input.refunded && payment.status === "paid") {
+    if (decision.reason === "duplicate") return { ok: true as const, reason: "duplicate" as const };
+    if (decision.reason === "refunded") {
       await tx.query("update payments set status = 'refunded', transaction_id = $2, processed_at = now() where id = $1 and status = 'paid'", [
         payment.id,
         input.transactionId,
@@ -903,8 +939,8 @@ export async function applyPaymobCallback(input: {
       );
       return { ok: true as const, reason: "refunded" as const };
     }
-    if (input.pending) return { ok: true as const, reason: "pending" as const };
-    if (!input.success) {
+    if (decision.reason === "pending") return { ok: true as const, reason: "pending" as const };
+    if (decision.reason === "failed") {
       await tx.query(
         "update payments set status = 'failed', transaction_id = $2, method = coalesce($3, method), processed_at = now() where id = $1 and status = 'pending'",
         [payment.id, input.transactionId, input.method],
@@ -913,7 +949,7 @@ export async function applyPaymobCallback(input: {
     }
     const [app] = await tx.query<Row>("select status from applications where id = $1", [payment.applicationId]);
     const status = String(app?.status ?? "");
-    if (status !== "draft" && status !== "payment_pending") {
+    if (!paymentCanMarkPaid(status)) {
       await notePaymentReview(
         tx,
         payment.applicationId,

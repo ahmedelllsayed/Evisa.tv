@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { adminAddEvent, adminDeclineRefund, adminDeleteIssuedVisa, adminPatchTraveler, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
 import { AdminCard, AdminEmpty, AdminPage, adminGhostClass, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
+import { StaffFollowUp } from "@/components/admin/staff-follow-up";
 import { statusLabels } from "@/components/admin/status";
 import { documentGaps } from "@/lib/application-rules";
 import { href } from "@/lib/href";
@@ -173,6 +174,7 @@ export function AdminApplicationDetail({
                 تحديث الحالة
               </button>
             </form>
+            <StaffFollowUp locale={locale} application={application} />
             {application.status === "approved" && (
               <>
               <form

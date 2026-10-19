@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Heading, Swap, surfaceClass } from "@/components/motion/frame";
 import {
   deleteDocumentAction,
@@ -94,6 +94,12 @@ export function ApplyWizard({
   const savedKinds = new Set(profile?.documents.map((doc) => doc.kind) ?? []);
   const profilePassport = profile?.passportNumber.trim().toLowerCase() ?? "";
   const editable = application.status === "draft" || application.status === "payment_pending";
+
+  useEffect(() => {
+    if (step === "documents") track("travelers_done", { item_id: application.destinationSlug });
+    if (step === "review") track("documents_done", { item_id: application.destinationSlug });
+    if (step === "review" || step === "payment") track("reach_payment", { item_id: application.destinationSlug });
+  }, [step, application.destinationSlug]);
 
   if (!editable) {
     return (
@@ -330,7 +336,18 @@ export function ApplyWizard({
       )}
 
       {step === "payment" && (
-        <section className="mt-8 text-center">
+        <section className="mt-8 space-y-4 text-center">
+          <div className="rounded-2xl border border-line p-5 text-start">
+            <p className="text-sm text-muted-ink">{t(locale, "apply.visaType")}</p>
+            <p className="font-medium">{localizedVisaLabel(application, locale) || application.destinationName}</p>
+            <p className="mt-3 text-sm text-muted-ink">{t(locale, "apply.targetBy")}</p>
+            <p className="font-display text-xl font-semibold">{application.guaranteedAt ? formatOrdinalShort(application.guaranteedAt, locale) : "—"}</p>
+            <dl className="mt-4 space-y-1 text-sm">
+              <div className="flex justify-between"><dt>{t(locale, "apply.govFee")}</dt><dd>{formatMoney(application.govFee, application.currency, locale)}</dd></div>
+              <div className="flex justify-between"><dt>{t(locale, "apply.serviceFee")}</dt><dd>{formatMoney(application.serviceFee, application.currency, locale)}</dd></div>
+              <div className="flex justify-between font-semibold"><dt>{t(locale, "apply.total")}</dt><dd>{formatMoney(application.totalAmount, application.currency, locale)}</dd></div>
+            </dl>
+          </div>
           <p className="text-body">{t(locale, "apply.finish")}</p>
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
           <button

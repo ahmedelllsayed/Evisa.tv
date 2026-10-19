@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 const filters: { id: Exclude<QueueFilter, "attention"> | "all"; label: string }[] = [
   { id: "all", label: "الكل" },
+  { id: "followup", label: "متابعة" },
   { id: "mine", label: "طلباتي" },
   { id: "unassigned", label: "غير معيّن" },
   { id: "late", label: "متأخر عن الموعد" },
@@ -32,6 +33,7 @@ export default async function AdminQueuePage({ params, searchParams }: Page) {
   const countFor = (id: (typeof filters)[number]["id"]) => {
     if (id === "all") return ops.attention;
     if (id === "paid_review") return counts.paidReview;
+    if (id === "followup") return counts.followup;
     return counts[id];
   };
   return (

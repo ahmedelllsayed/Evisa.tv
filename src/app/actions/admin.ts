@@ -3,10 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import type { CmsContent, CmsTemplate } from "@/lib/cms/registry";
-import { addDocument, addEvent, deleteDocument, getApplication, getDocument, patchTraveler, setAssignee, setDocumentStatus, setStatus } from "@/lib/data/applications";
+import { addDocument, addEvent, deleteDocument, getApplication, getDocument, patchTraveler, saveStaffChecks, setAssignee, setDocumentStatus, setStatus, listTravelers, listDocuments } from "@/lib/data/applications";
 import { sendMail } from "@/lib/email";
-import { visaFilesMail, staffReplyMail } from "@/lib/email-template";
+import { visaFilesMail, staffReplyMail, manualCustomerMail } from "@/lib/email-template";
 import { isArabicLocale, tf } from "@/lib/i18n";
+import { documentGaps } from "@/lib/application-rules";
+import { ensureReferralCode, referralLink } from "@/lib/data/growth";
+import { siteConfig } from "@/config/site.config";
 import { localizedVisaLabel } from "@/lib/localize";
 import { notifyUser } from "@/lib/data/notifications";
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, readStoredBytes, removeFile, storeFile } from "@/lib/storage";
@@ -642,6 +645,11 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
       consentTextAr: String(fd.get("consentTextAr") || ""),
       maintenance: fd.get("maintenance") === "on",
       paymobIntegrationId: String(fd.get("paymobIntegrationId") || "").replace(/\D/g, ""),
+      offerTitleEn: String(fd.get("offerTitleEn") || ""),
+      offerTitleAr: String(fd.get("offerTitleAr") || ""),
+      offerUrl: String(fd.get("offerUrl") || ""),
+      offerNoteEn: String(fd.get("offerNoteEn") || ""),
+      offerNoteAr: String(fd.get("offerNoteAr") || ""),
     },
   });
   if (storedLogo !== undefined) await storeBrandLogo(storedLogo);
@@ -740,4 +748,66 @@ export async function adminDeleteUser(locale: string, id: string) {
   refresh(locale, "/admin/users");
   refresh(locale, "/admin");
   return result;
+}
+
+export async function adminSaveChecks(
+  locale: string,
+  applicationId: string,
+  checks: { passport: boolean; photo: boolean; documents: boolean },
+) {
+  await guard(locale);
+  const saved = await saveStaffChecks(applicationId, checks);
+  if (!saved) return { ok: false as const, error: "الطلب غير موجود." };
+  await addEvent(applicationId, {
+    title: "قائمة التحقق",
+    description: `جواز ${checks.passport ? "تم" : "لا"} · صورة ${checks.photo ? "تم" : "لا"} · مستندات ${checks.documents ? "تم" : "لا"}`,
+    internal: true,
+  });
+  await recordAudit("application.checks", applicationId);
+  refresh(locale, `/admin/applications/${applicationId}`);
+  return { ok: true as const };
+}
+
+export async function adminSendCustomerNote(locale: string, applicationId: string, kind: "resume" | "documents" | "review" | "referral") {
+  await guard(locale);
+  const app = await getApplication(applicationId);
+  if (!app?.userEmail) return { ok: false as const, error: "لا يوجد بريد للعميل." };
+  if (kind === "resume" && app.status !== "draft" && app.status !== "payment_pending") {
+    return { ok: false as const, error: "هذا القالب للطلبات غير المكتملة فقط." };
+  }
+  if (kind === "review" && app.status !== "approved") return { ok: false as const, error: "طلب التقييم يكون بعد الموافقة." };
+  if (kind === "documents") {
+    const [travelers, documents] = await Promise.all([listTravelers(app.id), listDocuments(app.id)]);
+    if (documentGaps(app.documentsRequired, travelers, documents.filter((document) => document.kind !== "issued_visa")).length === 0) {
+      return { ok: false as const, error: "لا يوجد نقص في المستندات." };
+    }
+  }
+  const settings = await getSiteSettings();
+  const mailLocale = app.locale || locale;
+  const country = isArabicLocale(mailLocale) && app.destinationNameAr ? app.destinationNameAr : app.destinationName;
+  const code = kind === "referral" ? await ensureReferralCode(app.userId) : "";
+  if (kind === "referral" && !code) return { ok: false as const, error: "تعذر إنشاء رابط الدعوة." };
+  const href =
+    kind === "review"
+      ? `${siteConfig.url}/${mailLocale}/contact`
+      : kind === "referral"
+        ? referralLink(code)
+        : `${siteConfig.url}/${mailLocale}/apply/${app.id}`;
+  const mail = manualCustomerMail({
+    locale: mailLocale,
+    brand: settings.name,
+    tagline: settings.tagline,
+    supportEmail: settings.supportEmail,
+    kind,
+    country,
+    visaType: localizedVisaLabel(app, mailLocale) || country,
+    reference: app.reference,
+    href,
+  });
+  const sent = await sendMail({ to: app.userEmail, subject: mail.subject, text: mail.text, html: mail.html });
+  if (!sent.sent) return { ok: false as const, error: "تعذر إرسال البريد. تحقق من إعداد Resend." };
+  await addEvent(app.id, { title: "رسالة من الموظف", description: mail.subject, internal: true });
+  await recordAudit("application.mail", app.id, kind);
+  refresh(locale, `/admin/applications/${applicationId}`);
+  return { ok: true as const };
 }

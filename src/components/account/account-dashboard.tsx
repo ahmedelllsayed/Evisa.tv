@@ -8,7 +8,7 @@ import { markNotificationsRead } from "@/app/actions/account";
 import { Heading, Swap, surfaceClass } from "@/components/motion/frame";
 import type { AccountNotification, AccountProfileSummary, AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { href, visaHref } from "@/lib/href";
-import { t, tf, type MessageKey } from "@/lib/i18n";
+import { isArabicLocale, t, tf, type MessageKey } from "@/lib/i18n";
 import { docLabel, localizedVisaLabel } from "@/lib/localize";
 import type { ProfileDocument } from "@/lib/profile";
 import type { Application, ApplicationStatus } from "@/lib/types";
@@ -92,6 +92,7 @@ export function AccountDashboard({
   notifications,
   stats,
   profile,
+  referralUrl,
 }: {
   locale: string;
   email: string;
@@ -105,6 +106,7 @@ export function AccountDashboard({
   notifications: AccountNotification[];
   stats: AccountStats;
   profile: AccountProfileSummary;
+  referralUrl: string;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(tabs.includes(initialTab as Tab) ? (initialTab as Tab) : "overview");
@@ -122,6 +124,12 @@ export function AccountDashboard({
       <Heading title={t(locale, "account.title")}>
         <p className="mt-3 truncate text-sm text-muted-ink">{email}</p>
       </Heading>
+      {referralUrl ? (
+        <p className="mt-4 rounded-2xl border border-line bg-white px-4 py-3 text-sm">
+          <span className="font-medium">{isArabicLocale(locale) ? "رابط الدعوة" : "Invite link"}: </span>
+          <span className="break-all text-muted-ink">{referralUrl}</span>
+        </p>
+      ) : null}
       <div className="mt-6 flex gap-1 overflow-x-auto border-b border-line scrollbar-none">
         {tabs.map((id) => {
           const on = tab === id;

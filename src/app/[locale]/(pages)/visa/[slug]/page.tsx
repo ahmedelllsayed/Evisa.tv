@@ -10,7 +10,7 @@ import { getCitizenshipCodes, getSiteSettings } from "@/lib/data/settings";
 import type { Page } from "@/lib/page";
 import { getCitizenship, hasChosenCitizenship } from "@/lib/preferences";
 import { localizedMetadata } from "@/lib/seo";
-import { fillTemplate } from "@/lib/visa";
+import { fillTemplate, optionTotal, totalFee } from "@/lib/visa";
 
 export async function generateMetadata({ params }: Page<{ locale: string; slug: string }>) {
   const { locale, slug } = await params;
@@ -55,8 +55,33 @@ export default async function VisaPage({ params, searchParams }: Page<{ locale: 
     .slice(0, 8)
     .map((x) => x.d);
   const existing = user ? await findOpenApplication(user.id, destination.id) : null;
+  const priced = options.find((option) => option.isDefault) ?? options[0];
+  const price = priced ? optionTotal(priced, false) : totalFee(destination);
+  const arabic = locale.startsWith("ar");
+  const country = arabic && destination.nameAr ? destination.nameAr : destination.name;
+  const faqEntities = faqs.slice(0, 8).map((faq) => ({
+    "@type": "Question",
+    name: fillTemplate(arabic && faq.questionAr ? faq.questionAr : faq.question, country),
+    acceptedAnswer: { "@type": "Answer", text: fillTemplate(arabic && faq.answerAr ? faq.answerAr : faq.answer, country) },
+  }));
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Service",
+        name: arabic && destination.nameAr ? `تأشيرة ${destination.nameAr}` : `${destination.name} visa`,
+        areaServed: siteConfig.market.countryCode,
+        offers: { "@type": "Offer", priceCurrency: destination.currency || "EGP", price: String(Math.round(price)) },
+      },
+      ...(faqEntities.length ? [{ "@type": "FAQPage", mainEntity: faqEntities }] : []),
+    ],
+  };
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {destination.heroImage || destination.image ? (
+        <link rel="preload" as="image" href={destination.heroImage || destination.image || ""} fetchPriority="high" />
+      ) : null}
       <CitizenshipDialog initial={citizenship} codes={citizenshipCodes} defaultOpen={!chosen} />
       <VisaPreview
         locale={locale}

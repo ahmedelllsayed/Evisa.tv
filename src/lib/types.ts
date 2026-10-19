@@ -205,6 +205,7 @@ export type Application = {
   assigneeId: string | null;
   assigneeEmail?: string | null;
   locale?: string;
+  staffChecks: { passport: boolean; photo: boolean; documents: boolean };
   createdAt: string;
   updatedAt: string;
 };

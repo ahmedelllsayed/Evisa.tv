@@ -51,9 +51,14 @@ export async function proxy(request: NextRequest) {
     await supabase.auth.getUser();
   }
 
+  const ref = request.nextUrl.searchParams.get("ref");
+  if (ref && /^[a-z0-9]{8}$/i.test(ref)) {
+    response.cookies.set("ref", ref.toLowerCase(), { path: "/", maxAge: 60 * 60 * 24 * 90, sameSite: "lax" });
+  }
+
   return response;
 }
 
 export const config = {
-  matcher: ["/((?!api|auth|_next/static|_next/image|brand|destination-media|favicon.ico|robots.txt|sitemap.xml|.*\\.[a-zA-Z0-9]+$).*)"],
+  matcher: ["/((?!api|auth|sentry-tunnel|_next/static|_next/image|brand|destination-media|favicon.ico|robots.txt|sitemap.xml|.*\\.[a-zA-Z0-9]+$).*)"],
 };

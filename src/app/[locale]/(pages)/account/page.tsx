@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { accountStats, listApplicationsForUser, listDocumentsForUser, listIssuedVisasForUser, listPaymentsForUser } from "@/lib/data/applications";
 import { listRefundsForUser } from "@/lib/data/inbox";
 import { listNotifications } from "@/lib/data/notifications";
+import { ensureReferralCode, referralLink } from "@/lib/data/growth";
 import { getProfileVault } from "@/lib/data/profile-vault";
 
 export async function generateMetadata({ params }: Page) {
@@ -26,6 +27,7 @@ export default async function AccountPage({ params, searchParams }: Page) {
     getProfileVault(user.id),
     listRefundsForUser(user.id),
   ]);
+  const referral = referralLink(await ensureReferralCode(user.id));
   const tab = typeof query.tab === "string" ? query.tab : "overview";
   return (
     <AccountDashboard
@@ -48,6 +50,7 @@ export default async function AccountPage({ params, searchParams }: Page) {
         passportNumber: vault?.passportNumber ?? "",
         passportExpiry: vault?.passportExpiry ?? "",
       }}
+      referralUrl={referral}
     />
   );
 }

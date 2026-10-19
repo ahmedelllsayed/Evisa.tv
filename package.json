@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --import ./scripts/test-register.mjs --test src/lib/growth.test.mts",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/db.mts migrate",
     "db:reseed": "node --env-file-if-exists=.env.local scripts/db.mts reseed",
     "db:seed-sql": "node --env-file-if-exists=.env.local scripts/db.mts sql",

@@ -30,10 +30,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [unpublished, empty] = await Promise.all([unpublishedSlugs(), emptyContentSlugs()]);
   const hidden = new Set([...unpublished, ...empty]);
   const visiblePaths = paths.filter((path) => !hidden.has(path.replace(/^\//, "")));
+  const languages = (path: string) => ({
+    ...Object.fromEntries(locales.map((item) => [item, `${siteConfig.url}/${item}${path}`])),
+    "x-default": `${siteConfig.url}/${siteConfig.defaultLocale}${path}`,
+  });
   const staticEntries = locales.flatMap((locale) =>
     visiblePaths.map((path) => ({
       url: `${siteConfig.url}/${locale}${path}`,
       lastModified: new Date(),
+      alternates: { languages: languages(path) },
     })),
   );
   try {
@@ -42,6 +47,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       destinations.map((destination) => ({
         url: `${siteConfig.url}/${locale}/visa/${destination.slug}`,
         lastModified: new Date(destination.updatedAt),
+        alternates: { languages: languages(`/visa/${destination.slug}`) },
       })),
     );
     return [...staticEntries, ...visas];

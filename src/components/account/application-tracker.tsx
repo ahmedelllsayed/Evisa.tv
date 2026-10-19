@@ -6,7 +6,8 @@ import { useLiveApplication } from "@/components/account/live-application";
 import { requestRefundAction } from "@/app/actions/inbox";
 import { documentGaps, isPastGuarantee } from "@/lib/application-rules";
 import { href, visaHref } from "@/lib/href";
-import { t, type MessageKey } from "@/lib/i18n";
+import { isArabicLocale, t, type MessageKey } from "@/lib/i18n";
+import { nextStepText } from "@/lib/next-step";
 import { docLabel, localizedVisaLabel } from "@/lib/localize";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Traveler } from "@/lib/types";
 import { Heading, surfaceClass } from "@/components/motion/frame";
@@ -82,6 +83,9 @@ export function ApplicationTracker({
       {application.visaLabel ? <p className="mt-3 text-sm text-muted-ink">{t(locale, "account.visaType")}: {localizedVisaLabel(application, locale)}</p> : null}
       <p className="mt-3 inline-flex rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-700">
         {statusLabel(locale, application.status)}
+      </p>
+      <p className="mt-3 rounded-2xl bg-[#f6f7fb] px-4 py-3 text-sm leading-relaxed text-[#16182b]">
+        {nextStepText(application.status, isArabicLocale(locale))}
       </p>
       {application.guaranteedAt && (
         <p className={cn("mt-1 text-sm", late ? "font-medium text-red-700" : "text-body")}>

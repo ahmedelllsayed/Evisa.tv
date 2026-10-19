@@ -20,6 +20,7 @@ export default async function AdminHome({ params }: Page) {
     { href: "/admin/queue?filter=late", label: "متأخرة عن الموعد", value: String(counts.late) },
     { href: "/admin/queue?filter=documents", label: "مستندات تحتاج مراجعة", value: String(counts.documents) },
     { href: "/admin/queue?filter=paid_review", label: "مدفوع بانتظار المراجعة", value: String(counts.paidReview) },
+    { href: "/admin/queue?filter=followup", label: "متابعة يدوية", value: String(counts.followup) },
     { href: "/admin/queue", label: "كل ما يحتاج إجراءً", value: "افتح الطابور" },
   ];
   return (

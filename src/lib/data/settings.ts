@@ -25,6 +25,11 @@ export type SiteExtras = {
   consentTextAr: string;
   maintenance: boolean;
   paymobIntegrationId: string;
+  offerTitleEn: string;
+  offerTitleAr: string;
+  offerUrl: string;
+  offerNoteEn: string;
+  offerNoteAr: string;
 };
 
 export type SiteSettings = {
@@ -68,6 +73,11 @@ export function defaultExtras(): SiteExtras {
     consentTextAr: "نستخدم الكوكيز لقياس الزيارات. يمكنك الرفض.",
     maintenance: false,
     paymobIntegrationId: "",
+    offerTitleEn: "",
+    offerTitleAr: "",
+    offerUrl: "",
+    offerNoteEn: "",
+    offerNoteAr: "",
   };
 }
 
@@ -86,6 +96,11 @@ function readExtras(value: unknown): SiteExtras {
     maintenance: raw.maintenance ?? base.maintenance,
     gaMeasurementId: String(raw.gaMeasurementId ?? "").trim(),
     paymobIntegrationId: String(raw.paymobIntegrationId ?? "").replace(/\D/g, ""),
+    offerTitleEn: String(raw.offerTitleEn ?? "").trim().slice(0, 80),
+    offerTitleAr: String(raw.offerTitleAr ?? "").trim().slice(0, 80),
+    offerUrl: safePublicUrl(String(raw.offerUrl ?? "")),
+    offerNoteEn: String(raw.offerNoteEn ?? "").trim().slice(0, 180),
+    offerNoteAr: String(raw.offerNoteAr ?? "").trim().slice(0, 180),
   };
 }
 

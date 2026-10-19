@@ -4,6 +4,7 @@ import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { CalendarDays, ChevronRight, FileText, ShieldCheck, Timer } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ComponentType } from "react";
+import { track } from "@/lib/analytics";
 import { href } from "@/lib/href";
 import { isArabicLocale, t, tf } from "@/lib/i18n";
 import { localizedDestinationName, localizedPhrase } from "@/lib/localize";
@@ -77,6 +78,9 @@ export function VisaPreview({
   const [bar, setBar] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
   const now = new Date(nowIso);
+  useEffect(() => {
+    track("view_visa", { item_id: destination.slug });
+  }, [destination.slug]);
   const hours = optionHours(option, express);
   const due = guaranteedDate(hours, now);
   const fee = optionTotal(option, express);
@@ -273,7 +277,7 @@ function Hero({
           <video className="size-full object-cover" autoPlay muted loop playsInline poster={poster} src={destination.videoUrl} />
         ) : poster ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={poster} alt="" className="size-full object-cover" />
+          <img src={poster} alt="" fetchPriority="high" decoding="async" className="size-full object-cover" />
         ) : null}
       </motion.div>
       <div className="absolute inset-0 bg-gradient-to-t from-[#0b0d1d] via-[#0b0d1d]/45 to-[#0b0d1d]/15" />

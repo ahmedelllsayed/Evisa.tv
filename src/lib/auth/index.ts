@@ -45,7 +45,20 @@ async function syncProfile(id: string | null, email: string, fullName?: string |
          returning *`,
         [email.toLowerCase(), fullName ?? null, role],
       );
-  return toUser(row!);
+  const user = toUser(row!);
+  await applyReferral(user.id);
+  return user;
+}
+
+async function applyReferral(userId: string) {
+  const ref = (await cookies()).get("ref")?.value?.toLowerCase();
+  if (!ref || !/^[a-z0-9]{8}$/.test(ref)) return;
+  await sql(
+    `update profiles p set referred_by = r.id
+     from profiles r
+     where p.id = $1 and p.referred_by is null and r.referral_code = $2 and r.id <> p.id`,
+    [userId, ref],
+  );
 }
 
 // ----- Local sessions (used when Supabase Auth is not configured) -----
