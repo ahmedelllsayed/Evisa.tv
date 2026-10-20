@@ -77,24 +77,24 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
               <Check name="reservationFlightOn" label="إظهار الطيران" defaultChecked={settings.extras.reservationFlightOn} />
               <Field name="reservationFaqFlightQAr" label="سؤال الطيران بالعربية" defaultValue={settings.extras.reservationFaqFlightQAr} />
               <Field name="reservationFaqFlightQEn" label="سؤال الطيران بالإنجليزية" defaultValue={settings.extras.reservationFaqFlightQEn} />
-              <Field name="reservationFaqFlightAAr" label="جواب الطيران بالعربية" defaultValue={settings.extras.reservationFaqFlightAAr} className="sm:col-span-2" />
-              <Field name="reservationFaqFlightAEn" label="جواب الطيران بالإنجليزية" defaultValue={settings.extras.reservationFaqFlightAEn} className="sm:col-span-2" />
+              <Field name="reservationFaqFlightAAr" label="جواب الطيران بالعربية" defaultValue={settings.extras.reservationFaqFlightAAr} />
+              <Field name="reservationFaqFlightAEn" label="جواب الطيران بالإنجليزية" defaultValue={settings.extras.reservationFaqFlightAEn} />
             </div>
             <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
               <Field name="reservationHotelFee" label="سعر الفندق (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationHotelFee)} />
               <Check name="reservationHotelOn" label="إظهار الفندق" defaultChecked={settings.extras.reservationHotelOn} />
               <Field name="reservationFaqHotelQAr" label="سؤال الفندق بالعربية" defaultValue={settings.extras.reservationFaqHotelQAr} />
               <Field name="reservationFaqHotelQEn" label="سؤال الفندق بالإنجليزية" defaultValue={settings.extras.reservationFaqHotelQEn} />
-              <Field name="reservationFaqHotelAAr" label="جواب الفندق بالعربية" defaultValue={settings.extras.reservationFaqHotelAAr} className="sm:col-span-2" />
-              <Field name="reservationFaqHotelAEn" label="جواب الفندق بالإنجليزية" defaultValue={settings.extras.reservationFaqHotelAEn} className="sm:col-span-2" />
+              <Field name="reservationFaqHotelAAr" label="جواب الفندق بالعربية" defaultValue={settings.extras.reservationFaqHotelAAr} />
+              <Field name="reservationFaqHotelAEn" label="جواب الفندق بالإنجليزية" defaultValue={settings.extras.reservationFaqHotelAEn} />
             </div>
             <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
               <Field name="reservationItineraryFee" label="سعر برنامج الرحلة (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationItineraryFee)} />
               <Check name="reservationItineraryOn" label="إظهار برنامج الرحلة" defaultChecked={settings.extras.reservationItineraryOn} />
               <Field name="reservationFaqItineraryQAr" label="سؤال البرنامج بالعربية" defaultValue={settings.extras.reservationFaqItineraryQAr} />
               <Field name="reservationFaqItineraryQEn" label="سؤال البرنامج بالإنجليزية" defaultValue={settings.extras.reservationFaqItineraryQEn} />
-              <Field name="reservationFaqItineraryAAr" label="جواب البرنامج بالعربية" defaultValue={settings.extras.reservationFaqItineraryAAr} className="sm:col-span-2" />
-              <Field name="reservationFaqItineraryAEn" label="جواب البرنامج بالإنجليزية" defaultValue={settings.extras.reservationFaqItineraryAEn} className="sm:col-span-2" />
+              <Field name="reservationFaqItineraryAAr" label="جواب البرنامج بالعربية" defaultValue={settings.extras.reservationFaqItineraryAAr} />
+              <Field name="reservationFaqItineraryAEn" label="جواب البرنامج بالإنجليزية" defaultValue={settings.extras.reservationFaqItineraryAEn} />
             </div>
           </div>
           <div className="text-sm sm:col-span-2">
