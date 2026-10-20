@@ -19,11 +19,10 @@ export function reservationFees(extras: SiteExtras): ReservationFees {
 }
 
 export function openServices(extras: SiteExtras): ReservationServices {
-  const keys = reservationKeys();
   return {
-    flight: extras.reservationFlightOn && Boolean(keys.duffel),
-    hotel: extras.reservationHotelOn && Boolean(keys.liteapi),
-    itinerary: extras.reservationItineraryOn && Boolean(keys.gemini),
+    flight: extras.reservationFlightOn,
+    hotel: extras.reservationHotelOn,
+    itinerary: extras.reservationItineraryOn,
     insurance: extras.reservationInsuranceOn,
   };
 }
@@ -38,6 +37,10 @@ export async function createReservationQuote(raw: unknown) {
   if (blocked) return { ok: false as const, error: "One of the selected services is not available." };
   const amount = reservationTotal(input.services, reservationFees(settings.extras));
   if (amount <= 0) return { ok: false as const, error: "Choose a service with a price." };
+  const keys = reservationKeys();
+  if (input.services.flight && !keys.duffel) return { ok: false as const, error: "Flight holds are not available." };
+  if (input.services.hotel && !keys.liteapi) return { ok: false as const, error: "Hotel booking is not available." };
+  if (input.services.itinerary && !keys.gemini) return { ok: false as const, error: "The itinerary service is not available." };
   try {
     const quote: { flight?: HoldableFlight; hotel?: HoldableHotel } = {};
     if (input.services.flight) quote.flight = await findHoldableFlight(input);
