@@ -650,6 +650,14 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
       offerUrl: String(fd.get("offerUrl") || ""),
       offerNoteEn: String(fd.get("offerNoteEn") || ""),
       offerNoteAr: String(fd.get("offerNoteAr") || ""),
+      reservationFlightFee: Number(fd.get("reservationFlightFee") || 0),
+      reservationHotelFee: Number(fd.get("reservationHotelFee") || 0),
+      reservationItineraryFee: Number(fd.get("reservationItineraryFee") || 0),
+      reservationInsuranceFee: Number(fd.get("reservationInsuranceFee") || 0),
+      reservationFlightOn: fd.get("reservationFlightOn") === "on",
+      reservationHotelOn: fd.get("reservationHotelOn") === "on",
+      reservationItineraryOn: fd.get("reservationItineraryOn") === "on",
+      reservationInsuranceOn: fd.get("reservationInsuranceOn") === "on",
     },
   });
   if (storedLogo !== undefined) await storeBrandLogo(storedLogo);

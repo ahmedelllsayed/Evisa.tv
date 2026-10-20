@@ -69,6 +69,14 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
           <Field name="offerUrl" label="رابط العرض (يبقى مخفياً إن تُرك فارغاً)" defaultValue={settings.extras.offerUrl} />
           <Field name="offerNoteEn" label="ملاحظة العرض بالإنجليزية" defaultValue={settings.extras.offerNoteEn} />
           <Field name="offerNoteAr" label="ملاحظة العرض بالعربية" defaultValue={settings.extras.offerNoteAr} />
+          <Field name="reservationFlightFee" label="سعر حجز الطيران المبدئي (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationFlightFee)} />
+          <Field name="reservationHotelFee" label="سعر حجز الفندق المبدئي (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationHotelFee)} />
+          <Field name="reservationItineraryFee" label="سعر برنامج الرحلة (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationItineraryFee)} />
+          <Field name="reservationInsuranceFee" label="سعر استخراج التأمين (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationInsuranceFee)} />
+          <Check name="reservationFlightOn" label="إظهار حجز الطيران" defaultChecked={settings.extras.reservationFlightOn} />
+          <Check name="reservationHotelOn" label="إظهار حجز الفندق" defaultChecked={settings.extras.reservationHotelOn} />
+          <Check name="reservationItineraryOn" label="إظهار برنامج الرحلة" defaultChecked={settings.extras.reservationItineraryOn} />
+          <Check name="reservationInsuranceOn" label="إظهار استخراج التأمين" defaultChecked={settings.extras.reservationInsuranceOn} />
           <div className="text-sm sm:col-span-2">
             <Field name="paymobIntegrationId" label="رقم تكامل Paymob" defaultValue={settings.extras.paymobIntegrationId} />
             <p className="mt-1 text-xs text-muted-ink">من نفس حساب Paymob المرتبط بمفتاح السر: Developers ثم Payment Integrations. اختر تكامل البطاقة الأونلاين فقط.</p>

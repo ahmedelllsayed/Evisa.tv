@@ -8,6 +8,8 @@ export const funnelEvents = [
   "payment_success",
   "payment_failed",
   "offer_click",
+  "view_reservations",
+  "reservation_payment_success",
 ] as const;
 
 export type FunnelEvent = (typeof funnelEvents)[number];

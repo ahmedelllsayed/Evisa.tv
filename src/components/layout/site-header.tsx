@@ -22,6 +22,7 @@ const menuGroups = [
     title: "footer.tools",
     links: [
       ["/tools/visa-requirements", "footer.requirements"],
+      ["/travel-reservations", "footer.reservations"],
       ["/tools/visa-photo-maker", "footer.photo"],
       ["/passport-index", "footer.passport"],
       ["/emergency-care", "footer.emergency"],

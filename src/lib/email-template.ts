@@ -340,3 +340,31 @@ export function manualCustomerMail(input: {
   );
   return { subject: text.subject, text: plain, html };
 }
+
+export function reservationReadyMail(input: {
+  locale: string;
+  brand: string;
+  tagline?: string;
+  supportEmail?: string;
+  reference: string;
+  href: string;
+}) {
+  const arabic = isArabicLocale(input.locale);
+  const subject = arabic ? `ملفات الحجز ${input.reference}` : `Your reservation files · ${input.reference}`;
+  const intro = arabic
+    ? "تم تجهيز ملفات الحجز وهي مرفقة بهذه الرسالة. يمكنك تنزيلها أيضاً من الرابط."
+    : "Your reservation files are attached. You can also download them from the link.";
+  const html = shell(
+    input.locale,
+    input.brand,
+    intro,
+    `<h1 style="margin:0;font-size:26px;line-height:1.25;font-weight:700;">${esc(arabic ? "ملفات الحجز جاهزة" : "Your files are ready")}</h1>
+     <p style="margin:12px 0 0;font-size:14px;line-height:1.65;color:#3b3b3b;">${esc(intro)}</p>
+     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
+       ${row(arabic ? "رقم الطلب" : "Reference", input.reference)}
+     </table>
+     ${button(input.href, arabic ? "عرض الطلب" : "View the order")}`,
+    { tagline: input.tagline, email: input.supportEmail },
+  );
+  return { subject, text: [intro, input.reference, input.href].join("\n"), html };
+}

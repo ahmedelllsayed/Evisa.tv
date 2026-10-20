@@ -30,6 +30,14 @@ export type SiteExtras = {
   offerUrl: string;
   offerNoteEn: string;
   offerNoteAr: string;
+  reservationFlightFee: number;
+  reservationHotelFee: number;
+  reservationItineraryFee: number;
+  reservationInsuranceFee: number;
+  reservationFlightOn: boolean;
+  reservationHotelOn: boolean;
+  reservationItineraryOn: boolean;
+  reservationInsuranceOn: boolean;
 };
 
 export type SiteSettings = {
@@ -78,7 +86,21 @@ export function defaultExtras(): SiteExtras {
     offerUrl: "",
     offerNoteEn: "",
     offerNoteAr: "",
+    reservationFlightFee: 499,
+    reservationHotelFee: 399,
+    reservationItineraryFee: 199,
+    reservationInsuranceFee: 149,
+    reservationFlightOn: true,
+    reservationHotelOn: true,
+    reservationItineraryOn: true,
+    reservationInsuranceOn: true,
   };
+}
+
+function fee(value: unknown, fallback: number) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 100000) return fallback;
+  return Math.round(n);
 }
 
 function readExtras(value: unknown): SiteExtras {
@@ -101,6 +123,14 @@ function readExtras(value: unknown): SiteExtras {
     offerUrl: safePublicUrl(String(raw.offerUrl ?? "")),
     offerNoteEn: String(raw.offerNoteEn ?? "").trim().slice(0, 180),
     offerNoteAr: String(raw.offerNoteAr ?? "").trim().slice(0, 180),
+    reservationFlightFee: fee(raw.reservationFlightFee, base.reservationFlightFee),
+    reservationHotelFee: fee(raw.reservationHotelFee, base.reservationHotelFee),
+    reservationItineraryFee: fee(raw.reservationItineraryFee, base.reservationItineraryFee),
+    reservationInsuranceFee: fee(raw.reservationInsuranceFee, base.reservationInsuranceFee),
+    reservationFlightOn: raw.reservationFlightOn ?? base.reservationFlightOn,
+    reservationHotelOn: raw.reservationHotelOn ?? base.reservationHotelOn,
+    reservationItineraryOn: raw.reservationItineraryOn ?? base.reservationItineraryOn,
+    reservationInsuranceOn: raw.reservationInsuranceOn ?? base.reservationInsuranceOn,
   };
 }
 

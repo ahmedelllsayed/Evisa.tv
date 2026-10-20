@@ -15,6 +15,7 @@ export async function Footer({ locale }: { locale: string }) {
   const hidden = new Set([...unpublished, ...empty]);
   const toolLinks = [
     { href: "/tools/visa-requirements", label: t(locale, "footer.requirements") },
+    { href: "/travel-reservations", label: t(locale, "footer.reservations") },
     { href: "/tools/visa-photo-maker", label: t(locale, "footer.photo") },
     { href: "/passport-index", label: t(locale, "footer.passport") },
     { href: "/emergency-care", label: t(locale, "footer.emergency") },

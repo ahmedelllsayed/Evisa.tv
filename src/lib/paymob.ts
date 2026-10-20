@@ -2,6 +2,8 @@ import "server-only";
 import { serverEnv } from "@/lib/env";
 import { applyPaymobCallback } from "@/lib/data/applications";
 import { paymobSignatureMatches } from "@/lib/paymob-hmac";
+import { applyTravelOrderCallback } from "@/lib/reservations/callback";
+import { isTravelMerchantOrder } from "@/lib/reservations/pricing";
 
 type Billing = { name: string; email: string; phone: string };
 
@@ -147,7 +149,7 @@ async function applyTransaction(obj: Record<string, unknown>) {
   const currency = text(obj.currency).trim().toUpperCase();
   if (!paymobOrderId || !Number.isFinite(amountCents)) return { ok: false as const, status: 400 };
   const source = obj.source_data && typeof obj.source_data === "object" ? (obj.source_data as Record<string, unknown>) : {};
-  const result = await applyPaymobCallback({
+  const payload = {
     merchantOrderId,
     paymobOrderId,
     transactionId: text(obj.id),
@@ -156,8 +158,13 @@ async function applyTransaction(obj: Record<string, unknown>) {
     success: obj.success === true || obj.success === "true",
     pending: obj.pending === true || obj.pending === "true",
     refunded: obj.is_refunded === true || obj.is_refunded === "true",
-    method: text(source.type) || text(obj["source_data.type"]) || null,
-  });
+  };
+  const result = isTravelMerchantOrder(merchantOrderId)
+    ? await applyTravelOrderCallback(payload)
+    : await applyPaymobCallback({
+        ...payload,
+        method: text(source.type) || text(obj["source_data.type"]) || null,
+      });
   if (!result.ok) return { ok: false as const, status: result.reason === "missing" ? 404 : 409 };
   return { ok: true as const, status: 200 };
 }

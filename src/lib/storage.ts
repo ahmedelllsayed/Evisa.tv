@@ -73,6 +73,17 @@ export async function copyStoredFile(userId: string, applicationId: string, sour
   return storeFile(userId, applicationId, file);
 }
 
+export async function storeBytes(storagePath: string, bytes: Buffer, mime: string) {
+  await remember(storagePath, bytes, mime);
+  if (supabaseEnabled) {
+    const { error } = await createSupabaseAdminClient()
+      .storage.from(BUCKET)
+      .upload(storagePath, bytes, { contentType: mime, upsert: true });
+    if (error) throw new Error(error.message);
+  }
+  return storagePath;
+}
+
 export async function removeFile(storagePath: string) {
   await sql("delete from stored_files where path = $1", [storagePath]);
   if (supabaseEnabled) {
