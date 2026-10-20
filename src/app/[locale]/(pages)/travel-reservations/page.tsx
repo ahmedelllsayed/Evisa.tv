@@ -3,6 +3,7 @@ import { getSiteSettings } from "@/lib/data/settings";
 import { isArabicLocale } from "@/lib/i18n";
 import type { Page } from "@/lib/page";
 import { openServices, reservationFees } from "@/lib/reservations/quote";
+import type { ReservationServices } from "@/lib/reservations/pricing";
 import { localizedMetadata } from "@/lib/seo";
 
 export async function generateMetadata({ params }: Page) {
@@ -20,9 +21,16 @@ export default async function TravelReservationsPage({ params }: Page) {
   const { locale } = await params;
   const settings = await getSiteSettings();
   const open = openServices(settings.extras);
+  const extras = settings.extras;
+  const arabic = isArabicLocale(locale);
+  const faqs: { service: keyof ReservationServices; q: string; a: string }[] = [
+    { service: "flight", q: arabic ? extras.reservationFaqFlightQAr : extras.reservationFaqFlightQEn, a: arabic ? extras.reservationFaqFlightAAr : extras.reservationFaqFlightAEn },
+    { service: "hotel", q: arabic ? extras.reservationFaqHotelQAr : extras.reservationFaqHotelQEn, a: arabic ? extras.reservationFaqHotelAAr : extras.reservationFaqHotelAEn },
+    { service: "itinerary", q: arabic ? extras.reservationFaqItineraryQAr : extras.reservationFaqItineraryQEn, a: arabic ? extras.reservationFaqItineraryAAr : extras.reservationFaqItineraryAEn },
+  ];
   return (
-    <div className={isArabicLocale(locale) ? "surface-ar" : ""}>
-      <ReservationForm locale={locale} arabic={isArabicLocale(locale)} fees={reservationFees(settings.extras)} open={open} />
+    <div className={arabic ? "surface-ar" : ""}>
+      <ReservationForm locale={locale} arabic={arabic} fees={reservationFees(extras)} open={open} faqs={faqs} />
     </div>
   );
 }

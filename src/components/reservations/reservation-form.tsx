@@ -29,11 +29,13 @@ export function ReservationForm({
   arabic,
   fees,
   open,
+  faqs,
 }: {
   locale: string;
   arabic: boolean;
   fees: ReservationFees;
   open: ReservationServices;
+  faqs: { service: ServiceKey; q: string; a: string }[];
 }) {
   const copy = arabic ? ar : en;
   const [services, setServices] = useState<ReservationServices>(() => {
@@ -73,6 +75,7 @@ export function ReservationForm({
   const needsRoute = services.flight || services.hotel || services.itinerary;
   const needsPeople = services.flight || services.hotel;
   const cards = (Object.keys(open) as ServiceKey[]).filter((key) => open[key]);
+  const visibleFaq = faqs.filter((item) => services[item.service] && item.q && item.a);
 
   function toggle(key: ServiceKey) {
     setQuote(null);
@@ -284,14 +287,16 @@ export function ReservationForm({
             ))}
           </section>
 
-          <section className="mt-10 space-y-3">
-            {copy.faq.map((item) => (
-              <details key={item.q} className="rounded-2xl border border-line bg-white px-5 py-4">
-                <summary className="cursor-pointer font-medium">{item.q}</summary>
-                <p className="mt-2 text-sm leading-relaxed text-body">{item.a}</p>
-              </details>
-            ))}
-          </section>
+          {visibleFaq.length > 0 && (
+            <section className="mt-10 space-y-3">
+              {visibleFaq.map((item) => (
+                <details key={item.service} className="rounded-2xl border border-line bg-white px-5 py-4">
+                  <summary className="cursor-pointer font-medium">{item.q}</summary>
+                  <p className="mt-2 text-sm leading-relaxed text-body">{item.a}</p>
+                </details>
+              ))}
+            </section>
+          )}
         </div>
 
         <div className="fixed inset-x-0 bottom-24 z-40 border-t border-line bg-white/95 px-5 py-3 backdrop-blur lg:hidden">
@@ -490,11 +495,6 @@ const en = {
     { title: "Check", body: "We look up a real published flight and hotel before any payment." },
     { title: "Receive", body: "After payment, the files are created and emailed." },
   ],
-  faq: [
-    { q: "Is this an airline ticket?", a: "No. It is the published schedule for the dates you chose. It does not create a booking with the airline." },
-    { q: "Is the hotel reserved?", a: "No. The file shows a real property and its published rate. It is not a reservation." },
-    { q: "What if nothing is available?", a: "We do not take payment. Try different dates." },
-  ],
 };
 
 const ar = {
@@ -553,10 +553,5 @@ const ar = {
     { title: "اختر", body: "طيران أو فندق أو برنامج رحلة، أو الجميع. تظهر فقط الخانات المطلوبة." },
     { title: "افحص", body: "نبحث عن رحلة منشورة وفندق منشور قبل أي دفع." },
     { title: "استلم", body: "بعد الدفع تُنشأ الملفات وتصل على البريد." },
-  ],
-  faq: [
-    { q: "هل هذه تذكرة طيران؟", a: "لا. الملف جدول الرحلة المنشور للتواريخ التي اخترتها، ولا ينشئ حجزاً عند شركة الطيران." },
-    { q: "هل الفندق محجوز؟", a: "لا. الملف يعرض فندقاً حقيقياً وسعره المنشور، وليس حجزاً." },
-    { q: "ماذا لو لم توجد نتيجة؟", a: "لا نأخذ المبلغ. جرّب تواريخ أخرى." },
   ],
 };

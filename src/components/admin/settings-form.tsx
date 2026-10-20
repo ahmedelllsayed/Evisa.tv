@@ -69,12 +69,34 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
           <Field name="offerUrl" label="رابط العرض (يبقى مخفياً إن تُرك فارغاً)" defaultValue={settings.extras.offerUrl} />
           <Field name="offerNoteEn" label="ملاحظة العرض بالإنجليزية" defaultValue={settings.extras.offerNoteEn} />
           <Field name="offerNoteAr" label="ملاحظة العرض بالعربية" defaultValue={settings.extras.offerNoteAr} />
-          <Field name="reservationFlightFee" label="سعر ملف الطيران (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationFlightFee)} />
-          <Field name="reservationHotelFee" label="سعر ملف الفندق (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationHotelFee)} />
-          <Field name="reservationItineraryFee" label="سعر برنامج الرحلة (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationItineraryFee)} />
-          <Check name="reservationFlightOn" label="إظهار الطيران" defaultChecked={settings.extras.reservationFlightOn} />
-          <Check name="reservationHotelOn" label="إظهار الفندق" defaultChecked={settings.extras.reservationHotelOn} />
-          <Check name="reservationItineraryOn" label="إظهار برنامج الرحلة" defaultChecked={settings.extras.reservationItineraryOn} />
+          <div className="space-y-4 rounded-2xl border border-line p-4 sm:col-span-2">
+            <h2 className="text-base font-semibold">الحجوزات المبدئية</h2>
+            <p className="text-xs text-muted-ink">سعر كل خدمة وسؤال واحد يظهر للعميل فقط عندما يختار هذه الخدمة. اترك السؤال فارغاً لإخفائه.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field name="reservationFlightFee" label="سعر الطيران (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationFlightFee)} />
+              <Check name="reservationFlightOn" label="إظهار الطيران" defaultChecked={settings.extras.reservationFlightOn} />
+              <Field name="reservationFaqFlightQAr" label="سؤال الطيران بالعربية" defaultValue={settings.extras.reservationFaqFlightQAr} />
+              <Field name="reservationFaqFlightQEn" label="سؤال الطيران بالإنجليزية" defaultValue={settings.extras.reservationFaqFlightQEn} />
+              <Field name="reservationFaqFlightAAr" label="جواب الطيران بالعربية" defaultValue={settings.extras.reservationFaqFlightAAr} className="sm:col-span-2" />
+              <Field name="reservationFaqFlightAEn" label="جواب الطيران بالإنجليزية" defaultValue={settings.extras.reservationFaqFlightAEn} className="sm:col-span-2" />
+            </div>
+            <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
+              <Field name="reservationHotelFee" label="سعر الفندق (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationHotelFee)} />
+              <Check name="reservationHotelOn" label="إظهار الفندق" defaultChecked={settings.extras.reservationHotelOn} />
+              <Field name="reservationFaqHotelQAr" label="سؤال الفندق بالعربية" defaultValue={settings.extras.reservationFaqHotelQAr} />
+              <Field name="reservationFaqHotelQEn" label="سؤال الفندق بالإنجليزية" defaultValue={settings.extras.reservationFaqHotelQEn} />
+              <Field name="reservationFaqHotelAAr" label="جواب الفندق بالعربية" defaultValue={settings.extras.reservationFaqHotelAAr} className="sm:col-span-2" />
+              <Field name="reservationFaqHotelAEn" label="جواب الفندق بالإنجليزية" defaultValue={settings.extras.reservationFaqHotelAEn} className="sm:col-span-2" />
+            </div>
+            <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
+              <Field name="reservationItineraryFee" label="سعر برنامج الرحلة (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationItineraryFee)} />
+              <Check name="reservationItineraryOn" label="إظهار برنامج الرحلة" defaultChecked={settings.extras.reservationItineraryOn} />
+              <Field name="reservationFaqItineraryQAr" label="سؤال البرنامج بالعربية" defaultValue={settings.extras.reservationFaqItineraryQAr} />
+              <Field name="reservationFaqItineraryQEn" label="سؤال البرنامج بالإنجليزية" defaultValue={settings.extras.reservationFaqItineraryQEn} />
+              <Field name="reservationFaqItineraryAAr" label="جواب البرنامج بالعربية" defaultValue={settings.extras.reservationFaqItineraryAAr} className="sm:col-span-2" />
+              <Field name="reservationFaqItineraryAEn" label="جواب البرنامج بالإنجليزية" defaultValue={settings.extras.reservationFaqItineraryAEn} className="sm:col-span-2" />
+            </div>
+          </div>
           <div className="text-sm sm:col-span-2">
             <Field name="paymobIntegrationId" label="رقم تكامل Paymob" defaultValue={settings.extras.paymobIntegrationId} />
             <p className="mt-1 text-xs text-muted-ink">من نفس حساب Paymob المرتبط بمفتاح السر: Developers ثم Payment Integrations. اختر تكامل البطاقة الأونلاين فقط.</p>
