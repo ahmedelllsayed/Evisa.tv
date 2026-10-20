@@ -19,8 +19,12 @@ export async function buildItinerary(input: ReservationInput, place: string, hot
   if (!key) throw new Error("The itinerary service is not available.");
   const checkOut = input.returnDate || addIsoDays(input.departDate, 5);
   const days = Math.max(1, Math.min(21, nightsBetween(input.departDate, checkOut) + 1));
-  const prompt = `Write a simple first-person travel itinerary for a visa file. Destination: ${place}. Arrival ${input.departDate}, departure ${checkOut}. ${days} days. ${hotelName ? `The real hotel is ${hotelName}.` : "Use central " + place + " as the base."}
-Rules: English only. One short sentence each for morning, afternoon and evening. At most two real places a day. No invented places. No flight numbers, prices, or booking references. Day 1 mentions arrival. The last day mentions departure.
+  const hotelContext = hotelName
+    ? `A published hotel in the search is "${hotelName}". Use its area as the base. Do not say a reservation is confirmed.`
+    : `Use central ${place} as the base.`;
+  const prompt = `Write a simple first-person travel itinerary for a visa file. Destination: ${place}. Arrival ${input.departDate}, departure ${checkOut}. ${days} days.
+${hotelContext}
+Rules: English only. One short sentence each for morning, afternoon and evening. At most two real places a day. No invented places. No flight numbers, prices, confirmation numbers, or booking references. Day 1 mentions arrival. The last day mentions departure.
 JSON shape: {"destination": string, "overview": string, "days": [{"day": number, "date": "YYYY-MM-DD", "title": string, "morning": string, "afternoon": string, "evening": string}]}
 Produce exactly ${days} days starting ${input.departDate}.`;
   const response = await fetch(

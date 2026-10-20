@@ -17,11 +17,6 @@ const labels: Record<string, string> = {
   refunded: "مسترد",
 };
 
-function when(value: string | null) {
-  if (!value) return "—";
-  return value.slice(0, 16).replace("T", " ");
-}
-
 export const metadata = { title: "حجز مبدئي" };
 
 export default async function AdminReservationPage({ params }: Page<{ locale: string; id: string }>) {
@@ -39,10 +34,6 @@ export default async function AdminReservationPage({ params }: Page<{ locale: st
         <div><dt className="text-muted-ink">المسافر</dt><dd>{order.input.firstName} {order.input.lastName}</dd></div>
         <div><dt className="text-muted-ink">الخدمات</dt><dd>{services || "—"}</dd></div>
         <div><dt className="text-muted-ink">المبلغ</dt><dd>{order.amount} {order.currency}</dd></div>
-        <div><dt className="text-muted-ink">رقم حجز الطيران</dt><dd>{order.flightPnr || "—"}</dd></div>
-        <div><dt className="text-muted-ink">ينتهي الحجز</dt><dd>{when(order.flightHoldUntil)}</dd></div>
-        <div><dt className="text-muted-ink">تأكيد الفندق</dt><dd>{order.hotelConfirmation || "—"}</dd></div>
-        <div><dt className="text-muted-ink">آخر إلغاء مجاني</dt><dd>{when(order.hotelCancelUntil)}</dd></div>
         {order.error && <div className="sm:col-span-2"><dt className="text-muted-ink">ملاحظة</dt><dd>{order.error}</dd></div>}
       </dl>
       <div className="mt-4 space-y-2">
@@ -53,7 +44,7 @@ export default async function AdminReservationPage({ params }: Page<{ locale: st
       <div className="mt-6 flex flex-wrap gap-2">
         <form action={adminRetryReservation.bind(null, locale, order.id)}><button className={adminPrimaryClass}>إعادة المحاولة</button></form>
         <form action={adminResendReservation.bind(null, locale, order.id)}><button className={adminGhostClass}>إعادة إرسال البريد</button></form>
-        <form action={adminCancelReservation.bind(null, locale, order.id)}><button className={adminDangerClass}>إلغاء عند المزوّد</button></form>
+        <form action={adminCancelReservation.bind(null, locale, order.id)}><button className={adminDangerClass}>إلغاء الطلب</button></form>
         <form action={adminRefundReservation.bind(null, locale, order.id)}><button className={adminDangerClass}>استرداد</button></form>
       </div>
     </AdminPage>

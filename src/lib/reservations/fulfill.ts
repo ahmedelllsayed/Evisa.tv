@@ -3,16 +3,15 @@ import { one, sql } from "@/lib/data/db";
 import { sendMail } from "@/lib/email";
 import { reservationReadyMail } from "@/lib/email-template";
 import { getSiteSettings } from "@/lib/data/settings";
+import { env } from "@/lib/env";
 import { readStoredBytes, storeBytes } from "@/lib/storage";
 import { getAirport } from "./airports";
-import { cancelFlightHold, createFlightHold, findHoldableFlight } from "./duffel";
-import { fetchExistingPolicy } from "./insurance";
+import { agodaCabin, searchAgodaFlight, searchAgodaHotel, type FlightSchedule, type HotelQuote } from "./agoda";
+import { addIsoDays } from "./limits";
 import { buildItinerary } from "./itinerary";
-import { bookRefundableHotel, cancelHotelBooking, findRefundableHotel } from "./liteapi";
 import { getTravelOrder, type TravelFile, type TravelOrder } from "./orders";
 import { flightPdf, hotelPdf, itineraryPdf } from "./pdf";
 import { travelToken } from "./token";
-import { env } from "@/lib/env";
 
 async function saveFile(order: TravelOrder, kind: TravelFile["kind"], name: string, bytes: Buffer) {
   const path = `reservations/${order.id}/${name}`;
@@ -31,53 +30,36 @@ export async function fulfillTravelOrder(id: string) {
   if (!order) return;
   const input = order.input;
   const files = [...order.files];
-  const person = { title: input.title, firstName: input.firstName, lastName: input.lastName, passportNo: input.passportNo };
+  const person = `${input.title.toUpperCase()} ${input.firstName} ${input.lastName}`;
   try {
-    if (input.services.flight && !order.flightPnr) {
-      const flight = order.quote.flight?.expiresAt && new Date(order.quote.flight.expiresAt).getTime() > Date.now()
-        ? order.quote.flight
-        : await findHoldableFlight(input);
-      const held = await createFlightHold(input, flight);
-      await sql(
-        `update travel_orders set flight_pnr = $2, flight_order_id = $3, flight_hold_until = $4, quote = $5::jsonb, updated_at = now() where id = $1`,
-        [order.id, held.pnr, held.orderId, held.holdUntil, JSON.stringify({ ...order.quote, flight })],
-      );
-      order.flightPnr = held.pnr;
-      order.flightOrderId = held.orderId;
-      order.flightHoldUntil = held.holdUntil;
-      files.push(await saveFile(order, "flight", "flight-reservation.pdf", flightPdf({
-        reference: order.reference,
-        people: [person, ...input.companions.map((item) => ({ title: item.title, firstName: item.firstName, lastName: item.lastName }))],
-        pnr: held.pnr,
-        status: "Reserved — not ticketed",
-        holdUntil: held.holdUntil,
-        legs: flight.legs,
-      })));
+    const destination = input.toIata ? await getAirport(input.toIata) : null;
+    const origin = input.fromIata ? await getAirport(input.fromIata) : null;
+    let flight: FlightSchedule | undefined = order.quote.flight;
+    let hotel: HotelQuote | undefined = order.quote.hotel;
+    const checkOut = input.returnDate || addIsoDays(input.departDate, 5);
+    if (input.services.flight && !files.some((file) => file.kind === "flight")) {
+      if (!flight?.legs.length) {
+        if (!origin || !destination) throw new Error("Choose the departure airport");
+        const cabin = agodaCabin(input.cabin);
+        const outbound = await searchAgodaFlight(origin, destination, input.departDate, input.adults, cabin);
+        const inbound = input.tripType === "roundtrip" && input.returnDate
+          ? await searchAgodaFlight(destination, origin, input.returnDate, input.adults, cabin)
+          : undefined;
+        flight = { legs: [...outbound.legs, ...(inbound?.legs ?? [])], stopCount: outbound.stopCount };
+      }
+      files.push(await saveFile(order, "flight", "flight-schedule.pdf", flightPdf({ person, legs: flight.legs })));
     }
-    if (input.services.hotel && !order.hotelBookingId) {
-      const hotel = await findRefundableHotel(input);
-      const booked = await bookRefundableHotel(input, hotel);
-      await sql(
-        `update travel_orders set hotel_confirmation = $2, hotel_booking_id = $3, hotel_cancel_until = $4, updated_at = now() where id = $1`,
-        [order.id, booked.confirmation, booked.bookingId, hotel.cancelUntil],
-      );
-      order.hotelConfirmation = booked.confirmation;
-      files.push(await saveFile(order, "hotel", "hotel-reservation.pdf", hotelPdf({
-        person,
-        hotel,
-        confirmation: booked.confirmation,
-        cancelUntil: hotel.cancelUntil,
-      })));
+    if (input.services.hotel && !files.some((file) => file.kind === "hotel")) {
+      if (!hotel?.name) {
+        if (!destination) throw new Error("Destination and travel dates are required");
+        hotel = await searchAgodaHotel(destination.city, destination.country, input.departDate, checkOut, input.adults);
+      }
+      files.push(await saveFile(order, "hotel", "hotel-availability.pdf", hotelPdf({ person, hotel })));
     }
     if (input.services.itinerary && !files.some((file) => file.kind === "itinerary")) {
-      const destination = input.toIata ? await getAirport(input.toIata) : null;
       const place = destination ? `${destination.city}, ${destination.country}` : input.toIata;
-      const itinerary = await buildItinerary(input, place, order.quote.hotel?.name);
+      const itinerary = await buildItinerary(input, place, hotel?.name);
       files.push(await saveFile(order, "itinerary", "itinerary.pdf", itineraryPdf(itinerary)));
-    }
-    if (input.services.insurance && !files.some((file) => file.kind === "insurance")) {
-      const policy = await fetchExistingPolicy(input.policyNo, input.passportNo);
-      files.push(await saveFile(order, "insurance", "insurance.pdf", policy));
     }
     await sql(`update travel_orders set files = $2::jsonb, updated_at = now() where id = $1`, [order.id, JSON.stringify(files)]);
     const settings = await getSiteSettings();
@@ -105,12 +87,7 @@ export async function fulfillTravelOrder(id: string) {
     await sql(`update travel_orders set files = $2::jsonb, status = 'needs_attention', error = $3, updated_at = now() where id = $1`, [
       order.id,
       JSON.stringify(files),
-      error instanceof Error ? error.message : "The reservation could not be completed.",
+      error instanceof Error ? error.message : "The files could not be prepared.",
     ]);
   }
-}
-
-export async function cancelTravelBookings(order: TravelOrder) {
-  if (order.flightOrderId) await cancelFlightHold(order.flightOrderId);
-  if (order.hotelBookingId) await cancelHotelBooking(order.hotelBookingId);
 }

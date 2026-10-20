@@ -11,8 +11,8 @@ export async function generateMetadata({ params }: Page) {
     en: "Travel reservations",
     ar: "حجوزات مبدئية",
   }, {
-    en: "Hold a real flight or a refundable hotel for a visa file, then receive the documents by email.",
-    ar: "حجز طيران معلّق أو فندق قابل للإلغاء لملف التأشيرة، ثم تصلك الملفات بالبريد.",
+    en: "Look up a published flight and hotel, then receive the files by email after payment.",
+    ar: "جدول رحلة وفندق منشوران، ثم تصلك الملفات بالبريد بعد الدفع.",
   });
 }
 

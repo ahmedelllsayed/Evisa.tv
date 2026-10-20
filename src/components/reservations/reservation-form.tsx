@@ -50,12 +50,9 @@ export function ReservationForm({
   const [title, setTitle] = useState<"mr" | "mrs" | "ms">("mr");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [gender, setGender] = useState<"m" | "f">("m");
-  const [bornOn, setBornOn] = useState("");
   const [passportNo, setPassportNo] = useState("");
   const [nationality, setNationality] = useState("EG");
   const [adults, setAdults] = useState(1);
-  const [companions, setCompanions] = useState<{ title: "mr" | "mrs" | "ms"; firstName: string; lastName: string; gender: "m" | "f"; bornOn: string }[]>([]);
   const [fromIata, setFromIata] = useState("");
   const [fromLabel, setFromLabel] = useState("");
   const [toIata, setToIata] = useState("");
@@ -64,7 +61,6 @@ export function ReservationForm({
   const [departDate, setDepartDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [cabin, setCabin] = useState<"economy" | "premium_economy" | "business" | "first">("economy");
-  const [policyNo, setPolicyNo] = useState("");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState<"check" | "pay" | null>(null);
@@ -84,9 +80,7 @@ export function ReservationForm({
   }
 
   function setAdultCount(next: number) {
-    const count = Math.min(4, Math.max(1, next));
-    setAdults(count);
-    setCompanions((current) => Array.from({ length: count - 1 }, (_, index) => current[index] ?? { title: "mr", firstName: "", lastName: "", gender: "m", bornOn: "" }));
+    setAdults(Math.min(4, Math.max(1, next)));
     setQuote(null);
   }
 
@@ -101,19 +95,19 @@ export function ReservationForm({
       title,
       firstName,
       lastName,
-      gender,
-      bornOn,
+      gender: "m",
+      bornOn: "",
       passportNo,
       nationality,
       adults: needsPeople ? adults : 1,
-      companions: needsPeople ? companions : [],
+      companions: [],
       fromIata: services.flight ? fromIata : "",
       toIata: needsRoute ? toIata : "",
       tripType,
       departDate: needsRoute ? departDate : "",
       returnDate: services.hotel || tripType === "roundtrip" ? returnDate : "",
       cabin,
-      policyNo,
+      policyNo: "",
     });
     setPending(null);
     if (!result.ok) {
@@ -243,36 +237,11 @@ export function ReservationForm({
                     <Field label={copy.nationality} value={nationality} onChange={(value) => setNationality(value.toUpperCase().slice(0, 2))} />
                   </motion.div>
                 )}
-                {services.flight && (
-                  <motion.div key="identity" layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="grid gap-3 overflow-hidden sm:grid-cols-2">
-                    <label className="text-sm">
-                      {copy.gender}
-                      <select className={fieldClass} value={gender} onChange={(event) => setGender(event.target.value as typeof gender)}>
-                        <option value="m">{copy.male}</option>
-                        <option value="f">{copy.female}</option>
-                      </select>
-                    </label>
-                    <Field label={copy.born} type="date" value={bornOn} onChange={setBornOn} />
-                  </motion.div>
-                )}
-                {(services.flight || services.insurance) && (
+                {(services.flight || services.hotel) && (
                   <motion.div key="passport" layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
                     <Field label={copy.passport} value={passportNo} onChange={setPassportNo} />
                   </motion.div>
                 )}
-                {services.insurance && (
-                  <motion.div key="policy" layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-                    <Field label={copy.policy} value={policyNo} onChange={setPolicyNo} />
-                  </motion.div>
-                )}
-                {needsPeople && companions.map((person, index) => (
-                  <motion.div key={`companion-${index}`} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid gap-3 rounded-2xl bg-[#f6f7fb] p-4 sm:grid-cols-2">
-                    <p className="text-sm font-medium sm:col-span-2">{copy.traveller} {index + 2}</p>
-                    <Field label={copy.first} value={person.firstName} onChange={(value) => setCompanions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, firstName: value } : item))} />
-                    <Field label={copy.last} value={person.lastName} onChange={(value) => setCompanions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, lastName: value } : item))} />
-                    <Field label={copy.born} type="date" value={person.bornOn} onChange={(value) => setCompanions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, bornOn: value } : item))} />
-                  </motion.div>
-                ))}
               </AnimatePresence>
 
               {error && <p className="text-sm text-[#b42318]">{error}</p>}
@@ -437,6 +406,8 @@ function Checking({ label }: { label: string }) {
 
 function translate(message: string, arabic: boolean) {
   if (!arabic) return message;
+  if (message.startsWith("No published flight was found")) return "لا توجد رحلة منشورة في هذا التاريخ. جرّب تاريخاً أو مطاراً آخر.";
+  if (message.startsWith("No published hotel was found")) return "لا يوجد فندق منشور في هذه التواريخ. جرّب تاريخاً آخر.";
   const known: Record<string, string> = {
     "Enter a phone number": "أدخل رقم الهاتف",
     "Enter the name as in the passport": "أدخل الاسم كما في الجواز",
@@ -451,9 +422,9 @@ function translate(message: string, arabic: boolean) {
     "Choose a nearer departure date": "اختر تاريخ مغادرة أقرب",
     "The stay must be between 1 and 30 nights": "مدة الإقامة بين ليلة و30 ليلة",
     "One of the selected services is not available.": "إحدى الخدمات المختارة غير متاحة",
-    "Flight holds are not available.": "حجز الطيران غير متاح حالياً.",
-    "Hotel booking is not available.": "حجز الفندق غير متاح حالياً.",
+    "Flight and hotel search is not available.": "البحث عن الطيران والفندق غير متاح حالياً.",
     "The itinerary service is not available.": "برنامج الرحلة غير متاح حالياً.",
+    "No published flight was found from": "لا توجد رحلة منشورة في هذا التاريخ. جرّب تاريخاً آخر.",
     "Choose a service with a price.": "اختر خدمة لها سعر",
     "No airline can hold this route without immediate payment.": "لا توجد شركة طيران تحجز هذا المسار دون دفع فوري. جرّب تاريخاً آخر.",
     "No hotel with free cancellation was found for these dates.": "لا يوجد فندق بإلغاء مجاني في هذه التواريخ. جرّب تاريخاً آخر.",
@@ -464,8 +435,8 @@ function translate(message: string, arabic: boolean) {
 
 const en = {
   eyebrow: "For visa files",
-  hero: "A real reservation, held before you travel.",
-  heroBody: "Choose a flight hold, a refundable hotel, an itinerary, or an existing insurance policy. You pay the service fee first. The booking is created only after payment.",
+  hero: "Flight, hotel, and itinerary files for your visa.",
+  heroBody: "Choose a published flight schedule, a published hotel rate, an itinerary, or any combination. You pay the service fee first. The files are created only after payment.",
   egp: "EGP",
   details: "Traveller details",
   email: "Email",
@@ -503,33 +474,33 @@ const en = {
   serviceFee: "Service fee",
   check: "Check availability",
   checking: "Checking",
-  pay: "Pay and book",
+  pay: "Pay and receive the files",
   redirecting: "Opening payment",
   ready: "Available",
-  holdNote: "The airline hold stays unpaid. A hotel is booked only on a free-cancellation rate.",
-  services: { flight: "Flight hold", hotel: "Refundable hotel", itinerary: "Itinerary", insurance: "Insurance file" },
+  holdNote: "The files use the published flight and hotel found for these dates. They are not a ticket or a hotel reservation.",
+  services: { flight: "Flight", hotel: "Hotel", itinerary: "Itinerary", insurance: "Insurance" },
   serviceNotes: {
-    flight: "Real airline reference, not ticketed",
-    hotel: "Real confirmation, free to cancel",
+    flight: "Published schedule for your dates",
+    hotel: "Published hotel and rate",
     itinerary: "A day-by-day plan",
-    insurance: "An existing policy, fetched by number",
+    insurance: "",
   },
   steps: [
-    { title: "Choose", body: "Pick one service or several. The form shows only the fields that service needs." },
-    { title: "Check", body: "We look for a holdable flight or a refundable hotel before any payment." },
-    { title: "Receive", body: "After payment, the real booking is created and the files are emailed." },
+    { title: "Choose", body: "Pick a flight, a hotel, an itinerary, or all of them. Only the fields you need are shown." },
+    { title: "Check", body: "We look up a real published flight and hotel before any payment." },
+    { title: "Receive", body: "After payment, the files are created and emailed." },
   ],
   faq: [
-    { q: "Is the flight ticketed?", a: "No. It is a real hold with the airline reference and a hold-until date. It is not a ticket." },
-    { q: "Will the hotel charge me?", a: "The stay is booked on a rate that can be cancelled for free before the deadline shown in your file." },
+    { q: "Is this an airline ticket?", a: "No. It is the published schedule for the dates you chose. It does not create a booking with the airline." },
+    { q: "Is the hotel reserved?", a: "No. The file shows a real property and its published rate. It is not a reservation." },
     { q: "What if nothing is available?", a: "We do not take payment. Try different dates." },
   ],
 };
 
 const ar = {
   eyebrow: "لملف التأشيرة",
-  hero: "حجز حقيقي معلّق قبل السفر.",
-  heroBody: "اختر حجز طيران معلّقاً أو فندقاً قابلاً للإلغاء أو برنامج رحلة أو وثيقة تأمين موجودة. تدفع رسوم الخدمة أولاً، ولا يُنشأ الحجز إلا بعد الدفع.",
+  hero: "جدول طيران وفندق وبرنامج رحلة لملف التأشيرة.",
+  heroBody: "اختر جدول رحلة منشوراً أو فندقاً منشوراً أو برنامج رحلة، أو اجمع بينهم. تدفع رسوم الخدمة أولاً، ثم تُنشأ الملفات بعد الدفع.",
   egp: "جنيه",
   details: "بيانات المسافر",
   email: "البريد",
@@ -567,25 +538,25 @@ const ar = {
   serviceFee: "رسوم الخدمة",
   check: "فحص التوفر",
   checking: "جارٍ الفحص",
-  pay: "ادفع وأنشئ الحجز",
+  pay: "ادفع واستلم الملفات",
   redirecting: "جارٍ فتح الدفع",
   ready: "متاح",
-  holdNote: "حجز الطيران معلّق وغير مدفوع. الفندق يُحجز فقط بسعر يمكن إلغاؤه مجاناً.",
-  services: { flight: "حجز طيران", hotel: "فندق قابل للإلغاء", itinerary: "برنامج الرحلة", insurance: "ملف التأمين" },
+  holdNote: "الملفات تعرض الرحلة والفندق المنشورين لهذه التواريخ. ليست تذكرة ولا حجز فندق.",
+  services: { flight: "طيران", hotel: "فندق", itinerary: "برنامج الرحلة", insurance: "تأمين" },
   serviceNotes: {
-    flight: "رقم حجز حقيقي من شركة الطيران، دون تذكرة",
-    hotel: "رقم تأكيد حقيقي، وإلغاء مجاني",
+    flight: "جدول رحلة منشور لتواريخك",
+    hotel: "فندق وسعر منشوران",
     itinerary: "خطة يوم بيوم",
-    insurance: "وثيقة موجودة تُستخرج برقمها",
+    insurance: "",
   },
   steps: [
-    { title: "اختر", body: "خدمة واحدة أو أكثر. تظهر فقط الخانات التي تحتاجها الخدمة." },
-    { title: "افحص", body: "نبحث عن رحلة تقبل الحجز المعلّق أو فندق بإلغاء مجاني قبل أي دفع." },
-    { title: "استلم", body: "بعد الدفع يُنشأ الحجز الحقيقي وتصل الملفات على البريد." },
+    { title: "اختر", body: "طيران أو فندق أو برنامج رحلة، أو الجميع. تظهر فقط الخانات المطلوبة." },
+    { title: "افحص", body: "نبحث عن رحلة منشورة وفندق منشور قبل أي دفع." },
+    { title: "استلم", body: "بعد الدفع تُنشأ الملفات وتصل على البريد." },
   ],
   faq: [
-    { q: "هل التذكرة صادرة؟", a: "لا. الحجز معلّق برقم حقيقي وموعد انتهاء، من غير إصدار تذكرة." },
-    { q: "هل يُخصم ثمن الفندق؟", a: "الإقامة على سعر يمكن إلغاؤه مجاناً قبل الموعد المكتوب في الملف." },
-    { q: "ماذا لو لم يوجد حجز؟", a: "لا نأخذ المبلغ. جرّب تواريخ أخرى." },
+    { q: "هل هذه تذكرة طيران؟", a: "لا. الملف جدول الرحلة المنشور للتواريخ التي اخترتها، ولا ينشئ حجزاً عند شركة الطيران." },
+    { q: "هل الفندق محجوز؟", a: "لا. الملف يعرض فندقاً حقيقياً وسعره المنشور، وليس حجزاً." },
+    { q: "ماذا لو لم توجد نتيجة؟", a: "لا نأخذ المبلغ. جرّب تواريخ أخرى." },
   ],
 };

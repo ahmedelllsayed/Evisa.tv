@@ -58,17 +58,8 @@ export const reservationInput = z
     if (value.services.hotel && !value.returnDate) {
       ctx.addIssue({ code: "custom", message: "Choose the hotel checkout date", path: ["returnDate"] });
     }
-    if (value.services.flight && !value.passportNo) {
-      ctx.addIssue({ code: "custom", message: "Passport number is required for a flight hold", path: ["passportNo"] });
-    }
-    if (value.services.flight && !value.bornOn) {
-      ctx.addIssue({ code: "custom", message: "Date of birth is required for a flight hold", path: ["bornOn"] });
-    }
-    if ((value.services.flight || value.services.hotel) && value.companions.length !== value.adults - 1) {
-      ctx.addIssue({ code: "custom", message: "Enter every traveller", path: ["companions"] });
-    }
-    if (value.services.insurance && (!value.policyNo || !value.passportNo)) {
-      ctx.addIssue({ code: "custom", message: "Policy number and passport number are required", path: ["policyNo"] });
+    if (value.services.insurance) {
+      ctx.addIssue({ code: "custom", message: "One of the selected services is not available.", path: ["services"] });
     }
     if (!value.departDate) return;
     const horizon = nightsBetween(todayIso(), value.departDate);

@@ -9,7 +9,7 @@ import { reservationReadyMail } from "@/lib/email-template";
 import { getSiteSettings } from "@/lib/data/settings";
 import { env } from "@/lib/env";
 import { refundPaymob } from "@/lib/paymob";
-import { cancelTravelBookings, fulfillTravelOrder } from "@/lib/reservations/fulfill";
+import { fulfillTravelOrder } from "@/lib/reservations/fulfill";
 import { getTravelOrder } from "@/lib/reservations/orders";
 import { travelToken } from "@/lib/reservations/token";
 import { readStoredBytes } from "@/lib/storage";
@@ -64,7 +64,6 @@ export async function adminResendReservation(locale: string, id: string) {
 
 export async function adminCancelReservation(locale: string, id: string) {
   const order = await load(locale, id);
-  await cancelTravelBookings(order);
   await sql(`update travel_orders set status = 'cancelled', updated_at = now() where id = $1`, [id]);
   await recordAudit("reservation.cancel", id, order.reference);
   refresh(locale, id);

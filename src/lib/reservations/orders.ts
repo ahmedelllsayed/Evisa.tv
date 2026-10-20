@@ -1,8 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { json, one, sql } from "@/lib/data/db";
-import type { HoldableFlight } from "./duffel";
-import type { HoldableHotel } from "./liteapi";
+import type { FlightSchedule, HotelQuote } from "./agoda";
 import type { ReservationFees, ReservationServices } from "./pricing";
 import type { ReservationInput } from "./schema";
 
@@ -17,7 +16,7 @@ export type TravelOrder = {
   phone: string;
   services: ReservationServices;
   input: ReservationInput;
-  quote: { flight?: HoldableFlight; hotel?: HoldableHotel };
+  quote: { flight?: FlightSchedule; hotel?: HotelQuote };
   amount: number;
   currency: string;
   status: TravelStatus;
