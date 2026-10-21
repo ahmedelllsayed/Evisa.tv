@@ -50,6 +50,10 @@ export type SiteExtras = {
   reservationFaqItineraryAAr: string;
   reservationFaqItineraryQEn: string;
   reservationFaqItineraryAEn: string;
+  reservationFaqInsuranceQAr: string;
+  reservationFaqInsuranceAAr: string;
+  reservationFaqInsuranceQEn: string;
+  reservationFaqInsuranceAEn: string;
 };
 
 export type SiteSettings = {
@@ -118,6 +122,10 @@ export function defaultExtras(): SiteExtras {
     reservationFaqItineraryAAr: "بالإنجليزية، لملف التأشيرة.",
     reservationFaqItineraryQEn: "Which language is the itinerary?",
     reservationFaqItineraryAEn: "English, for the visa file.",
+    reservationFaqInsuranceQAr: "هل تُنشأ وثيقة جديدة؟",
+    reservationFaqInsuranceAAr: "لا. تُستخرج وثيقتك الموجودة برقم الوثيقة ورقم الجواز.",
+    reservationFaqInsuranceQEn: "Is a new policy created?",
+    reservationFaqInsuranceAEn: "No. Your existing policy is fetched by its number and your passport number.",
   };
 }
 
@@ -172,6 +180,10 @@ function readExtras(value: unknown): SiteExtras {
     reservationFaqItineraryAAr: clip(raw.reservationFaqItineraryAAr, base.reservationFaqItineraryAAr, 400),
     reservationFaqItineraryQEn: clip(raw.reservationFaqItineraryQEn, base.reservationFaqItineraryQEn, 160),
     reservationFaqItineraryAEn: clip(raw.reservationFaqItineraryAEn, base.reservationFaqItineraryAEn, 400),
+    reservationFaqInsuranceQAr: clip(raw.reservationFaqInsuranceQAr, base.reservationFaqInsuranceQAr, 160),
+    reservationFaqInsuranceAAr: clip(raw.reservationFaqInsuranceAAr, base.reservationFaqInsuranceAAr, 400),
+    reservationFaqInsuranceQEn: clip(raw.reservationFaqInsuranceQEn, base.reservationFaqInsuranceQEn, 160),
+    reservationFaqInsuranceAEn: clip(raw.reservationFaqInsuranceAEn, base.reservationFaqInsuranceAEn, 400),
   };
 }
 

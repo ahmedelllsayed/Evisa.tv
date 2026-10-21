@@ -96,6 +96,14 @@ export function SettingsForm({ locale, settings }: { locale: string; settings: S
               <Field name="reservationFaqItineraryAAr" label="جواب البرنامج بالعربية" defaultValue={settings.extras.reservationFaqItineraryAAr} />
               <Field name="reservationFaqItineraryAEn" label="جواب البرنامج بالإنجليزية" defaultValue={settings.extras.reservationFaqItineraryAEn} />
             </div>
+            <div className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
+              <Field name="reservationInsuranceFee" label="سعر استخراج التأمين (جنيه)" type="number" min="0" defaultValue={String(settings.extras.reservationInsuranceFee)} />
+              <Check name="reservationInsuranceOn" label="إظهار التأمين" defaultChecked={settings.extras.reservationInsuranceOn} />
+              <Field name="reservationFaqInsuranceQAr" label="سؤال التأمين بالعربية" defaultValue={settings.extras.reservationFaqInsuranceQAr} />
+              <Field name="reservationFaqInsuranceQEn" label="سؤال التأمين بالإنجليزية" defaultValue={settings.extras.reservationFaqInsuranceQEn} />
+              <Field name="reservationFaqInsuranceAAr" label="جواب التأمين بالعربية" defaultValue={settings.extras.reservationFaqInsuranceAAr} />
+              <Field name="reservationFaqInsuranceAEn" label="جواب التأمين بالإنجليزية" defaultValue={settings.extras.reservationFaqInsuranceAEn} />
+            </div>
           </div>
           <div className="text-sm sm:col-span-2">
             <Field name="paymobIntegrationId" label="رقم تكامل Paymob" defaultValue={settings.extras.paymobIntegrationId} />

@@ -9,6 +9,7 @@ import { getAirport } from "./airports";
 import { agodaCabin, searchAgodaFlight, searchAgodaHotel, type FlightSchedule, type HotelQuote } from "./agoda";
 import { addIsoDays } from "./limits";
 import { buildItinerary } from "./itinerary";
+import { fetchExistingPolicy } from "./insurance";
 import { getTravelOrder, type TravelFile, type TravelOrder } from "./orders";
 import { flightPdf, hotelPdf, itineraryPdf } from "./pdf";
 import { travelToken } from "./token";
@@ -60,6 +61,10 @@ export async function fulfillTravelOrder(id: string) {
       const place = destination ? `${destination.city}, ${destination.country}` : input.toIata;
       const itinerary = await buildItinerary(input, place, hotel?.name);
       files.push(await saveFile(order, "itinerary", "itinerary.pdf", itineraryPdf(itinerary)));
+    }
+    if (input.services.insurance && !files.some((file) => file.kind === "insurance")) {
+      const policy = await fetchExistingPolicy(input.policyNo, input.passportNo);
+      files.push(await saveFile(order, "insurance", "insurance.pdf", policy));
     }
     await sql(`update travel_orders set files = $2::jsonb, updated_at = now() where id = $1`, [order.id, JSON.stringify(files)]);
     const settings = await getSiteSettings();

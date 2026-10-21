@@ -27,6 +27,7 @@ export default async function TravelReservationsPage({ params }: Page) {
     { service: "flight", q: arabic ? extras.reservationFaqFlightQAr : extras.reservationFaqFlightQEn, a: arabic ? extras.reservationFaqFlightAAr : extras.reservationFaqFlightAEn },
     { service: "hotel", q: arabic ? extras.reservationFaqHotelQAr : extras.reservationFaqHotelQEn, a: arabic ? extras.reservationFaqHotelAAr : extras.reservationFaqHotelAEn },
     { service: "itinerary", q: arabic ? extras.reservationFaqItineraryQAr : extras.reservationFaqItineraryQEn, a: arabic ? extras.reservationFaqItineraryAAr : extras.reservationFaqItineraryAEn },
+    { service: "insurance", q: arabic ? extras.reservationFaqInsuranceQAr : extras.reservationFaqInsuranceQEn, a: arabic ? extras.reservationFaqInsuranceAAr : extras.reservationFaqInsuranceAEn },
   ];
   return (
     <div className={arabic ? "surface-ar" : ""}>

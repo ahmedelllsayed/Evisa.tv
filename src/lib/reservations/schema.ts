@@ -58,8 +58,8 @@ export const reservationInput = z
     if (value.services.hotel && !value.returnDate) {
       ctx.addIssue({ code: "custom", message: "Choose the hotel checkout date", path: ["returnDate"] });
     }
-    if (value.services.insurance) {
-      ctx.addIssue({ code: "custom", message: "One of the selected services is not available.", path: ["services"] });
+    if (value.services.insurance && (!value.policyNo || !value.passportNo)) {
+      ctx.addIssue({ code: "custom", message: "Policy number and passport number are required", path: ["policyNo"] });
     }
     if (!value.departDate) return;
     const horizon = nightsBetween(todayIso(), value.departDate);

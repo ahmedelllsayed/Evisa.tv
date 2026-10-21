@@ -63,6 +63,7 @@ export function ReservationForm({
   const [departDate, setDepartDate] = useState("");
   const [returnDate, setReturnDate] = useState("");
   const [cabin, setCabin] = useState<"economy" | "premium_economy" | "business" | "first">("economy");
+  const [policyNo, setPolicyNo] = useState("");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState<"check" | "pay" | null>(null);
@@ -110,7 +111,7 @@ export function ReservationForm({
       departDate: needsRoute ? departDate : "",
       returnDate: services.hotel || tripType === "roundtrip" ? returnDate : "",
       cabin,
-      policyNo: "",
+      policyNo,
     });
     setPending(null);
     if (!result.ok) {
@@ -240,9 +241,14 @@ export function ReservationForm({
                     <Field label={copy.nationality} value={nationality} onChange={(value) => setNationality(value.toUpperCase().slice(0, 2))} />
                   </motion.div>
                 )}
-                {(services.flight || services.hotel) && (
+                {(services.flight || services.hotel || services.insurance) && (
                   <motion.div key="passport" layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
                     <Field label={copy.passport} value={passportNo} onChange={setPassportNo} />
+                  </motion.div>
+                )}
+                {services.insurance && (
+                  <motion.div key="policy" layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
+                    <Field label={copy.policy} value={policyNo} onChange={(value) => { setPolicyNo(value); setQuote(null); }} />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -423,6 +429,8 @@ function translate(message: string, arabic: boolean) {
     "Passport number is required for a flight hold": "رقم الجواز مطلوب لحجز الطيران",
     "Date of birth is required for a flight hold": "تاريخ الميلاد مطلوب لحجز الطيران",
     "Enter every traveller": "أدخل بيانات كل المسافرين",
+    "The insurance policy could not be found.": "لم يُعثر على وثيقة التأمين. راجع رقم الوثيقة ورقم الجواز.",
+    "The insurance file was not a PDF.": "ملف التأمين ليس ملفاً صالحاً.",
     "Policy number and passport number are required": "رقم الوثيقة ورقم الجواز مطلوبان",
     "Choose a nearer departure date": "اختر تاريخ مغادرة أقرب",
     "The stay must be between 1 and 30 nights": "مدة الإقامة بين ليلة و30 ليلة",
@@ -440,8 +448,8 @@ function translate(message: string, arabic: boolean) {
 
 const en = {
   eyebrow: "For visa files",
-  hero: "Flight, hotel, and itinerary files for your visa.",
-  heroBody: "Choose a published flight schedule, a published hotel rate, an itinerary, or any combination. You pay the service fee first. The files are created only after payment.",
+  hero: "Flight, hotel, itinerary, and insurance files for your visa.",
+  heroBody: "Choose a published flight schedule, a published hotel rate, an itinerary, an existing insurance policy, or any combination. You pay the service fee first. The files are created only after payment.",
   egp: "EGP",
   details: "Traveller details",
   email: "Email",
@@ -488,10 +496,10 @@ const en = {
     flight: "Published schedule for your dates",
     hotel: "Published hotel and rate",
     itinerary: "A day-by-day plan",
-    insurance: "",
+    insurance: "An existing policy, fetched by its number",
   },
   steps: [
-    { title: "Choose", body: "Pick a flight, a hotel, an itinerary, or all of them. Only the fields you need are shown." },
+    { title: "Choose", body: "Pick a flight, a hotel, an itinerary, insurance, or all of them. Only the fields you need are shown." },
     { title: "Check", body: "We look up a real published flight and hotel before any payment." },
     { title: "Receive", body: "After payment, the files are created and emailed." },
   ],
@@ -499,8 +507,8 @@ const en = {
 
 const ar = {
   eyebrow: "لملف التأشيرة",
-  hero: "جدول طيران وفندق وبرنامج رحلة لملف التأشيرة.",
-  heroBody: "اختر جدول رحلة منشوراً أو فندقاً منشوراً أو برنامج رحلة، أو اجمع بينهم. تدفع رسوم الخدمة أولاً، ثم تُنشأ الملفات بعد الدفع.",
+  hero: "جدول طيران وفندق وبرنامج رحلة وتأمين لملف التأشيرة.",
+  heroBody: "اختر جدول رحلة منشوراً أو فندقاً منشوراً أو برنامج رحلة أو وثيقة تأمين موجودة، أو اجمع بينهم. تدفع رسوم الخدمة أولاً، ثم تُنشأ الملفات بعد الدفع.",
   egp: "جنيه",
   details: "بيانات المسافر",
   email: "البريد",
@@ -547,10 +555,10 @@ const ar = {
     flight: "جدول رحلة منشور لتواريخك",
     hotel: "فندق وسعر منشوران",
     itinerary: "خطة يوم بيوم",
-    insurance: "",
+    insurance: "وثيقة موجودة تُستخرج برقمها",
   },
   steps: [
-    { title: "اختر", body: "طيران أو فندق أو برنامج رحلة، أو الجميع. تظهر فقط الخانات المطلوبة." },
+    { title: "اختر", body: "طيران أو فندق أو برنامج رحلة أو تأمين، أو الجميع. تظهر فقط الخانات المطلوبة." },
     { title: "افحص", body: "نبحث عن رحلة منشورة وفندق منشور قبل أي دفع." },
     { title: "استلم", body: "بعد الدفع تُنشأ الملفات وتصل على البريد." },
   ],

@@ -670,6 +670,10 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
       reservationFaqItineraryAAr: String(fd.get("reservationFaqItineraryAAr") ?? ""),
       reservationFaqItineraryQEn: String(fd.get("reservationFaqItineraryQEn") ?? ""),
       reservationFaqItineraryAEn: String(fd.get("reservationFaqItineraryAEn") ?? ""),
+      reservationFaqInsuranceQAr: String(fd.get("reservationFaqInsuranceQAr") ?? current.extras.reservationFaqInsuranceQAr),
+      reservationFaqInsuranceAAr: String(fd.get("reservationFaqInsuranceAAr") ?? current.extras.reservationFaqInsuranceAAr),
+      reservationFaqInsuranceQEn: String(fd.get("reservationFaqInsuranceQEn") ?? current.extras.reservationFaqInsuranceQEn),
+      reservationFaqInsuranceAEn: String(fd.get("reservationFaqInsuranceAEn") ?? current.extras.reservationFaqInsuranceAEn),
     },
   });
   if (storedLogo !== undefined) await storeBrandLogo(storedLogo);

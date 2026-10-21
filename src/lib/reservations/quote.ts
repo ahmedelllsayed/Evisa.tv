@@ -5,6 +5,7 @@ import { addIsoDays } from "./limits";
 import { insertTravelOrder } from "./orders";
 import { reservationTotal, type ReservationFees, type ReservationServices } from "./pricing";
 import { reservationKeys } from "./keys";
+import { fetchExistingPolicy } from "./insurance";
 import { reservationInput } from "./schema";
 import type { SiteExtras } from "@/lib/data/settings";
 import { getSiteSettings } from "@/lib/data/settings";
@@ -14,7 +15,7 @@ export function reservationFees(extras: SiteExtras): ReservationFees {
     flight: extras.reservationFlightFee,
     hotel: extras.reservationHotelFee,
     itinerary: extras.reservationItineraryFee,
-    insurance: 0,
+    insurance: extras.reservationInsuranceFee,
   };
 }
 
@@ -23,14 +24,14 @@ export function openServices(extras: SiteExtras): ReservationServices {
     flight: extras.reservationFlightOn,
     hotel: extras.reservationHotelOn,
     itinerary: extras.reservationItineraryOn,
-    insurance: false,
+    insurance: extras.reservationInsuranceOn,
   };
 }
 
 export async function createReservationQuote(raw: unknown) {
   const parsed = reservationInput.safeParse(raw);
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Check the form." };
-  const input = { ...parsed.data, services: { ...parsed.data.services, insurance: false } };
+  const input = parsed.data;
   const settings = await getSiteSettings();
   const open = openServices(settings.extras);
   const blocked = (Object.keys(open) as (keyof ReservationServices)[]).find((key) => input.services[key] && !open[key]);
@@ -60,6 +61,7 @@ export async function createReservationQuote(raw: unknown) {
     if (input.services.hotel && destination) {
       quote.hotel = await searchAgodaHotel(destination.city, destination.country, input.departDate, checkOut, input.adults);
     }
+    if (input.services.insurance) await fetchExistingPolicy(input.policyNo, input.passportNo);
     const order = await insertTravelOrder(input, quote, amount, reservationFees(settings.extras));
     if (!order) return { ok: false as const, error: "The request could not be saved." };
     return {
