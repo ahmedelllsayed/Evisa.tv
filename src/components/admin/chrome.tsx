@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
-import { Reveal } from "@/components/motion/frame";
 import { cn } from "@/lib/utils";
 
-export const adminInputClass = "mt-1 h-10 w-full rounded-xl border border-line bg-white px-3 text-sm outline-none focus:border-brand-300";
-export const adminTextareaClass = "mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand-300";
-export const adminPrimaryClass = "h-10 rounded-full bg-brand px-5 text-sm font-medium text-white disabled:opacity-60";
-export const adminGhostClass = "h-10 rounded-full border border-line bg-white px-4 text-sm disabled:opacity-60";
-export const adminDangerClass = "h-10 rounded-full border border-red-200 bg-white px-4 text-sm text-red-700 disabled:opacity-60";
+export const adminInputClass = "mt-1.5 flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring";
+export const adminTextareaClass = "mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring";
+export const adminPrimaryClass = "inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50";
+export const adminGhostClass = "inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium disabled:opacity-50";
+export const adminDangerClass = "inline-flex h-9 items-center justify-center rounded-md border border-destructive/30 bg-background px-4 text-sm font-medium text-destructive disabled:opacity-50";
+export const adminThClass = "h-12 px-4 text-start align-middle text-sm font-medium text-muted-foreground";
+export const adminTdClass = "p-4 align-middle text-sm";
+export const adminTrClass = "border-b transition-colors last:border-0 hover:bg-muted/50";
 
 export function AdminPage({
   title,
@@ -20,26 +22,21 @@ export function AdminPage({
   children: ReactNode;
 }) {
   return (
-    <div>
-      <Reveal>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-[#16182b]">{title}</h1>
-            <span className="mt-3 block h-[3px] w-10 rounded-full bg-brand" />
-            {description && <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-ink">{description}</p>}
-          </div>
-          {action}
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          {description && <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>}
         </div>
-      </Reveal>
-      <Reveal delay={0.08} className="mt-6">
-        {children}
-      </Reveal>
+        {action}
+      </div>
+      {children}
     </div>
   );
 }
 
 export function AdminCard({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cn("rounded-2xl border border-line bg-white p-5", className)}>{children}</section>;
+  return <section className={cn("rounded-lg border bg-card text-card-foreground p-6", className)}>{children}</section>;
 }
 
 export function AdminError({ children }: { children: ReactNode }) {
@@ -47,7 +44,7 @@ export function AdminError({ children }: { children: ReactNode }) {
 }
 
 export function AdminEmpty({ children }: { children: ReactNode }) {
-  return <p className="rounded-2xl border border-dashed border-line px-5 py-10 text-center text-sm text-muted-ink">{children}</p>;
+  return <p className="rounded-lg border border-dashed px-5 py-10 text-center text-sm text-muted-foreground">{children}</p>;
 }
 
 export function MasterDetail({ list, children }: { list: ReactNode; children: ReactNode }) {
@@ -61,7 +58,7 @@ export function MasterDetail({ list, children }: { list: ReactNode; children: Re
 
 export function MasterList({ query, onQuery, placeholder, action, children }: { query: string; onQuery: (value: string) => void; placeholder: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-line bg-white p-2">
+    <div className="rounded-lg border bg-card p-2">
       <div className="flex gap-2 p-1">
         <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder={placeholder} className="h-9 min-w-0 flex-1 rounded-lg border border-line px-3 text-sm" />
         {action}
@@ -73,9 +70,9 @@ export function MasterList({ query, onQuery, placeholder, action, children }: { 
 
 export function MasterRow({ active, title, meta, onClick }: { active: boolean; title: string; meta?: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={cn("block w-full rounded-xl px-3 py-2 text-start", active ? "bg-brand-50 text-brand" : "hover:bg-surface")}>
-      <span className="block truncate text-sm font-medium">{title}</span>
-      {meta ? <span className={cn("mt-0.5 block truncate text-xs", active ? "text-brand/70" : "text-muted-ink")}>{meta}</span> : null}
+    <button type="button" onClick={onClick} className={cn("block w-full rounded-md px-3 py-2 text-start", active ? "bg-accent font-medium text-accent-foreground" : "hover:bg-accent")}>
+      <span className="block truncate text-sm">{title}</span>
+      {meta ? <span className="mt-0.5 block truncate text-xs text-muted-foreground">{meta}</span> : null}
     </button>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminAreaChart } from "@/components/admin/admin-charts";
 import { AdminCard, AdminPage } from "@/components/admin/chrome";
 import { requireAdmin } from "@/lib/auth";
 import { applicationStats, applicationsByDay, queueCounts } from "@/lib/data/applications";
@@ -13,7 +14,6 @@ export default async function AdminHome({ params }: Page) {
   const user = await requireAdmin(locale);
   const [counts, stats, days, optionRows] = await Promise.all([queueCounts(user.id), applicationStats(), applicationsByDay(), recentVisaOptionStats()]);
   const revenue = stats.reduce((sum, row) => sum + row.revenue, 0);
-  const max = Math.max(1, ...days.map((day) => day.n));
   const cards = [
     { href: "/admin/queue?filter=mine", label: "طلباتي", value: String(counts.mine) },
     { href: "/admin/queue?filter=unassigned", label: "غير معيّن", value: String(counts.unassigned) },
@@ -25,53 +25,49 @@ export default async function AdminHome({ params }: Page) {
   ];
   return (
     <AdminPage title="نظرة عامة" description="ابدأ من الطلبات التي تحتاج إجراءً، ثم افتح الطلب نفسه.">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
           <Link key={card.label} href={href(card.href, locale)}>
-            <AdminCard className="h-full transition-colors hover:border-brand">
-              <p className="text-sm text-muted-ink">{card.label}</p>
-              <p className="mt-2 font-display text-3xl font-semibold">{card.value}</p>
+            <AdminCard className="h-full transition-colors hover:bg-accent">
+              <p className="text-sm text-muted-foreground">{card.label}</p>
+              <p className="mt-2 text-3xl font-semibold tracking-tight">{card.value}</p>
             </AdminCard>
           </Link>
         ))}
       </div>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <AdminCard>
-          <p className="text-sm text-muted-ink">الإيرادات المسجّلة</p>
-          <p className="mt-2 font-display text-3xl font-semibold">{revenue.toLocaleString("ar-EG")}</p>
-          <ul className="mt-3 space-y-1 text-sm">
+          <p className="text-sm font-medium">الإيرادات المسجّلة</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">{revenue.toLocaleString("ar-EG")}</p>
+          <ul className="mt-4 space-y-2 text-sm">
             {stats.map((row) => (
               <li key={row.status} className="flex justify-between gap-3">
-                <span>{row.status}</span>
+                <span className="text-muted-foreground">{row.status}</span>
                 <span>{row.count}</span>
               </li>
             ))}
           </ul>
         </AdminCard>
         <AdminCard>
-          <p className="text-sm text-muted-ink">آخر 30 يوماً</p>
-          <ul className="mt-3 space-y-1">
-            {days.map((day) => (
-              <li key={day.day} className="flex items-center gap-2 text-xs">
-                <span className="w-20 shrink-0">{day.day.slice(5)}</span>
-                <span className="h-2 rounded-full bg-brand" style={{ width: `${Math.max(4, (day.n / max) * 100)}%` }} />
-                <span>{day.n}</span>
-              </li>
-            ))}
-          </ul>
+          <p className="text-sm font-medium">آخر 30 يوماً</p>
+          <div className="mt-4">
+            <AdminAreaChart data={days} />
+          </div>
         </AdminCard>
       </div>
-      <AdminCard className="mt-6">
-        <p className="text-sm text-muted-ink">الطلبات حسب نوع التأشيرة · آخر 30 يوماً</p>
+      <AdminCard className="p-0">
+        <div className="p-6 pb-0">
+          <p className="text-sm font-medium">الطلبات حسب نوع التأشيرة · آخر 30 يوماً</p>
+        </div>
         {optionRows.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-ink">لا توجد طلبات مرتبطة بنوع تأشيرة في هذه الفترة.</p>
+          <p className="p-6 text-sm text-muted-foreground">لا توجد طلبات مرتبطة بنوع تأشيرة في هذه الفترة.</p>
         ) : (
-          <ul className="mt-3 space-y-2 text-sm">
+          <ul className="mt-2 divide-y text-sm">
             {optionRows.map((row) => (
               <li key={row.id}>
-                <Link href={href(`/admin/applications?destination=${row.destinationSlug}&option=${row.id}`, locale)} className="flex items-center justify-between gap-3 hover:text-brand">
+                <Link href={href(`/admin/applications?destination=${row.destinationSlug}&option=${row.id}`, locale)} className="flex items-center justify-between gap-3 px-6 py-3 hover:bg-muted/50">
                   <span>{row.destinationName} · {row.labelAr || row.label}</span>
-                  <span className="text-muted-ink">{row.total} · مدفوع {row.paid}</span>
+                  <span className="text-muted-foreground">{row.total} · مدفوع {row.paid}</span>
                 </Link>
               </li>
             ))}
