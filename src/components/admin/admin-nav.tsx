@@ -17,7 +17,6 @@ const groups = [
       { href: "/admin/queue", label: "الطابور", badge: true },
       { href: "/admin/growth", label: "القياس" },
       { href: "/admin/applications", label: "الطلبات" },
-      { href: "/admin/reservations", label: "الحجوزات المبدئية" },
       { href: "/admin/messages", label: "الرسائل" },
     ],
   },

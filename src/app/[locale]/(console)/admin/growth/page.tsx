@@ -15,8 +15,6 @@ const labels: Record<string, string> = {
   payment_success: "نجاح الدفع",
   payment_failed: "فشل الدفع",
   offer_click: "نقرة العرض الإضافي",
-  view_reservations: "عرض الحجوزات المبدئية",
-  reservation_payment_success: "نجاح دفع الحجز المبدئي",
 };
 
 export const metadata = { title: "القياس" };

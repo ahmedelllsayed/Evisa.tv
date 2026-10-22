@@ -12,7 +12,6 @@ const paths = [
   "/wall-of-love",
   "/passport-index",
   "/tools/visa-requirements",
-  "/travel-reservations",
   "/tools/visa-photo-maker",
   "/transparency/refunds-policy",
   "/transparency/price-change-log",

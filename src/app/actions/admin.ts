@@ -650,30 +650,6 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
       offerUrl: String(fd.get("offerUrl") || ""),
       offerNoteEn: String(fd.get("offerNoteEn") || ""),
       offerNoteAr: String(fd.get("offerNoteAr") || ""),
-      reservationFlightFee: Number(fd.get("reservationFlightFee") || 0),
-      reservationHotelFee: Number(fd.get("reservationHotelFee") || 0),
-      reservationItineraryFee: Number(fd.get("reservationItineraryFee") || 0),
-      reservationInsuranceFee: fd.has("reservationInsuranceFee") ? Number(fd.get("reservationInsuranceFee") || 0) : current.extras.reservationInsuranceFee,
-      reservationFlightOn: fd.get("reservationFlightOn") === "on",
-      reservationHotelOn: fd.get("reservationHotelOn") === "on",
-      reservationItineraryOn: fd.get("reservationItineraryOn") === "on",
-      reservationInsuranceOn: fd.has("reservationInsuranceOn") ? fd.get("reservationInsuranceOn") === "on" : current.extras.reservationInsuranceOn,
-      reservationFaqFlightQAr: String(fd.get("reservationFaqFlightQAr") ?? ""),
-      reservationFaqFlightAAr: String(fd.get("reservationFaqFlightAAr") ?? ""),
-      reservationFaqFlightQEn: String(fd.get("reservationFaqFlightQEn") ?? ""),
-      reservationFaqFlightAEn: String(fd.get("reservationFaqFlightAEn") ?? ""),
-      reservationFaqHotelQAr: String(fd.get("reservationFaqHotelQAr") ?? ""),
-      reservationFaqHotelAAr: String(fd.get("reservationFaqHotelAAr") ?? ""),
-      reservationFaqHotelQEn: String(fd.get("reservationFaqHotelQEn") ?? ""),
-      reservationFaqHotelAEn: String(fd.get("reservationFaqHotelAEn") ?? ""),
-      reservationFaqItineraryQAr: String(fd.get("reservationFaqItineraryQAr") ?? ""),
-      reservationFaqItineraryAAr: String(fd.get("reservationFaqItineraryAAr") ?? ""),
-      reservationFaqItineraryQEn: String(fd.get("reservationFaqItineraryQEn") ?? ""),
-      reservationFaqItineraryAEn: String(fd.get("reservationFaqItineraryAEn") ?? ""),
-      reservationFaqInsuranceQAr: String(fd.get("reservationFaqInsuranceQAr") ?? current.extras.reservationFaqInsuranceQAr),
-      reservationFaqInsuranceAAr: String(fd.get("reservationFaqInsuranceAAr") ?? current.extras.reservationFaqInsuranceAAr),
-      reservationFaqInsuranceQEn: String(fd.get("reservationFaqInsuranceQEn") ?? current.extras.reservationFaqInsuranceQEn),
-      reservationFaqInsuranceAEn: String(fd.get("reservationFaqInsuranceAEn") ?? current.extras.reservationFaqInsuranceAEn),
     },
   });
   if (storedLogo !== undefined) await storeBrandLogo(storedLogo);
@@ -682,7 +658,6 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
   refresh(locale, "/admin/settings");
   refresh(locale, "/visa");
   refresh(locale, "/contact");
-  refresh(locale, "/travel-reservations");
   return { ok: true as const };
 }
 

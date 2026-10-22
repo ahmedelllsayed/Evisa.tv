@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: ["@electric-sql/pglite", "postgres", "jspdf"],
+  serverExternalPackages: ["@electric-sql/pglite", "postgres"],
   images: {
     qualities: [60, 75, 90],
     remotePatterns: [{ protocol: "https", hostname: "flagcdn.com" }],

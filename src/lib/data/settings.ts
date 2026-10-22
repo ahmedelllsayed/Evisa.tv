@@ -30,30 +30,6 @@ export type SiteExtras = {
   offerUrl: string;
   offerNoteEn: string;
   offerNoteAr: string;
-  reservationFlightFee: number;
-  reservationHotelFee: number;
-  reservationItineraryFee: number;
-  reservationInsuranceFee: number;
-  reservationFlightOn: boolean;
-  reservationHotelOn: boolean;
-  reservationItineraryOn: boolean;
-  reservationInsuranceOn: boolean;
-  reservationFaqFlightQAr: string;
-  reservationFaqFlightAAr: string;
-  reservationFaqFlightQEn: string;
-  reservationFaqFlightAEn: string;
-  reservationFaqHotelQAr: string;
-  reservationFaqHotelAAr: string;
-  reservationFaqHotelQEn: string;
-  reservationFaqHotelAEn: string;
-  reservationFaqItineraryQAr: string;
-  reservationFaqItineraryAAr: string;
-  reservationFaqItineraryQEn: string;
-  reservationFaqItineraryAEn: string;
-  reservationFaqInsuranceQAr: string;
-  reservationFaqInsuranceAAr: string;
-  reservationFaqInsuranceQEn: string;
-  reservationFaqInsuranceAEn: string;
 };
 
 export type SiteSettings = {
@@ -102,42 +78,7 @@ export function defaultExtras(): SiteExtras {
     offerUrl: "",
     offerNoteEn: "",
     offerNoteAr: "",
-    reservationFlightFee: 499,
-    reservationHotelFee: 399,
-    reservationItineraryFee: 199,
-    reservationInsuranceFee: 149,
-    reservationFlightOn: true,
-    reservationHotelOn: true,
-    reservationItineraryOn: true,
-    reservationInsuranceOn: true,
-    reservationFaqFlightQAr: "هل الملف تذكرة طيران؟",
-    reservationFaqFlightAAr: "لا. يعرض جدول الرحلة المنشور فقط.",
-    reservationFaqFlightQEn: "Is this an airline ticket?",
-    reservationFaqFlightAEn: "No. It shows the published schedule only.",
-    reservationFaqHotelQAr: "هل الفندق محجوز؟",
-    reservationFaqHotelAAr: "لا. يعرض فندقاً حقيقياً وسعره المنشور.",
-    reservationFaqHotelQEn: "Is the hotel booked?",
-    reservationFaqHotelAEn: "No. It shows a real property and its published rate.",
-    reservationFaqItineraryQAr: "بأي لغة يُكتب البرنامج؟",
-    reservationFaqItineraryAAr: "بالإنجليزية، لملف التأشيرة.",
-    reservationFaqItineraryQEn: "Which language is the itinerary?",
-    reservationFaqItineraryAEn: "English, for the visa file.",
-    reservationFaqInsuranceQAr: "هل تُنشأ وثيقة جديدة؟",
-    reservationFaqInsuranceAAr: "لا. تُستخرج وثيقتك الموجودة برقم الوثيقة ورقم الجواز.",
-    reservationFaqInsuranceQEn: "Is a new policy created?",
-    reservationFaqInsuranceAEn: "No. Your existing policy is fetched by its number and your passport number.",
   };
-}
-
-function clip(value: unknown, fallback: string, max: number) {
-  if (value === undefined || value === null) return fallback.slice(0, max);
-  return String(value).trim().slice(0, max);
-}
-
-function fee(value: unknown, fallback: number) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0 || n > 100000) return fallback;
-  return Math.round(n);
 }
 
 function readExtras(value: unknown): SiteExtras {
@@ -160,30 +101,6 @@ function readExtras(value: unknown): SiteExtras {
     offerUrl: safePublicUrl(String(raw.offerUrl ?? "")),
     offerNoteEn: String(raw.offerNoteEn ?? "").trim().slice(0, 180),
     offerNoteAr: String(raw.offerNoteAr ?? "").trim().slice(0, 180),
-    reservationFlightFee: fee(raw.reservationFlightFee, base.reservationFlightFee),
-    reservationHotelFee: fee(raw.reservationHotelFee, base.reservationHotelFee),
-    reservationItineraryFee: fee(raw.reservationItineraryFee, base.reservationItineraryFee),
-    reservationInsuranceFee: fee(raw.reservationInsuranceFee, base.reservationInsuranceFee),
-    reservationFlightOn: raw.reservationFlightOn ?? base.reservationFlightOn,
-    reservationHotelOn: raw.reservationHotelOn ?? base.reservationHotelOn,
-    reservationItineraryOn: raw.reservationItineraryOn ?? base.reservationItineraryOn,
-    reservationInsuranceOn: raw.reservationInsuranceOn ?? base.reservationInsuranceOn,
-    reservationFaqFlightQAr: clip(raw.reservationFaqFlightQAr, base.reservationFaqFlightQAr, 160),
-    reservationFaqFlightAAr: clip(raw.reservationFaqFlightAAr, base.reservationFaqFlightAAr, 400),
-    reservationFaqFlightQEn: clip(raw.reservationFaqFlightQEn, base.reservationFaqFlightQEn, 160),
-    reservationFaqFlightAEn: clip(raw.reservationFaqFlightAEn, base.reservationFaqFlightAEn, 400),
-    reservationFaqHotelQAr: clip(raw.reservationFaqHotelQAr, base.reservationFaqHotelQAr, 160),
-    reservationFaqHotelAAr: clip(raw.reservationFaqHotelAAr, base.reservationFaqHotelAAr, 400),
-    reservationFaqHotelQEn: clip(raw.reservationFaqHotelQEn, base.reservationFaqHotelQEn, 160),
-    reservationFaqHotelAEn: clip(raw.reservationFaqHotelAEn, base.reservationFaqHotelAEn, 400),
-    reservationFaqItineraryQAr: clip(raw.reservationFaqItineraryQAr, base.reservationFaqItineraryQAr, 160),
-    reservationFaqItineraryAAr: clip(raw.reservationFaqItineraryAAr, base.reservationFaqItineraryAAr, 400),
-    reservationFaqItineraryQEn: clip(raw.reservationFaqItineraryQEn, base.reservationFaqItineraryQEn, 160),
-    reservationFaqItineraryAEn: clip(raw.reservationFaqItineraryAEn, base.reservationFaqItineraryAEn, 400),
-    reservationFaqInsuranceQAr: clip(raw.reservationFaqInsuranceQAr, base.reservationFaqInsuranceQAr, 160),
-    reservationFaqInsuranceAAr: clip(raw.reservationFaqInsuranceAAr, base.reservationFaqInsuranceAAr, 400),
-    reservationFaqInsuranceQEn: clip(raw.reservationFaqInsuranceQEn, base.reservationFaqInsuranceQEn, 160),
-    reservationFaqInsuranceAEn: clip(raw.reservationFaqInsuranceAEn, base.reservationFaqInsuranceAEn, 400),
   };
 }
 
