@@ -34,6 +34,17 @@ async function resolveOwnedFile(storagePath: string, userId: string, admin: bool
     if (!app || (app.userId !== userId && !admin)) return "forbidden" as const;
     return { fileName: doc.fileName, mimeType: doc.mimeType };
   }
+  const answer = await one<{ file_name: string | null; file_mime: string | null; user_id: string }>(
+    `select aa.file_name, aa.file_mime, a.user_id
+     from application_answers aa
+     join applications a on a.id = aa.application_id
+     where aa.file_path = $1`,
+    [storagePath],
+  );
+  if (answer) {
+    if (String(answer.user_id) !== userId && !admin) return "forbidden" as const;
+    return { fileName: answer.file_name || "file", mimeType: answer.file_mime };
+  }
   const profileDoc = await getProfileDocumentByPath(storagePath);
   if (!profileDoc) return "missing" as const;
   if (!storagePath.startsWith(`${profileDoc.userId}/`)) return "forbidden" as const;

@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { adminAddEvent, adminDeclineRefund, adminDeleteIssuedVisa, adminPatchTraveler, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
+import { ApplicationAnswers } from "@/components/admin/application-answers";
 import { AdminCard, AdminEmpty, AdminPage, adminGhostClass, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
 import { StaffFollowUp } from "@/components/admin/staff-follow-up";
 import { statusLabels } from "@/components/admin/status";
 import { documentGaps } from "@/lib/application-rules";
 import { href } from "@/lib/href";
 import type { AccountRow } from "@/lib/data/users";
+import type { AnswerValue, Question } from "@/lib/questions";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Payment, Traveler } from "@/lib/types";
 import { docLabel, localizedPhrase } from "@/lib/localize";
 import { formatAt, formatMoney, processingLabel } from "@/lib/visa";
@@ -29,6 +31,7 @@ const statuses: ApplicationStatus[] = [
 const tabs = [
   ["travelers", "المسافرون"],
   ["documents", "المستندات"],
+  ["questions", "الأسئلة"],
   ["payment", "الدفع"],
   ["activity", "النشاط"],
 ] as const;
@@ -75,6 +78,9 @@ export function AdminApplicationDetail({
   payments,
   assignees,
   refundRequest = null,
+  questions = [],
+  answers = [],
+  missingQuestionIds = [],
 }: {
   locale: string;
   application: Application;
@@ -84,6 +90,9 @@ export function AdminApplicationDetail({
   payments: Payment[];
   assignees: AccountRow[];
   refundRequest?: { status: "open" | "approved" | "declined"; reason: string } | null;
+  questions?: Question[];
+  answers?: AnswerValue[];
+  missingQuestionIds?: string[];
 }) {
   const [pending, start] = useTransition();
   const [tab, setTab] = useState<Tab>("travelers");
@@ -95,7 +104,9 @@ export function AdminApplicationDetail({
   const gaps = documentGaps(application.documentsRequired, travelers, reviewDocs);
   const waitingReview = reviewDocs.some((document) => document.status === "uploaded");
   const paid = payments.some((payment) => payment.status === "paid");
-  const next = !application.assigneeId
+  const next = missingQuestionIds.length
+    ? "أكمل أسئلة الطلب الناقصة."
+    : !application.assigneeId
     ? "عيّن مسؤولًا عن هذا الطلب."
     : gaps.length || waitingReview
       ? "راجع المستندات المطلوبة."
@@ -118,6 +129,11 @@ export function AdminApplicationDetail({
             {(gaps.length || waitingReview) && (
               <button type="button" className={`${adminGhostClass} mt-3`} onClick={() => setTab("documents")}>
                 فتح المستندات
+              </button>
+            )}
+            {missingQuestionIds.length > 0 && (
+              <button type="button" className={`${adminGhostClass} mt-3`} onClick={() => setTab("questions")}>
+                فتح الأسئلة
               </button>
             )}
             <form
@@ -338,6 +354,17 @@ export function AdminApplicationDetail({
           )}
           {gaps.length > 0 && <p className="mt-3 text-sm text-red-600">لا يمكن نقل الطلب إلى «مُرسل للجهة» قبل اكتمال المستندات المطلوبة.</p>}
         </AdminCard>
+      )}
+
+      {tab === "questions" && (
+        <ApplicationAnswers
+          locale={locale}
+          applicationId={application.id}
+          reference={application.reference}
+          questions={questions}
+          answers={answers}
+          missingIds={missingQuestionIds}
+        />
       )}
 
       {tab === "payment" && (

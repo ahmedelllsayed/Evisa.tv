@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { QuestionnaireForm } from "@/components/apply/questionnaire-form";
 import { Heading, Swap, surfaceClass } from "@/components/motion/frame";
 import {
   deleteDocumentAction,
@@ -18,17 +19,25 @@ import { countries, countryName } from "@/lib/countries";
 import { href } from "@/lib/href";
 import { t, tf } from "@/lib/i18n";
 import { docHint, docLabel, localizedVisaLabel } from "@/lib/localize";
+import { isQuestionnaireComplete, type AnswerValue, type Question } from "@/lib/questions";
 import type { ProfileVault } from "@/lib/profile";
 import type { Application, ApplicationDocument, ApplicationStep, Traveler } from "@/lib/types";
 import { formatMoney, formatOrdinalShort } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
-const steps: { id: ApplicationStep; label: "apply.travelers" | "apply.documents" | "apply.review" | "apply.payment" }[] = [
+const flowSteps = [
   { id: "travelers", label: "apply.travelers" },
   { id: "documents", label: "apply.documents" },
+  { id: "questions", label: "apply.questions" },
   { id: "review", label: "apply.review" },
   { id: "payment", label: "apply.payment" },
-];
+] as const;
+
+function openingStep(step: ApplicationStep, hasQuestions: boolean, complete: boolean): ApplicationStep {
+  if (step === "done" || (step === "questions" && !hasQuestions)) return "review";
+  if (hasQuestions && !complete && (step === "review" || step === "payment")) return "questions";
+  return step;
+}
 
 type Draft = {
   id?: string;
@@ -73,6 +82,8 @@ export function ApplyWizard({
   travelers,
   documents,
   profile,
+  questions = [],
+  answers = [],
   countLocked = false,
 }: {
   locale: string;
@@ -80,10 +91,14 @@ export function ApplyWizard({
   travelers: Traveler[];
   documents: ApplicationDocument[];
   profile: ProfileVault | null;
+  questions?: Question[];
+  answers?: AnswerValue[];
   countLocked?: boolean;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<ApplicationStep>(application.step === "done" ? "review" : application.step);
+  const questionsComplete = isQuestionnaireComplete(questions, answers);
+  const steps = flowSteps.filter((item) => item.id !== "questions" || questions.length > 0);
+  const [step, setStep] = useState<ApplicationStep>(openingStep(application.step, questions.length > 0, questionsComplete));
   const [drafts, setDrafts] = useState<Draft[]>(travelers.length ? travelers.map(toDraft) : [draftFromProfile(profile)]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -107,6 +122,11 @@ export function ApplyWizard({
         <Heading title={t(locale, "apply.lockedTitle")} eyebrow={`${application.destinationName}${application.visaLabel ? ` · ${localizedVisaLabel(application, locale)}` : ""} · ${application.reference}`}>
         </Heading>
         <p className="mt-3 text-body">{t(locale, "apply.lockedBody")}</p>
+        {questions.length > 0 && !questionsComplete ? (
+          <Link href={`${href(`/account/applications/${application.id}`, locale)}#questions`} className="mt-4 block text-sm font-medium text-brand">
+            {t(locale, "account.questions")}
+          </Link>
+        ) : null}
         <Link
           href={href(`/account/applications/${application.id}`, locale)}
           className="mt-6 inline-flex h-12 items-center rounded-full bg-brand px-6 font-medium text-white"
@@ -268,18 +288,33 @@ export function ApplyWizard({
             onClick={() =>
               start(async () => {
                 if (gaps.length > 0) return;
-                const moved = await goToStepAction(locale, application.id, "review");
+                const next = questions.length ? "questions" : "review";
+                const moved = await goToStepAction(locale, application.id, next);
                 if (!moved.ok) {
                   setError(moved.error);
                   return;
                 }
-                setStep("review");
+                setStep(next);
               })
             }
           >
-            {t(locale, "apply.continueReview")}
+            {t(locale, questions.length ? "apply.continueQuestions" : "apply.continueReview")}
           </button>
         </section>
+      )}
+
+      {step === "questions" && questions.length > 0 && (
+        <QuestionnaireForm
+          locale={locale}
+          applicationId={application.id}
+          questions={questions}
+          answers={answers}
+          mode="wizard"
+          onContinue={() => {
+            setStep("review");
+            router.refresh();
+          }}
+        />
       )}
 
       {step === "review" && (
@@ -317,10 +352,16 @@ export function ApplyWizard({
               </li>
             ))}
           </ul>
+          {questions.length > 0 ? (
+            <div className="rounded-2xl border border-line p-4 text-sm">
+              <p className="font-medium">{t(locale, "apply.answers")}</p>
+              {!questionsComplete ? <p className="mt-2 text-red-600">{t(locale, "err.questions")}</p> : null}
+            </div>
+          ) : null}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || !questionsComplete}
             className="h-12 w-full rounded-full bg-[#ffd873] font-semibold text-black disabled:opacity-60"
             onClick={() =>
               start(async () => {
@@ -350,9 +391,10 @@ export function ApplyWizard({
           </div>
           <p className="text-body">{t(locale, "apply.finish")}</p>
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {!questionsComplete ? <p className="text-sm text-red-600">{t(locale, "err.questions")}</p> : null}
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || !questionsComplete}
             className="mt-4 h-12 rounded-full bg-brand px-6 font-medium text-white"
             onClick={() =>
               start(async () => {
