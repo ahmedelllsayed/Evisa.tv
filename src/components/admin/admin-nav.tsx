@@ -6,6 +6,7 @@ import {
   CalendarOff,
   CircleHelp,
   ClipboardList,
+  ListChecks,
   FileText,
   Globe2,
   LayoutDashboard,
@@ -42,6 +43,7 @@ const groups: { label: string; links: { href: string; label: string; icon: Lucid
     label: "المحتوى",
     links: [
       { href: "/admin/destinations", label: "الوجهات", icon: Map },
+      { href: "/admin/questions", label: "أسئلة الطلب", icon: ListChecks },
       { href: "/admin/events", label: "الفعاليات", icon: CalendarDays },
       { href: "/admin/holidays", label: "العطل", icon: CalendarOff },
       { href: "/admin/pages", label: "الصفحات", icon: FileText },

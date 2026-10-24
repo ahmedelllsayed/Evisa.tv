@@ -172,7 +172,7 @@ export type ApplicationStatus =
   | "cancelled"
   | "refunded";
 
-export type ApplicationStep = "travelers" | "documents" | "review" | "payment" | "done";
+export type ApplicationStep = "travelers" | "documents" | "questions" | "review" | "payment" | "done";
 
 export type Application = {
   id: string;

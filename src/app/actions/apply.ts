@@ -15,6 +15,7 @@ import {
   type TravelerInput,
 } from "@/lib/data/applications";
 import { attachProfileDocuments, getProfileDocumentByPath, getProfileVault, saveProfileDocument } from "@/lib/data/profile-vault";
+import { applicationQuestionsComplete } from "@/lib/data/questions";
 import { createCheckout } from "@/lib/payments";
 import { ALLOWED_TYPES, copyStoredFile, MAX_UPLOAD_BYTES, removeFile, storeFile } from "@/lib/storage";
 import type { Application, ApplicationStep } from "@/lib/types";
@@ -125,6 +126,9 @@ export async function goToStepAction(locale: string, applicationId: string, step
   const locked = lockedResult(app, locale);
   if (locked) return locked;
   if (step === "done") return { ok: false as const, error: t(locale, "err.step") };
+  if ((step === "review" || step === "payment") && !(await applicationQuestionsComplete(applicationId))) {
+    return { ok: false as const, error: t(locale, "err.questions") };
+  }
   const moved = await setStep(applicationId, step);
   if (!moved) return { ok: false as const, error: t(locale, "err.locked") };
   return { ok: true as const };
@@ -138,6 +142,9 @@ export async function startPaymentAction(locale: string, applicationId: string) 
   const required = app.documentsRequired.length ? app.documentsRequired : ["passport"];
   if (!travelers.length || documentGaps(required, travelers, documents).length) {
     return { ok: false as const, error: t(locale, "err.docsBeforePay") };
+  }
+  if (!(await applicationQuestionsComplete(app.id))) {
+    return { ok: false as const, error: t(locale, "err.questions") };
   }
   await setStep(app.id, "payment");
   const checkout = await createCheckout(app, locale, user);

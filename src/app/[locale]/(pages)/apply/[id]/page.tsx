@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ApplyWizard } from "@/components/apply/apply-wizard";
 import { requireUser } from "@/lib/auth";
 import { getApplication, listDocuments, listPayments, listTravelers } from "@/lib/data/applications";
+import { listAnswers, questionsForApplication } from "@/lib/data/questions";
 import { attachProfileDocuments, getProfileVault } from "@/lib/data/profile-vault";
 import type { Page } from "@/lib/page";
 
@@ -12,11 +13,13 @@ export default async function ApplyPage({ params }: Page<{ locale: string; id: s
   if (!application || (application.userId !== user.id && user.role !== "admin")) notFound();
   const reusable = application.userId === user.id && (application.status === "draft" || application.status === "payment_pending");
   if (reusable) await attachProfileDocuments(user.id, id);
-  const [travelers, documents, profile, payments] = await Promise.all([
+  const [travelers, documents, profile, payments, questions, answers] = await Promise.all([
     listTravelers(id),
     listDocuments(id),
     reusable ? getProfileVault(user.id) : Promise.resolve(null),
     listPayments(id),
+    questionsForApplication(id),
+    listAnswers(id),
   ]);
   const countLocked = payments.some((payment) => payment.status === "pending" || payment.status === "paid");
   return (
@@ -26,6 +29,8 @@ export default async function ApplyPage({ params }: Page<{ locale: string; id: s
       travelers={travelers}
       documents={documents}
       profile={profile}
+      questions={questions}
+      answers={answers}
       countLocked={countLocked}
     />
   );

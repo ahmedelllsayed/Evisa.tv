@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useLiveApplication } from "@/components/account/live-application";
+import { QuestionnaireForm } from "@/components/apply/questionnaire-form";
 import { requestRefundAction } from "@/app/actions/inbox";
 import { documentGaps, isPastGuarantee } from "@/lib/application-rules";
 import { href, visaHref } from "@/lib/href";
 import { isArabicLocale, t, type MessageKey } from "@/lib/i18n";
 import { nextStepText } from "@/lib/next-step";
 import { docLabel, localizedVisaLabel } from "@/lib/localize";
+import { canEditAnswers, type AnswerValue, type Question } from "@/lib/questions";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Traveler } from "@/lib/types";
 import { Heading, surfaceClass } from "@/components/motion/frame";
 import { formatAt, formatMoney } from "@/lib/visa";
@@ -60,6 +62,8 @@ export function ApplicationTracker({
   events,
   documents,
   travelers,
+  questions = [],
+  answers = [],
   refundStatus = null,
 }: {
   locale: string;
@@ -67,6 +71,8 @@ export function ApplicationTracker({
   events: ApplicationEvent[];
   documents: ApplicationDocument[];
   travelers: Traveler[];
+  questions?: Question[];
+  answers?: AnswerValue[];
   refundStatus?: "open" | "approved" | "declined" | null;
 }) {
   useLiveApplication(application.id);
@@ -159,6 +165,16 @@ export function ApplicationTracker({
           ))}
         </ul>
       )}
+      {questions.length > 0 ? (
+        <QuestionnaireForm
+          locale={locale}
+          applicationId={application.id}
+          questions={questions}
+          answers={answers}
+          mode="account"
+          locked={!canEditAnswers(application.status)}
+        />
+      ) : null}
       <ol className="relative mt-8 space-y-4">
         <span className="absolute top-2 bottom-2 start-[7px] w-[2px] rounded-full bg-[#e6e7f2]" />
         {events.map((e) => (
