@@ -2,6 +2,7 @@
 
 import { ChevronUp, LayoutGrid, Map as MapIcon, Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "@/components/brand/logo";
 import { PassportIcon, SearchIcon, ShieldCheckIcon, TicketsIcon } from "@/components/brand/icons";
@@ -9,7 +10,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { EventsPanel } from "@/components/home/events-panel";
 import { FilterBar } from "@/components/home/filter-bar";
 import { DestinationGrid } from "@/components/home/destination-card";
-import { MapView } from "@/components/home/map-view";
 import { CitizenshipButton } from "@/components/layout/citizenship-picker";
 import { LocaleSwitch } from "@/components/layout/locale-switch";
 import { UserMenu } from "@/components/layout/user-menu";
@@ -22,6 +22,11 @@ import type { SearchHit } from "@/lib/search";
 import type { Destination, Holiday, TravelEvent, User } from "@/lib/types";
 import { matchesFilters, type HomeFilters } from "@/lib/visa";
 import { cn } from "@/lib/utils";
+
+const MapView = dynamic(() => import("@/components/home/map-view").then((mod) => mod.MapView), {
+  ssr: false,
+  loading: () => <div className="flex h-full items-center justify-center text-sm text-muted-ink">Loading map...</div>,
+});
 
 const emptyFilters: HomeFilters = { delivery: "any", type: "any", documents: "any", before: null, query: "" };
 

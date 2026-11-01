@@ -55,7 +55,10 @@ export async function createPaymobIntention(input: {
     headers: { Authorization: `Token ${paymob.secretKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json().catch(() => null)) as {
+  const payload = (await response.json().catch((error) => {
+    console.error("[paymob] failed to parse the intention response", error);
+    return null;
+  })) as {
     client_secret?: string;
     intention_order_id?: number | string;
     detail?: string;
@@ -92,7 +95,8 @@ function transactionRecord(parsed: unknown): Record<string, unknown> | null {
   if (typeof wrapped === "string") {
     try {
       return asRecord(JSON.parse(wrapped));
-    } catch {
+    } catch (error) {
+      console.error("[paymob] failed to parse the wrapped transaction", error);
       return null;
     }
   }
@@ -122,7 +126,10 @@ async function paymobAuthToken() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ api_key: paymob.apiKey }),
   });
-  const token = (await auth.json().catch(() => null)) as { token?: string } | null;
+  const token = (await auth.json().catch((error) => {
+    console.error("[paymob] failed to parse the auth response", error);
+    return null;
+  })) as { token?: string } | null;
   if (!auth.ok || !token?.token) return null;
   return token.token;
 }
@@ -134,7 +141,10 @@ async function fetchPaymobTransaction(id: string) {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) return null;
-  const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  const body = (await response.json().catch((error) => {
+    console.error("[paymob] failed to parse the transaction response", error);
+    return null;
+  })) as Record<string, unknown> | null;
   if (!body || numericId(body.id) !== id) return null;
   return body;
 }
@@ -180,7 +190,10 @@ export async function handlePaymobWebhook(rawBody: string, hmac: string | null) 
 
   const id = numericId(obj?.id) || numericId(asRecord(parsed)?.id);
   if (id) {
-    const confirmed = await fetchPaymobTransaction(id).catch(() => null);
+    const confirmed = await fetchPaymobTransaction(id).catch((error) => {
+      console.error("[paymob] failed to confirm the transaction", error);
+      return null;
+    });
     if (confirmed) {
       console.error("[paymob] callback signature was rejected; applied the transaction confirmed by Paymob", id);
       return applyTransaction(confirmed);
