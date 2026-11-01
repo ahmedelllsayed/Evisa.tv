@@ -2,6 +2,7 @@ import { Cairo, Lato } from "next/font/google";
 import { AdminShell } from "@/components/admin/admin-nav";
 import { requireAdmin } from "@/lib/auth";
 import { opsCounts } from "@/lib/data/applications";
+import { currentUserHasPermission } from "@/lib/rbac";
 import type { Layout } from "@/lib/page";
 
 const cairo = Cairo({
@@ -21,10 +22,14 @@ const lato = Lato({
 export default async function AdminLayout({ children, params }: Layout) {
   const { locale } = await params;
   const user = await requireAdmin(locale);
-  const ops = await opsCounts();
+  const [ops, showStaff, showUsers] = await Promise.all([
+    opsCounts(),
+    currentUserHasPermission("staff", "view"),
+    currentUserHasPermission("users", "view"),
+  ]);
   return (
     <div dir="ltr" className={`${cairo.variable} ${lato.variable} admin-shell surface-ar min-h-svh`}>
-      <AdminShell locale={locale} attention={ops.attention} email={user.email}>
+      <AdminShell locale={locale} attention={ops.attention} email={user.email} showStaff={showStaff} showUsers={showUsers}>
         {children}
       </AdminShell>
     </div>

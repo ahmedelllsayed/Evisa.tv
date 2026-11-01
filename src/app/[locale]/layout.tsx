@@ -9,6 +9,7 @@ import { isLocale, siteConfig } from "@/config/site.config";
 import { getCurrentUser } from "@/lib/auth";
 import { getSiteSettings } from "@/lib/data/settings";
 import { isArabicLocale } from "@/lib/i18n";
+import { isStaffRole } from "@/lib/rbac-constants";
 import type { Layout } from "@/lib/page";
 
 export default async function LocaleLayout({ children, params }: Layout) {
@@ -18,7 +19,7 @@ export default async function LocaleLayout({ children, params }: Layout) {
   const path = headerStore.get("x-pathname") ?? "";
   const admin = path.includes("/admin");
   const arabic = isArabicLocale(locale);
-  const blocked = settings.extras.maintenance && !admin && user?.role !== "admin";
+  const blocked = settings.extras.maintenance && !admin && !isStaffRole(user?.role);
   return (
     <Providers locale={locale}>
       <LocaleHtml locale={locale} />

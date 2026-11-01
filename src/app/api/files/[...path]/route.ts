@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { isStaffRole } from "@/lib/rbac-constants";
 import { getApplication, getDocument } from "@/lib/data/applications";
 import { getProfileDocumentByPath } from "@/lib/data/profile-vault";
 import { readFileForDownload } from "@/lib/storage";
@@ -9,7 +10,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ path: string[]
   const storagePath = parts.map(decodeURIComponent).join("/");
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const owned = await resolveOwnedFile(storagePath, user.id, user.role === "admin");
+  const owned = await resolveOwnedFile(storagePath, user.id, isStaffRole(user.role));
   if (owned === "missing") return NextResponse.json({ error: "not found" }, { status: 404 });
   if (owned === "forbidden") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const file = await readFileForDownload(storagePath);

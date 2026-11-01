@@ -1,7 +1,7 @@
 import "server-only";
 import type { AdminPermissionAction, AdminPermissions, AdminResource, AdminRole } from "@/lib/types";
 import { getCurrentUser } from "@/lib/auth";
-import { one, sql } from "@/lib/data/db";
+import { json, one, sql } from "@/lib/data/db";
 
 /**
  * Role hierarchy (highest to lowest)
@@ -49,7 +49,7 @@ export function isSuperAdmin(role: AdminRole): boolean {
 export async function getRolePermissions(role: AdminRole): Promise<AdminPermissions | null> {
   const row = await one("SELECT resources FROM admin_permissions WHERE role = $1", [role]);
   if (!row) return null;
-  return row.resources as AdminPermissions;
+  return json<AdminPermissions | null>(row.resources, null);
 }
 
 /**

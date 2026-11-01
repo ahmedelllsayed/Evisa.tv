@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 export function Card({ className = "", ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={`rounded-xl border border-[#2A2F3C] bg-[#0F131C] ${className}`}
+      className={`rounded-xl border border-line bg-white ${className}`}
       {...props}
     />
   );
@@ -18,7 +18,7 @@ export function CardTitle({ className = "", ...props }: ComponentProps<"h3">) {
 }
 
 export function CardDescription({ className = "", ...props }: ComponentProps<"p">) {
-  return <p className={`text-sm text-[#8B92A4] ${className}`} {...props} />;
+  return <p className={`text-sm text-muted-ink ${className}`} {...props} />;
 }
 
 export function CardContent({ className = "", ...props }: ComponentProps<"div">) {

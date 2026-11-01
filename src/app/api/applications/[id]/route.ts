@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { isStaffRole } from "@/lib/rbac-constants";
 import { getApplication, listEvents } from "@/lib/data/applications";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -7,9 +8,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const app = await getApplication(id);
-  if (!app || (app.userId !== user.id && user.role !== "admin")) {
+  if (!app || (app.userId !== user.id && !isStaffRole(user.role))) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
-  const events = await listEvents(id, { publicOnly: user.role !== "admin" });
+  const events = await listEvents(id, { publicOnly: !isStaffRole(user.role) });
   return NextResponse.json({ application: app, events });
 }

@@ -1,4 +1,6 @@
 import "server-only";
+import { parseAdminRole } from "@/lib/rbac-constants";
+import type { AdminRole } from "@/lib/types";
 import { iso, one, sql } from "./db";
 
 export type AccountRow = {
@@ -6,7 +8,7 @@ export type AccountRow = {
   email: string;
   fullName: string | null;
   phone: string | null;
-  role: "user" | "admin";
+  role: AdminRole;
   banned: boolean;
   createdAt: string;
   applicationCount: number;
@@ -16,7 +18,7 @@ export type UserInput = {
   email: string;
   fullName: string;
   phone: string;
-  role: "user" | "admin";
+  role: AdminRole;
 };
 
 function toUser(row: Record<string, unknown>): AccountRow {
@@ -25,7 +27,7 @@ function toUser(row: Record<string, unknown>): AccountRow {
     email: String(row.email),
     fullName: (row.full_name as string) ?? null,
     phone: (row.phone as string) ?? null,
-    role: row.role === "admin" ? "admin" : "user",
+    role: parseAdminRole(row.role),
     banned: Boolean(row.banned),
     createdAt: iso(row.created_at),
     applicationCount: Number(row.application_count ?? 0),
@@ -40,7 +42,7 @@ function clean(input: UserInput) {
     email,
     fullName: input.fullName.trim() || null,
     phone: input.phone.trim() || null,
-    role: input.role === "admin" ? ("admin" as const) : ("user" as const),
+    role: parseAdminRole(input.role),
   };
 }
 
@@ -59,8 +61,8 @@ export async function listUsers(): Promise<AccountRow[]> {
 
 async function lastAdmin(id: string) {
   const current = await one<{ role: string }>("select role from profiles where id = $1", [id]);
-  if (current?.role !== "admin") return false;
-  const count = await one<{ count: number }>("select count(*)::int as count from profiles where role = 'admin'");
+  if (current?.role !== "admin" && current?.role !== "super_admin") return false;
+  const count = await one<{ count: number }>("select count(*)::int as count from profiles where role in ('admin', 'super_admin')");
   return (count?.count ?? 0) <= 1;
 }
 
@@ -74,7 +76,7 @@ export async function setUserBanned(id: string, banned: boolean) {
   return { ok: true as const };
 }
 
-export async function setUserRole(id: string, role: "user" | "admin") {
+export async function setUserRole(id: string, role: AdminRole) {
   if (role === "user" && (await lastAdmin(id))) {
     return { ok: false as const, error: "لا يمكن إزالة صلاحية آخر مدير." };
   }

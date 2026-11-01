@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { t } from "@/lib/i18n";
+import { isFullAdmin, isStaffRole } from "@/lib/rbac-constants";
 import { documentGaps } from "@/lib/application-rules";
 import { requireUser } from "@/lib/auth";
 import {
@@ -26,7 +27,7 @@ function canEdit(status: string) {
 async function owned(locale: string, id: string) {
   const user = await requireUser(locale, `/${locale}/apply/${id}`);
   const app = await getApplication(id);
-  if (!app || (app.userId !== user.id && user.role !== "admin")) redirect(`/${locale}/account`);
+  if (!app || (app.userId !== user.id && !isStaffRole(user.role))) redirect(`/${locale}/account`);
   return { user, app };
 }
 
@@ -105,13 +106,13 @@ export async function deleteDocumentAction(locale: string, applicationId: string
   const doc = docs.find((d) => d.id === documentId);
   if (!doc) return { ok: true as const };
   if (doc.kind === "issued_visa") {
-    if (user.role !== "admin") return { ok: false as const, error: t(locale, "err.issued") };
+    if (!isFullAdmin(user.role)) return { ok: false as const, error: t(locale, "err.issued") };
   } else {
     const locked = lockedResult(app, locale);
     if (locked) return locked;
   }
   try {
-    await deleteDocument(doc.id, { allowIssuedVisa: user.role === "admin" });
+    await deleteDocument(doc.id, { allowIssuedVisa: isFullAdmin(user.role) });
   } catch (error) {
     return { ok: false as const, error: error instanceof Error ? error.message : t(locale, "err.locked") };
   }

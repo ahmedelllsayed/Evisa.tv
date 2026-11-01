@@ -23,28 +23,6 @@ export type StaffProfile = {
   updatedAt: string;
 };
 
-export type AdminRole = "super_admin" | "admin" | "manager" | "operator" | "support" | "viewer" | "user";
-
-export type AdminPermissionAction = "view" | "create" | "edit" | "delete" | "assign" | "approve" | "refund" | "ban" | "change_role" | "publish" | "export" | "manage";
-
-export type AdminResource = "applications" | "users" | "content" | "settings" | "reports" | "audit" | "staff";
-
-export type AdminPermissions = {
-  [key in AdminResource]: AdminPermissionAction[];
-};
-
-export type StaffProfile = {
-  userId: string;
-  department: string | null;
-  specialty: string[];
-  maxApplications: number;
-  notes: string | null;
-  active: boolean;
-  hiredAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type Destination = {
   id: string;
   code: string;
@@ -313,5 +291,5 @@ export type User = {
   email: string;
   fullName: string | null;
   phone: string | null;
-  role: "user" | "admin";
+  role: AdminRole;
 };

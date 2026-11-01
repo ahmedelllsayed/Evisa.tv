@@ -6,12 +6,13 @@ import { getApplication, listDocuments, listEvents, listTravelers } from "@/lib/
 import { getRefundRequest } from "@/lib/data/inbox";
 import { getSiteSettings } from "@/lib/data/settings";
 import type { Page } from "@/lib/page";
+import { isStaffRole } from "@/lib/rbac-constants";
 
 export default async function ApplicationDetailPage({ params }: Page<{ locale: string; id: string }>) {
   const { locale, id } = await params;
   const user = await requireUser(locale);
   const app = await getApplication(id);
-  if (!app || (app.userId !== user.id && user.role !== "admin")) notFound();
+  if (!app || (app.userId !== user.id && !isStaffRole(user.role))) notFound();
   const [events, documents, travelers, refund, settings] = await Promise.all([
     listEvents(id, { publicOnly: true }),
     listDocuments(id),

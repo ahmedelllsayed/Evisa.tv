@@ -5,6 +5,7 @@ import { createPayment, findPendingPayment, getApplication, getPaymentByMerchant
 import { getCurrentUser } from "@/lib/auth";
 import { env, serverEnv } from "@/lib/env";
 import { t, tf } from "@/lib/i18n";
+import { isStaffRole } from "@/lib/rbac-constants";
 import { createPaymobIntention, paymobReady, refundPaymob } from "@/lib/paymob";
 import type { Application, Payment, User } from "@/lib/types";
 
@@ -134,7 +135,7 @@ export async function completeMockCheckout(token: string) {
   if (!app) return { ok: false as const, error: t("en-EG", "err.payToken") };
   const user = await getCurrentUser();
   const payLocale = app.locale || "en-EG";
-  if (!user || (user.id !== app.userId && user.role !== "admin")) return { ok: false as const, error: t(payLocale, "err.payToken") };
+  if (!user || (user.id !== app.userId && !isStaffRole(user.role))) return { ok: false as const, error: t(payLocale, "err.payToken") };
   const paid = await markPaid("mock", token, app.totalAmount);
   if (!paid) return { ok: false as const, error: t(payLocale, "err.payConfirm") };
   return { ok: true as const, applicationId: id, locale: payLocale, app };
@@ -182,7 +183,7 @@ export async function paymentReturn(merchantOrderId: string) {
   if (!payment) return { state: "unknown" as const, app: null };
   const user = await getCurrentUser();
   const application = await getApplication(payment.applicationId);
-  const visible = Boolean(application && user && (user.id === application.userId || user.role === "admin"));
+  const visible = Boolean(application && user && (user.id === application.userId || isStaffRole(user.role)));
   return {
     state: payment.status,
     app: visible && application ? { id: application.id, destinationName: application.destinationName, reference: application.reference } : null,

@@ -12,6 +12,8 @@ import {
   adminPrimaryClass,
 } from "@/components/admin/chrome";
 import type { AccountRow } from "@/lib/data/users";
+import { ROLE_LABELS, parseAdminRole } from "@/lib/rbac-constants";
+import type { AdminRole } from "@/lib/types";
 import { formatAt } from "@/lib/visa";
 
 function fields(fd: FormData) {
@@ -19,7 +21,7 @@ function fields(fd: FormData) {
     email: String(fd.get("email") ?? ""),
     fullName: String(fd.get("fullName") ?? ""),
     phone: String(fd.get("phone") ?? ""),
-    role: String(fd.get("role")) === "admin" ? ("admin" as const) : ("user" as const),
+    role: parseAdminRole(fd.get("role")),
   };
 }
 
@@ -56,8 +58,11 @@ export function UserTable({ locale, users, currentUserId }: { locale: string; us
           <input name="fullName" placeholder="الاسم" className={adminInputClass} />
           <input name="phone" placeholder="الهاتف" className={adminInputClass} />
           <select name="role" defaultValue="user" className={adminInputClass}>
-            <option value="user">مستخدم</option>
-            <option value="admin">مدير</option>
+            {(Object.keys(ROLE_LABELS) as AdminRole[]).map((role) => (
+              <option key={role} value={role}>
+                {ROLE_LABELS[role]}
+              </option>
+            ))}
           </select>
           <button disabled={pending} className={adminPrimaryClass}>
             إضافة مستخدم
@@ -94,8 +99,11 @@ export function UserTable({ locale, users, currentUserId }: { locale: string; us
                 <input name="fullName" defaultValue={user.fullName ?? ""} placeholder="الاسم" className={adminInputClass} />
                 <input name="phone" defaultValue={user.phone ?? ""} placeholder="الهاتف" className={adminInputClass} />
                 <select name="role" defaultValue={user.role} className={adminInputClass}>
-                  <option value="user">مستخدم</option>
-                  <option value="admin">مدير</option>
+                  {(Object.keys(ROLE_LABELS) as AdminRole[]).map((role) => (
+                    <option key={role} value={role}>
+                      {ROLE_LABELS[role]}
+                    </option>
+                  ))}
                 </select>
                 <button disabled={pending} className={adminPrimaryClass}>
                   حفظ

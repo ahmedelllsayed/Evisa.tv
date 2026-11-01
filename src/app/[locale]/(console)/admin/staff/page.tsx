@@ -1,5 +1,7 @@
+import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { listStaff, getAllStaffPerformance } from "@/lib/data/staff";
+import { currentUserHasPermission } from "@/lib/rbac";
 import { StaffTable } from "./_components/staff-table";
 import { StaffPerformance } from "./_components/staff-performance";
 import { AddStaffDialog } from "./_components/add-staff-dialog";
@@ -11,6 +13,7 @@ export const metadata = {
 export default async function StaffPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   await requireAdmin(locale);
+  if (!(await currentUserHasPermission("staff", "view"))) redirect(`/${locale}/admin`);
 
   const [staff, performance] = await Promise.all([listStaff(), getAllStaffPerformance(30)]);
 

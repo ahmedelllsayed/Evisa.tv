@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { href } from "@/lib/href";
+import { isStaffRole } from "@/lib/rbac-constants";
 import { t } from "@/lib/i18n";
 import type { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -60,7 +61,7 @@ export function UserMenu({ user, locale, className, unread = 0 }: { user: User |
         <DropdownMenuItem render={<Link href={href("/account/profile", locale)} />}>
           <UserIcon /> {t(locale, "menu.profile")}
         </DropdownMenuItem>
-        {user.role === "admin" && (
+        {isStaffRole(user.role) && (
           <DropdownMenuItem render={<Link href={href("/admin/queue", locale)} />}>
             <LayoutDashboard /> {t(locale, "menu.admin")}
           </DropdownMenuItem>

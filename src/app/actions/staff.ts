@@ -2,12 +2,29 @@
 import { revalidatePath } from "next/cache";
 import type { AdminRole } from "@/lib/types";
 import { requireAdmin } from "@/lib/auth";
-import { sql } from "@/lib/data/db";
+import { one, sql } from "@/lib/data/db";
 import { getAssignableRoles, canManageUser, currentUserHasPermission } from "@/lib/rbac";
 import { upsertStaffProfile, deleteStaffProfile } from "@/lib/data/staff";
 import { audit } from "@/lib/audit";
 
 export type ActionResult = { success: true } | { success: false; error: string };
+
+function fail(error: unknown): ActionResult {
+  if (typeof error === "object" && error !== null && "digest" in error) {
+    const digest = String((error as { digest?: unknown }).digest ?? "");
+    if (digest.startsWith("NEXT_REDIRECT") || digest.startsWith("NEXT_NOT_FOUND")) throw error;
+  }
+  console.error(error);
+  return { success: false, error: "حدث خطأ" };
+}
+
+async function manageBlock(actorId: string, actorRole: AdminRole, userId: string): Promise<string | null> {
+  if (userId === actorId) return "لا يمكنك تغيير حسابك من هنا";
+  const target = await one<{ role: string }>("select role from profiles where id = $1", [userId]);
+  if (!target) return "المستخدم غير موجود";
+  if (!canManageUser(actorRole, target.role as AdminRole)) return "لا يمكنك تعديل هذا الحساب";
+  return null;
+}
 
 /**
  * Update user role (requires super_admin or admin)
@@ -57,8 +74,7 @@ export async function updateUserRole(userId: string, newRole: AdminRole, locale:
 
     return { success: true };
   } catch (error) {
-    console.error("updateUserRole error:", error);
-    return { success: false, error: error instanceof Error ? error.message : "حدث خطأ" };
+    return fail(error);
   }
 }
 
@@ -100,8 +116,7 @@ export async function updateStaffProfile(
 
     return { success: true };
   } catch (error) {
-    console.error("updateStaffProfile error:", error);
-    return { success: false, error: error instanceof Error ? error.message : "حدث خطأ" };
+    return fail(error);
   }
 }
 
@@ -117,6 +132,9 @@ export async function removeStaffProfile(userId: string, locale: string): Promis
     if (!canManageStaff) {
       return { success: false, error: "ليس لديك صلاحية إدارة الموظفين" };
     }
+
+    const blocked = await manageBlock(currentUser.id, currentUser.role, userId);
+    if (blocked) return { success: false, error: blocked };
 
     await deleteStaffProfile(userId);
 
@@ -135,8 +153,7 @@ export async function removeStaffProfile(userId: string, locale: string): Promis
 
     return { success: true };
   } catch (error) {
-    console.error("removeStaffProfile error:", error);
-    return { success: false, error: error instanceof Error ? error.message : "حدث خطأ" };
+    return fail(error);
   }
 }
 
@@ -170,6 +187,9 @@ export async function promoteToStaff(
       return { success: false, error: "لا يمكنك تعيين هذا الدور" };
     }
 
+    const blocked = await manageBlock(currentUser.id, currentUser.role, userId);
+    if (blocked) return { success: false, error: blocked };
+
     // Update role
     await sql("UPDATE profiles SET role = $1 WHERE id = $2", [input.role, userId]);
 
@@ -187,7 +207,7 @@ export async function promoteToStaff(
       action: "staff.created",
       userId: currentUser.id,
       targetId: userId,
-      details: { role: input.role, ...input },
+      details: { ...input },
     });
 
     revalidatePath(`/${locale}/admin/staff`);
@@ -195,9 +215,24 @@ export async function promoteToStaff(
 
     return { success: true };
   } catch (error) {
-    console.error("promoteToStaff error:", error);
-    return { success: false, error: error instanceof Error ? error.message : "حدث خطأ" };
+    return fail(error);
   }
+}
+
+export async function promoteStaffByEmail(
+  email: string,
+  input: {
+    role: AdminRole;
+    department?: string;
+    specialty?: string[];
+    maxApplications?: number;
+  },
+  locale: string,
+): Promise<ActionResult> {
+  await requireAdmin(locale);
+  const row = await one<{ id: string }>("select id from profiles where lower(email) = $1", [email.trim().toLowerCase()]);
+  if (!row) return { success: false, error: "لا يوجد حساب بهذا البريد. يجب أن يسجل المستخدم الدخول مرة واحدة أولاً." };
+  return promoteToStaff(String(row.id), input, locale);
 }
 
 /**
@@ -227,7 +262,6 @@ export async function bulkAssignApplications(applicationIds: string[], assigneeI
 
     return { success: true };
   } catch (error) {
-    console.error("bulkAssignApplications error:", error);
-    return { success: false, error: error instanceof Error ? error.message : "حدث خطأ" };
+    return fail(error);
   }
 }

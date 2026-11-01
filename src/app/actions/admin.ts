@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import type { CmsContent, CmsTemplate } from "@/lib/cms/registry";
 import { addDocument, addEvent, deleteDocument, getApplication, getDocument, patchTraveler, saveStaffChecks, setAssignee, setDocumentStatus, setStatus, listTravelers, listDocuments } from "@/lib/data/applications";
@@ -35,12 +36,32 @@ import { deletePage, savePage, setPagePublished } from "@/lib/data/pages";
 import { readLogoFile, storeBrandLogo } from "@/lib/brand-logo";
 import { saveDestinationMedia, type DestinationMediaKind } from "@/lib/destination-media";
 import { saveCitizenshipCodes, saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
-import { sql } from "@/lib/data/db";
+import { one, sql } from "@/lib/data/db";
+import { canManageUser, currentUserHasPermission, getAssignableRoles } from "@/lib/rbac";
+import { isFullAdmin, parseAdminRole } from "@/lib/rbac-constants";
 import { createUser, deleteUser, setUserBanned, setUserRole, updateUser, type UserInput } from "@/lib/data/users";
-import type { ApplicationDocument, ApplicationStatus, VisaOptionInput, VisaType } from "@/lib/types";
+import type { AdminPermissionAction, AdminResource, AdminRole, ApplicationDocument, ApplicationStatus, VisaOptionInput, VisaType } from "@/lib/types";
 
-async function guard(locale: string) {
-  return requireAdmin(locale);
+async function guard(locale: string, resource?: AdminResource, action?: AdminPermissionAction) {
+  const user = await requireAdmin(locale);
+  if (isFullAdmin(user.role)) return user;
+  if (resource && action && (await currentUserHasPermission(resource, action))) return user;
+  redirect(`/${locale}/admin`);
+}
+
+async function guardMessages(locale: string, write: boolean) {
+  const user = await requireAdmin(locale);
+  if (isFullAdmin(user.role) || user.role === "support" || user.role === "manager") return user;
+  if (await currentUserHasPermission("applications", write ? "edit" : "view")) return user;
+  redirect(`/${locale}/admin`);
+}
+
+async function guardUsers(locale: string, action: AdminPermissionAction) {
+  const user = await requireAdmin(locale);
+  if (!(await currentUserHasPermission("users", action))) {
+    return { user, error: "ليس لديك صلاحية لهذا الإجراء" as const };
+  }
+  return { user, error: null };
 }
 
 export async function recordAudit(action: string, target?: string, detail?: string) {
@@ -60,7 +81,7 @@ function refresh(locale: string, path = "") {
 }
 
 export async function adminSetStatus(locale: string, id: string, status: ApplicationStatus, title: string, description: string) {
-  await guard(locale);
+  await guard(locale, "applications", status === "approved" || status === "rejected" ? "approve" : "edit");
   const result = await setStatus(id, status, { title, description, onTime: true });
   refresh(locale, "/admin");
   refresh(locale, `/admin/applications/${id}`);
@@ -70,7 +91,7 @@ export async function adminSetStatus(locale: string, id: string, status: Applica
 }
 
 export async function adminRefund(locale: string, id: string) {
-  await guard(locale);
+  await guard(locale, "applications", "refund");
   const result = await refundApplication(id);
   if (result.ok) {
     await setRefundRequestStatus(id, "approved");
@@ -93,7 +114,7 @@ export async function adminRefund(locale: string, id: string) {
 }
 
 export async function adminDeclineRefund(locale: string, id: string) {
-  await guard(locale);
+  await guard(locale, "applications", "refund");
   await setRefundRequestStatus(id, "declined");
   await addEvent(id, {
     title: "Refund request declined",
@@ -117,13 +138,13 @@ export async function adminDeclineRefund(locale: string, id: string) {
 }
 
 export async function adminSetAssignee(locale: string, id: string, assigneeId: string | null) {
-  await guard(locale);
+  await guard(locale, "applications", "assign");
   await setAssignee(id, assigneeId);
   refresh(locale, `/admin/applications/${id}`);
 }
 
 export async function adminAddEvent(locale: string, id: string, title: string, description: string) {
-  await guard(locale);
+  await guard(locale, "applications", "edit");
   await addEvent(id, { title, description, onTime: true, internal: true });
   refresh(locale, `/admin/applications/${id}`);
 }
@@ -223,7 +244,7 @@ export async function adminSetDocumentStatus(
   status: ApplicationDocument["status"],
   reason?: string,
 ) {
-  await guard(locale);
+  await guard(locale, "applications", "edit");
   const result = await setDocumentStatus(documentId, status, reason);
   if (result.ok && status === "rejected") {
     const [doc, app] = await Promise.all([getDocument(documentId), getApplication(applicationId)]);
@@ -351,7 +372,7 @@ function mirrorOption(input: DestinationInput, option: VisaOptionInput) {
 }
 
 export async function adminSaveDestination(locale: string, id: string | null, input: DestinationInput, options?: VisaOptionInput[]) {
-  await guard(locale);
+  await guard(locale, "content", "edit");
   try {
     const savedId = options
       ? await saveDestinationWithOptions(id, input, options)
@@ -375,7 +396,7 @@ export async function adminSaveDestination(locale: string, id: string | null, in
 }
 
 export async function adminSaveDestinationForm(locale: string, id: string | null, fd: FormData) {
-  await guard(locale);
+  await guard(locale, "content", "edit");
   const sourceLines = String(fd.get("sources") || "")
     .split("\n")
     .map((line) => line.trim())
@@ -475,14 +496,14 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
 }
 
 export async function adminDeleteDestination(locale: string, id: string) {
-  await guard(locale);
+  await guard(locale, "content", "delete");
   const result = await deleteDestination(id);
   refresh(locale, "/admin/destinations");
   return result;
 }
 
 export async function adminSaveHoliday(locale: string, input: { id?: string; countryCode: string; date: string; name: string }) {
-  await guard(locale);
+  await guard(locale, "content", "edit");
   try {
     await saveHoliday(input);
   } catch (error) {
@@ -494,14 +515,14 @@ export async function adminSaveHoliday(locale: string, input: { id?: string; cou
 }
 
 export async function adminDeleteHoliday(locale: string, id: string) {
-  await guard(locale);
+  await guard(locale, "content", "delete");
   await deleteHoliday(id);
   refresh(locale, "");
   refresh(locale, "/admin/holidays");
 }
 
 export async function adminSaveTravelEvent(locale: string, input: TravelEventInput) {
-  await guard(locale);
+  await guard(locale, "content", "edit");
   try {
     await saveTravelEvent(input);
   } catch (error) {
@@ -513,7 +534,7 @@ export async function adminSaveTravelEvent(locale: string, input: TravelEventInp
 }
 
 export async function adminDeleteTravelEvent(locale: string, id: string) {
-  await guard(locale);
+  await guard(locale, "content", "delete");
   await deleteTravelEvent(id);
   refresh(locale, "");
   refresh(locale, "/admin/events");
@@ -523,13 +544,13 @@ export async function adminSaveFaq(
   locale: string,
   input: { id?: string; scope: string; category: string; categoryAr?: string | null; question: string; questionAr?: string | null; answer: string; answerAr?: string | null; destinationId: string | null; sortOrder: number },
 ) {
-  await guard(locale);
+  await guard(locale, "content", "edit");
   await upsertFaq(input);
   refresh(locale, "/admin/faqs");
 }
 
 export async function adminDeleteFaq(locale: string, id: string) {
-  await guard(locale);
+  await guard(locale, "content", "delete");
   await deleteFaq(id);
   refresh(locale, "/admin/faqs");
 }
@@ -538,13 +559,13 @@ export async function adminSaveReview(
   locale: string,
   input: { id?: string; scope: string; author: string; location: string | null; title: string | null; titleAr?: string | null; body: string; bodyAr?: string | null; rating: number; product: string | null; destinationId: string | null },
 ) {
-  await guard(locale);
+  await guard(locale, "content", "edit");
   await upsertReview(input);
   refresh(locale, "/admin/reviews");
 }
 
 export async function adminDeleteReview(locale: string, id: string) {
-  await guard(locale);
+  await guard(locale, "content", "delete");
   await deleteReview(id);
   refresh(locale, "/admin/reviews");
 }
@@ -553,21 +574,21 @@ export async function adminSavePage(
   locale: string,
   input: { id?: string; slug: string; template: CmsTemplate; title: string; published: boolean; sortOrder: number; content: CmsContent },
 ) {
-  await guard(locale);
+  await guard(locale, "content", "edit");
   await savePage(input);
   refresh(locale, `/${input.slug.replace(/^\/+/, "")}`);
   refresh(locale, "/admin/pages");
 }
 
 export async function adminSetPagePublished(locale: string, id: string, slug: string, published: boolean) {
-  await guard(locale);
+  await guard(locale, "content", "publish");
   await setPagePublished(id, published);
   refresh(locale, `/${slug}`);
   refresh(locale, "/admin/pages");
 }
 
 export async function adminDeletePage(locale: string, id: string, slug: string) {
-  await guard(locale);
+  await guard(locale, "content", "delete");
   const result = await deletePage(id);
   refresh(locale, `/${slug}`);
   refresh(locale, "/admin/pages");
@@ -575,7 +596,7 @@ export async function adminDeletePage(locale: string, id: string, slug: string) 
 }
 
 export async function adminSaveSettings(locale: string, input: SiteSettings) {
-  await guard(locale);
+  await guard(locale, "settings", "edit");
   await saveSiteSettings(input);
   refresh(locale);
   refresh(locale, "/admin/settings");
@@ -584,7 +605,7 @@ export async function adminSaveSettings(locale: string, input: SiteSettings) {
 }
 
 export async function adminSaveSettingsForm(locale: string, fd: FormData) {
-  await guard(locale);
+  await guard(locale, "settings", "edit");
   const current = await getSiteSettings();
   let logoUrl = current.logoUrl;
   let storedLogo: { bytes: Buffer; mime: string } | null | undefined;
@@ -662,20 +683,20 @@ export async function adminSaveSettingsForm(locale: string, fd: FormData) {
 }
 
 export async function adminSetMessageRead(locale: string, id: string, read: boolean) {
-  await guard(locale);
+  await guardMessages(locale, false);
   await setMessageRead(id, read);
   refresh(locale, "/admin/messages");
 }
 
 export async function adminDeleteMessage(locale: string, id: string) {
-  await guard(locale);
+  await guardMessages(locale, true);
   await deleteContactMessage(id);
   await recordAudit("message.delete", id);
   refresh(locale, "/admin/messages");
 }
 
 export async function adminReplyMessage(locale: string, id: string, email: string, body: string) {
-  await guard(locale);
+  await guardMessages(locale, true);
   const text = body.trim();
   if (text.length < 2) return { ok: false as const, error: "اكتب الرد." };
   const settings = await getSiteSettings();
@@ -693,7 +714,7 @@ export async function adminPatchTraveler(
   id: string,
   input: { firstName: string; lastName: string; passportNumber: string; nationality: string },
 ) {
-  await guard(locale);
+  await guard(locale, "applications", "edit");
   if (!input.firstName.trim() || !input.lastName.trim()) return { ok: false as const, error: "الاسم مطلوب." };
   await patchTraveler(id, input);
   await recordAudit("traveler.update", id);
@@ -702,7 +723,8 @@ export async function adminPatchTraveler(
 }
 
 export async function adminSetUserBanned(locale: string, id: string, banned: boolean) {
-  await guard(locale);
+  const access = await guardUsers(locale, "ban");
+  if (access.error) return { ok: false as const, error: access.error };
   const result = await setUserBanned(id, banned);
   if (result.ok) await recordAudit(banned ? "user.ban" : "user.unban", id);
   refresh(locale, "/admin/users");
@@ -710,7 +732,7 @@ export async function adminSetUserBanned(locale: string, id: string, banned: boo
 }
 
 export async function adminSaveCitizenships(locale: string, codes: string[]) {
-  await guard(locale);
+  await guard(locale, "settings", "edit");
   await saveCitizenshipCodes(codes);
   revalidatePath("/en-EG", "layout");
   revalidatePath("/ar-EG", "layout");
@@ -718,8 +740,11 @@ export async function adminSaveCitizenships(locale: string, codes: string[]) {
   return { ok: true as const };
 }
 
-export async function adminSetUserRole(locale: string, id: string, role: "user" | "admin") {
-  await guard(locale);
+export async function adminSetUserRole(locale: string, id: string, role: AdminRole) {
+  const access = await guardUsers(locale, "change_role");
+  if (access.error) return { ok: false as const, error: access.error };
+  const assignable = await getAssignableRoles();
+  if (!assignable.includes(role)) return { ok: false as const, error: "لا يمكنك تعيين هذا الدور" };
   const result = await setUserRole(id, role);
   refresh(locale, "/admin/users");
   refresh(locale, "/admin");
@@ -727,7 +752,10 @@ export async function adminSetUserRole(locale: string, id: string, role: "user" 
 }
 
 export async function adminCreateUser(locale: string, input: UserInput) {
-  await guard(locale);
+  const access = await guardUsers(locale, "create");
+  if (access.error) return { ok: false as const, error: access.error };
+  const assignable = await getAssignableRoles();
+  if (!assignable.includes(input.role)) return { ok: false as const, error: "لا يمكنك تعيين هذا الدور" };
   const result = await createUser(input);
   refresh(locale, "/admin/users");
   refresh(locale, "/admin");
@@ -735,7 +763,18 @@ export async function adminCreateUser(locale: string, input: UserInput) {
 }
 
 export async function adminUpdateUser(locale: string, id: string, input: UserInput) {
-  await guard(locale);
+  const access = await guardUsers(locale, "edit");
+  if (access.error) return { ok: false as const, error: access.error };
+  const current = await one<{ role: string }>("select role from profiles where id = $1", [id]);
+  if (!current) return { ok: false as const, error: "المستخدم غير موجود." };
+  const currentRole = parseAdminRole(current.role);
+  if (id !== access.user.id && !canManageUser(access.user.role, currentRole)) {
+    return { ok: false as const, error: "لا يمكنك تعديل هذا الحساب" };
+  }
+  if (input.role !== currentRole) {
+    const assignable = await getAssignableRoles();
+    if (!assignable.includes(input.role)) return { ok: false as const, error: "لا يمكنك تعيين هذا الدور" };
+  }
   const result = await updateUser(id, input);
   refresh(locale, "/admin/users");
   refresh(locale, "/admin");
@@ -743,8 +782,9 @@ export async function adminUpdateUser(locale: string, id: string, input: UserInp
 }
 
 export async function adminDeleteUser(locale: string, id: string) {
-  const admin = await requireAdmin(locale);
-  const result = await deleteUser(id, admin.id);
+  const access = await guardUsers(locale, "delete");
+  if (access.error) return { ok: false as const, error: access.error };
+  const result = await deleteUser(id, access.user.id);
   refresh(locale, "/admin/users");
   refresh(locale, "/admin");
   return result;
@@ -755,7 +795,7 @@ export async function adminSaveChecks(
   applicationId: string,
   checks: { passport: boolean; photo: boolean; documents: boolean },
 ) {
-  await guard(locale);
+  await guard(locale, "applications", "edit");
   const saved = await saveStaffChecks(applicationId, checks);
   if (!saved) return { ok: false as const, error: "الطلب غير موجود." };
   await addEvent(applicationId, {
@@ -769,7 +809,7 @@ export async function adminSaveChecks(
 }
 
 export async function adminSendCustomerNote(locale: string, applicationId: string, kind: "resume" | "documents" | "review" | "referral") {
-  await guard(locale);
+  await guard(locale, "applications", "edit");
   const app = await getApplication(applicationId);
   if (!app?.userEmail) return { ok: false as const, error: "لا يوجد بريد للعميل." };
   if (kind === "resume" && app.status !== "draft" && app.status !== "payment_pending") {

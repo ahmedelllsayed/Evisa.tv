@@ -139,7 +139,7 @@ export async function getStaffWorkload(userId: string): Promise<{ total: number;
     `SELECT
        COUNT(*) as total,
        COUNT(*) FILTER (WHERE status IN ('submitted', 'in_review')) as pending,
-       COUNT(*) FILTER (WHERE status IN ('submitted', 'in_review') AND due_date < NOW()) as late
+       COUNT(*) FILTER (WHERE status IN ('submitted', 'in_review') AND guaranteed_at < NOW()) as late
      FROM applications
      WHERE assignee_id = $1`,
     [userId]

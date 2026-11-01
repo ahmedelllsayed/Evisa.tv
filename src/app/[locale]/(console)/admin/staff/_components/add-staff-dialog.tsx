@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { AdminRole } from "@/lib/types";
 import { ROLE_LABELS, ROLE_DESCRIPTIONS } from "@/lib/rbac-constants";
-import { promoteToStaff } from "@/app/actions/staff";
+import { promoteStaffByEmail } from "@/app/actions/staff";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,17 +11,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,12 +34,26 @@ export function AddStaffDialog({ locale }: { locale: string }) {
 
     setLoading(true);
     try {
-      // For demo: assume user exists - in production, you'd search first
-      toast.error("هذه الميزة تتطلب البحث عن المستخدم أولاً. استخدم صفحة المستخدمين للترقية.");
-      // In real implementation:
-      // 1. Search for user by email
-      // 2. If found, call promoteToStaff
-      // 3. If not found, show error
+      const result = await promoteStaffByEmail(
+        email.trim(),
+        {
+          role,
+          department: department.trim() || undefined,
+          specialty: specialty
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+          maxApplications: Number(maxApplications) || 10,
+        },
+        locale,
+      );
+      if (result.success) {
+        toast.success("تمت إضافة الموظف");
+        setOpen(false);
+        setEmail("");
+      } else {
+        toast.error(result.error);
+      }
     } finally {
       setLoading(false);
     }
@@ -55,12 +61,10 @@ export function AddStaffDialog({ locale }: { locale: string }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <UserPlus className="h-4 w-4 ml-2" />
-          إضافة موظف
-        </Button>
-      </DialogTrigger>
+      <Button type="button" onClick={() => setOpen(true)}>
+        <UserPlus className="h-4 w-4 ml-2" />
+        إضافة موظف
+      </Button>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>إضافة موظف جديد</DialogTitle>
@@ -80,37 +84,17 @@ export function AddStaffDialog({ locale }: { locale: string }) {
 
           <div className="space-y-2">
             <Label>الدور</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as AdminRole)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="operator">
-                  <div>
-                    <div className="font-medium">{ROLE_LABELS.operator}</div>
-                    <div className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS.operator}</div>
-                  </div>
-                </SelectItem>
-                <SelectItem value="support">
-                  <div>
-                    <div className="font-medium">{ROLE_LABELS.support}</div>
-                    <div className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS.support}</div>
-                  </div>
-                </SelectItem>
-                <SelectItem value="manager">
-                  <div>
-                    <div className="font-medium">{ROLE_LABELS.manager}</div>
-                    <div className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS.manager}</div>
-                  </div>
-                </SelectItem>
-                <SelectItem value="admin">
-                  <div>
-                    <div className="font-medium">{ROLE_LABELS.admin}</div>
-                    <div className="text-xs text-muted-foreground">{ROLE_DESCRIPTIONS.admin}</div>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <select
+              value={role}
+              onChange={(event) => setRole(event.target.value as AdminRole)}
+              className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm"
+            >
+              {(["operator", "support", "manager", "admin"] as const).map((value) => (
+                <option key={value} value={value}>
+                  {ROLE_LABELS[value]} — {ROLE_DESCRIPTIONS[value]}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-2">

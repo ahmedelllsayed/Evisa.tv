@@ -1,6 +1,25 @@
 // Client-safe role constants (no server imports)
 import type { AdminRole } from "@/lib/types";
 
+const ROLES: readonly AdminRole[] = ["super_admin", "admin", "manager", "operator", "support", "viewer", "user"];
+
+export function parseAdminRole(value: unknown): AdminRole {
+  const role = String(value ?? "user");
+  return (ROLES as readonly string[]).includes(role) ? (role as AdminRole) : "user";
+}
+
+export function isAdminRole(value: string): value is AdminRole {
+  return (ROLES as readonly string[]).includes(value);
+}
+
+export function isStaffRole(role: string | null | undefined): boolean {
+  return Boolean(role && role !== "user");
+}
+
+export function isFullAdmin(role: string | null | undefined): boolean {
+  return role === "admin" || role === "super_admin";
+}
+
 export const ROLE_LABELS: Record<AdminRole, string> = {
   super_admin: "مدير أعلى",
   admin: "مدير",

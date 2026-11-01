@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import type { AdminRole, StaffProfile } from "@/lib/types";
-import { ROLE_LABELS, ROLE_DESCRIPTIONS } from "@/lib/rbac-constants";
-import { updateUserRole, updateStaffProfile, removeStaffProfile } from "@/app/actions/staff";
+import { ROLE_LABELS } from "@/lib/rbac-constants";
+import { updateStaffProfile, removeStaffProfile } from "@/app/actions/staff";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,16 +12,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Pencil, Trash2, Crown, Shield, Eye } from "lucide-react";
@@ -180,11 +172,9 @@ function EditStaffDialog({ member, locale }: { member: StaffWithUser; locale: st
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Pencil className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+      <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(true)}>
+        <Pencil className="h-4 w-4" />
+      </Button>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>تعديل بيانات الموظف</DialogTitle>
@@ -214,15 +204,14 @@ function EditStaffDialog({ member, locale }: { member: StaffWithUser; locale: st
 
           <div className="space-y-2">
             <Label>الحالة</Label>
-            <Select value={active} onValueChange={setActive}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">نشط</SelectItem>
-                <SelectItem value="false">معطّل</SelectItem>
-              </SelectContent>
-            </Select>
+            <select
+              value={active}
+              onChange={(event) => setActive(event.target.value)}
+              className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm"
+            >
+              <option value="true">نشط</option>
+              <option value="false">معطّل</option>
+            </select>
           </div>
         </div>
 
@@ -261,11 +250,9 @@ function RemoveStaffDialog({ member, locale }: { member: StaffWithUser; locale: 
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+      <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setOpen(true)}>
+        <Trash2 className="h-4 w-4" />
+      </Button>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>إزالة موظف</DialogTitle>

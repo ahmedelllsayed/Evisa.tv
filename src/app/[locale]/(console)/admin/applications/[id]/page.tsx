@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { getApplication, listDocuments, listEvents, listPayments, listTravelers } from "@/lib/data/applications";
 import { getRefundRequest } from "@/lib/data/inbox";
 import { listUsers } from "@/lib/data/users";
+import { isStaffRole } from "@/lib/rbac-constants";
 import type { Page } from "@/lib/page";
 
 export default async function AdminApplicationPage({ params }: Page<{ locale: string; id: string }>) {
@@ -27,7 +28,7 @@ export default async function AdminApplicationPage({ params }: Page<{ locale: st
       travelers={travelers}
       documents={documents}
       payments={payments}
-      assignees={users.filter((user) => user.role === "admin")}
+      assignees={users.filter((user) => isStaffRole(user.role) && user.role !== "viewer")}
       refundRequest={refund ? { status: refund.status, reason: refund.reason } : null}
     />
   );

@@ -12,6 +12,7 @@ import { one, sql } from "@/lib/data/db";
 import { env, serverEnv, supabaseEnabled } from "@/lib/env";
 import { safeNextPath } from "@/lib/safe-path";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { parseAdminRole } from "@/lib/rbac-constants";
 import type { User } from "@/lib/types";
 
 const SESSION_COOKIE = "app_session";
@@ -23,7 +24,7 @@ function toUser(r: Record<string, unknown>): User {
     email: String(r.email),
     fullName: (r.full_name as string) ?? null,
     phone: (r.phone as string) ?? null,
-    role: String(r.role || "user"), // Now supports all AdminRole values
+    role: parseAdminRole(r.role),
   };
 }
 

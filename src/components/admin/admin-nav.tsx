@@ -67,11 +67,15 @@ export function AdminShell({
   locale,
   attention,
   email,
+  showStaff = true,
+  showUsers = true,
   children,
 }: {
   locale: string;
   attention: number;
   email: string;
+  showStaff?: boolean;
+  showUsers?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -80,14 +84,14 @@ export function AdminShell({
   return (
     <div className="flex min-h-svh">
       <aside className={cn("sticky top-0 hidden h-svh shrink-0 flex-col border-e border-sidebar-border bg-sidebar lg:flex", collapsed ? "w-12" : "w-64")}>
-        <SidebarBody locale={locale} pathname={pathname} attention={attention} collapsed={collapsed} />
+        <SidebarBody locale={locale} pathname={pathname} attention={attention} collapsed={collapsed} showStaff={showStaff} showUsers={showUsers} />
       </aside>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="w-72 bg-sidebar p-0 text-sidebar-foreground">
           <SheetHeader className="sr-only">
             <SheetTitle>لوحة التحكم</SheetTitle>
           </SheetHeader>
-          <SidebarBody locale={locale} pathname={pathname} attention={attention} onNavigate={() => setOpen(false)} />
+          <SidebarBody locale={locale} pathname={pathname} attention={attention} onNavigate={() => setOpen(false)} showStaff={showStaff} showUsers={showUsers} />
         </SheetContent>
       </Sheet>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -112,13 +116,27 @@ function SidebarBody({
   attention,
   collapsed,
   onNavigate,
+  showStaff,
+  showUsers,
 }: {
   locale: string;
   pathname: string;
   attention: number;
   collapsed?: boolean;
   onNavigate?: () => void;
+  showStaff: boolean;
+  showUsers: boolean;
 }) {
+  const visible = groups
+    .map((group) => ({
+      ...group,
+      links: group.links.filter((link) => {
+        if (link.href === "/admin/staff") return showStaff;
+        if (link.href === "/admin/users") return showUsers;
+        return true;
+      }),
+    }))
+    .filter((group) => group.links.length > 0);
   return (
     <div className="flex h-full flex-col">
       <Link href={href("/admin", locale)} onClick={onNavigate} className={cn("flex h-14 items-center gap-2 border-b border-sidebar-border px-3 font-black", collapsed && "justify-center px-0")}>
@@ -126,7 +144,7 @@ function SidebarBody({
         {collapsed ? null : <span>Evisa</span>}
       </Link>
       <nav className="flex-1 space-y-2 overflow-y-auto p-2">
-        {groups.map((group) => (
+        {visible.map((group) => (
           <div key={group.label}>
             {collapsed ? null : <p className="flex h-8 items-center px-2 text-sm text-sidebar-foreground/70">{group.label}</p>}
             <div className="space-y-1">

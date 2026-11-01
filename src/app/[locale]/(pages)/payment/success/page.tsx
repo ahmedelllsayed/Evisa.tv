@@ -8,6 +8,7 @@ import { getApplication } from "@/lib/data/applications";
 import { getSiteSettings } from "@/lib/data/settings";
 import { href } from "@/lib/href";
 import { isArabicLocale, t, tf } from "@/lib/i18n";
+import { isStaffRole } from "@/lib/rbac-constants";
 import type { Page } from "@/lib/page";
 
 export default async function PaymentSuccessPage({ params, searchParams }: Page) {
@@ -18,7 +19,7 @@ export default async function PaymentSuccessPage({ params, searchParams }: Page)
   const appId = typeof sp.app === "string" ? sp.app : "";
   const app = confirmed && appId ? await getApplication(appId) : null;
   const user = await getCurrentUser();
-  const visible = app && user && (user.id === app.userId || user.role === "admin") ? app : null;
+  const visible = app && user && (user.id === app.userId || isStaffRole(user.role)) ? app : null;
   const settings = confirmed ? await getSiteSettings() : null;
   const arabic = isArabicLocale(locale);
   const body = visible
