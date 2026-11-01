@@ -37,6 +37,7 @@ import { readLogoFile, storeBrandLogo } from "@/lib/brand-logo";
 import { saveDestinationMedia, type DestinationMediaKind } from "@/lib/destination-media";
 import { saveCitizenshipCodes, saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
 import { one, sql } from "@/lib/data/db";
+import { getLeastBusyStaff } from "@/lib/data/staff";
 import { canManageUser, currentUserHasPermission, getAssignableRoles } from "@/lib/rbac";
 import { isFullAdmin, parseAdminRole } from "@/lib/rbac-constants";
 import { createUser, deleteUser, setUserBanned, setUserRole, updateUser, type UserInput } from "@/lib/data/users";
@@ -850,4 +851,53 @@ export async function adminSendCustomerNote(locale: string, applicationId: strin
   await recordAudit("application.mail", app.id, kind);
   refresh(locale, `/admin/applications/${applicationId}`);
   return { ok: true as const };
+}
+
+function cleanIds(ids: string[]) {
+  return ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 50);
+}
+
+export async function adminBulkAssign(locale: string, ids: string[], assigneeId: string) {
+  await guard(locale, "applications", "assign");
+  const clean = cleanIds(ids);
+  if (!clean.length || !/^[0-9a-f-]{36}$/i.test(assigneeId)) return { ok: false as const, error: "اختر طلبات وموظفاً." };
+  await sql("update applications set assignee_id = $1, updated_at = now() where id = any($2::uuid[])", [assigneeId, clean]);
+  refresh(locale, "/admin/applications");
+  refresh(locale, "/admin/queue");
+  return { ok: true as const, count: clean.length };
+}
+
+export async function adminBulkStatus(locale: string, ids: string[], status: ApplicationStatus) {
+  await guard(locale, "applications", status === "approved" || status === "rejected" ? "approve" : "edit");
+  const clean = cleanIds(ids);
+  const allowed = ["submitted", "in_review", "filed", "approved", "rejected", "cancelled"];
+  if (!clean.length || !allowed.includes(status)) return { ok: false as const, error: "اختر طلبات وحالة صالحة." };
+  await sql("update applications set status = $1, updated_at = now() where id = any($2::uuid[])", [status, clean]);
+  refresh(locale, "/admin/applications");
+  refresh(locale, "/admin/queue");
+  return { ok: true as const, count: clean.length };
+}
+
+export async function adminAutoAssign(locale: string) {
+  await guard(locale, "applications", "assign");
+  const rows = await sql<{ id: string }>("select id from applications where assignee_id is null and status in ('submitted', 'in_review') order by created_at limit 30");
+  let count = 0;
+  for (const row of rows) {
+    const staffId = await getLeastBusyStaff();
+    const fallback = staffId ?? (await one<{ id: string }>("select id from profiles where role in ('super_admin', 'admin', 'manager', 'operator') order by created_at limit 1"))?.id;
+    if (!fallback) break;
+    await sql("update applications set assignee_id = $1, updated_at = now() where id = $2", [fallback, row.id]);
+    count += 1;
+  }
+  refresh(locale, "/admin/applications");
+  refresh(locale, "/admin/queue");
+  return { ok: true as const, count };
+}
+
+export async function adminSaveUserNotes(locale: string, id: string, formData: FormData) {
+  const access = await guardUsers(locale, "edit");
+  if (access.error) redirect(`/${locale}/admin/users`);
+  if (!/^[0-9a-f-]{36}$/i.test(id)) redirect(`/${locale}/admin/users`);
+  await sql("update profiles set staff_notes = $2 where id = $1", [id, String(formData.get("notes") ?? "").trim() || null]);
+  refresh(locale, `/admin/users/${id}`);
 }

@@ -2,6 +2,8 @@
 
 import {
   BarChart3,
+  CreditCard,
+  PieChart,
   CalendarDays,
   CalendarOff,
   CircleHelp,
@@ -25,6 +27,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { AdminAlerts } from "@/components/admin/admin-alerts";
 import { href } from "@/lib/href";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +38,8 @@ const groups: { label: string; links: { href: string; label: string; icon: Lucid
       { href: "/admin", label: "نظرة عامة", icon: LayoutDashboard },
       { href: "/admin/queue", label: "الطابور", icon: ClipboardList, badge: true },
       { href: "/admin/growth", label: "القياس", icon: BarChart3 },
+      { href: "/admin/reports", label: "التقارير", icon: PieChart },
+      { href: "/admin/payments", label: "المدفوعات", icon: CreditCard },
       { href: "/admin/applications", label: "الطلبات", icon: FileText },
       { href: "/admin/messages", label: "الرسائل", icon: Mail },
     ],
@@ -102,7 +107,10 @@ export function AdminShell({
           <button type="button" onClick={() => setCollapsed((value) => !value)} className="hidden size-8 items-center justify-center rounded-md hover:bg-sidebar-accent lg:inline-flex" aria-label="طي الشريط الجانبي">
             <PanelLeft className="size-4" />
           </button>
-          <p className="ms-auto truncate text-sm text-muted-foreground">{email}</p>
+          <div className="ms-auto flex items-center gap-2">
+            <AdminAlerts locale={locale} />
+            <p className="truncate text-sm text-muted-foreground">{email}</p>
+          </div>
         </header>
         <main className="min-h-[calc(100svh-3.5rem)] bg-muted/40 p-4 md:p-6">{children}</main>
       </div>

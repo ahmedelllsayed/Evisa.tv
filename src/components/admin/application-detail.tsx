@@ -295,6 +295,11 @@ export function AdminApplicationDetail({
                       {document.rejectReason ? ` · ${document.rejectReason}` : ""}
                     </span>
                   </span>
+                  {document.mimeType?.startsWith("image/") ? (
+                    <img src={fileHref(document.storagePath)} alt="" className="mt-2 max-h-56 w-full rounded-lg object-contain" />
+                  ) : document.mimeType === "application/pdf" || document.fileName.toLowerCase().endsWith(".pdf") ? (
+                    <iframe title={document.fileName} src={fileHref(document.storagePath)} className="mt-2 h-72 w-full rounded-lg bg-white" />
+                  ) : null}
                   <span className="flex flex-wrap items-center gap-2">
                     <a href={fileHref(document.storagePath)} target="_blank" rel="noreferrer" className="text-xs text-brand underline">
                       عرض

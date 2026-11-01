@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { adminCreateUser, adminDeleteUser, adminSetUserBanned, adminUpdateUser } from "@/app/actions/admin";
 import {
@@ -14,6 +15,7 @@ import {
 import type { AccountRow } from "@/lib/data/users";
 import { ROLE_LABELS, parseAdminRole } from "@/lib/rbac-constants";
 import type { AdminRole } from "@/lib/types";
+import { href } from "@/lib/href";
 import { formatAt } from "@/lib/visa";
 
 function fields(fd: FormData) {
@@ -108,6 +110,9 @@ export function UserTable({ locale, users, currentUserId }: { locale: string; us
                 <button disabled={pending} className={adminPrimaryClass}>
                   حفظ
                 </button>
+                <Link href={href(`/admin/users/${user.id}`, locale)} className="inline-flex h-9 items-center justify-center rounded-md border px-3 text-sm">
+                  الملف
+                </Link>
                 <button
                   type="button"
                   disabled={pending || user.id === currentUserId}

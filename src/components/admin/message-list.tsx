@@ -40,22 +40,45 @@ export function MessageList({ locale, messages }: { locale: string; messages: Co
                 حذف
               </button>
             </div>
-            <form
-              className="mt-3 flex gap-2"
-              action={(fd) =>
+            <ReplyForm
+              pending={pending}
+              onSend={(reply) =>
                 start(async () => {
                   setError(null);
-                  const result = await adminReplyMessage(locale, message.id, message.email, String(fd.get("reply") ?? ""));
+                  const result = await adminReplyMessage(locale, message.id, message.email, reply);
                   if (result && !result.ok) setError(result.error);
                 })
               }
-            >
-              <input name="reply" placeholder="رد بالبريد" className="h-10 min-w-0 flex-1 rounded-xl border border-line px-3 text-sm" />
-              <button disabled={pending} className="rounded-full bg-brand px-4 text-sm text-white">إرسال</button>
-            </form>
+            />
           </AdminCard>
         </li>
       ))}
     </ul>
+  );
+}
+
+const replies = [
+  "استلمنا رسالتك وسنرد عليك خلال يوم عمل.",
+  "نحتاج صورة أوضح لجواز السفر لإكمال الطلب.",
+  "تم استلام الدفع، والطلب الآن قيد المراجعة.",
+  "يمكنك متابعة حالة الطلب من صفحة حسابك.",
+];
+
+function ReplyForm({ pending, onSend }: { pending: boolean; onSend: (reply: string) => void }) {
+  const [reply, setReply] = useState("");
+  return (
+    <form
+      className="mt-3 flex flex-wrap gap-2"
+      action={() => onSend(reply)}
+    >
+      <select className="h-10 rounded-xl border border-line bg-background px-2 text-sm" value="" onChange={(event) => setReply(event.target.value)}>
+        <option value="">رد جاهز</option>
+        {replies.map((text) => (
+          <option key={text} value={text}>{text}</option>
+        ))}
+      </select>
+      <input name="reply" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="رد بالبريد" className="h-10 min-w-0 flex-1 rounded-xl border border-line px-3 text-sm" />
+      <button disabled={pending || !reply.trim()} className="rounded-full bg-brand px-4 text-sm text-white">إرسال</button>
+    </form>
   );
 }

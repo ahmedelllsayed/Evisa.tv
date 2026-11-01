@@ -315,46 +315,58 @@ html[dir="rtl"] .visa-pin-link.is-flag {
   box-shadow: 0 0 0 3px rgba(80, 87, 234, 0.35);
 }
 .admin-shell {
-  --background: #ffffff;
-  --foreground: hsl(240 10% 3.9%);
-  --card: #ffffff;
-  --card-foreground: hsl(240 10% 3.9%);
-  --popover: #ffffff;
-  --popover-foreground: hsl(240 10% 3.9%);
-  --primary: hsl(240 5.9% 10%);
-  --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(240 4.8% 95.9%);
-  --secondary-foreground: hsl(240 5.9% 10%);
-  --muted: hsl(240 4.8% 95.9%);
-  --muted-foreground: hsl(240 3.8% 46.1%);
-  --accent: hsl(240 4.8% 95.9%);
-  --accent-foreground: hsl(240 5.9% 10%);
-  --border: hsl(240 5.9% 90%);
-  --input: hsl(240 5.9% 90%);
-  --ring: hsl(240 10% 3.9%);
+  --background: #05070c;
+  --foreground: #f8fafc;
+  --card: #0f131c;
+  --card-foreground: #f8fafc;
+  --popover: #0f131c;
+  --popover-foreground: #f8fafc;
+  --primary: #38bdf8;
+  --primary-foreground: #05070c;
+  --secondary: #161d2b;
+  --secondary-foreground: #f8fafc;
+  --muted: #161d2b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e2636;
+  --accent-foreground: #f8fafc;
+  --border: #1e2636;
+  --input: #1e2636;
+  --ring: #38bdf8;
   --radius: 0.5rem;
-  --chart-1: hsl(220 70% 50%);
-  --chart-2: hsl(160 60% 45%);
-  --chart-3: hsl(30 80% 55%);
-  --chart-4: hsl(280 65% 60%);
-  --chart-5: hsl(340 75% 55%);
-  --sidebar: #ffffff;
-  --sidebar-foreground: hsl(240 10% 3.9%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(240 5.9% 90%);
-  --sidebar-ring: hsl(240 10% 3.9%);
-  --ink: hsl(240 10% 3.9%);
-  --muted-ink: hsl(240 3.8% 46.1%);
-  --line: hsl(240 5.9% 90%);
-  --brand-50: hsl(240 4.8% 95.9%);
-  --brand-500: hsl(240 5.9% 10%);
-  --brand: hsl(240 5.9% 10%);
+  --chart-1: #38bdf8;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #a78bfa;
+  --chart-5: #fb7185;
+  --sidebar: #0a0d12;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: #38bdf8;
+  --sidebar-primary-foreground: #05070c;
+  --sidebar-accent: #161d2b;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: #1e2636;
+  --sidebar-ring: #38bdf8;
+  --ink: #f8fafc;
+  --muted-ink: #94a3b8;
+  --line: #1e2636;
+  --line-strong: #334155;
+  --brand-50: #161d2b;
+  --brand-500: #38bdf8;
+  --brand: #38bdf8;
+  --surface: #0a0d12;
   font-family: var(--font-admin-cairo), var(--font-admin-lato), ui-sans-serif, system-ui, sans-serif;
-  color: hsl(240 10% 3.9%);
-  background: #ffffff;
+  color: #f8fafc;
+  background: #05070c;
+}
+.admin-shell :where(.bg-white) {
+  background-color: #0f131c;
+}
+.admin-shell :where(.text-ink, .text-black) {
+  color: #f8fafc;
+}
+.admin-shell :where(.bg-black) {
+  background-color: #38bdf8;
+  color: #05070c;
 }
 
 .surface-ar {

@@ -311,6 +311,9 @@ export type ApplicationListFilter = {
   option?: string;
   from?: string;
   to?: string;
+  assignee?: string;
+  paid?: "paid" | "unpaid";
+  timing?: "late";
   limit?: number;
   offset?: number;
 };
@@ -369,6 +372,13 @@ function buildApplicationWhere(filter: ApplicationListFilter) {
     params.push(filter.to);
     where.push(`a.created_at < ($${params.length}::date + interval '1 day')`);
   }
+  if (filter.assignee) {
+    params.push(filter.assignee);
+    where.push(`a.assignee_id = $${params.length}::uuid`);
+  }
+  if (filter.paid === "paid") where.push("a.paid_at is not null");
+  if (filter.paid === "unpaid") where.push("a.paid_at is null");
+  if (filter.timing === "late") where.push("a.guaranteed_at is not null", "a.guaranteed_at < now()");
   return { where, params };
 }
 

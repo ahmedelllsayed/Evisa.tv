@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { ApplicationTable } from "@/components/admin/application-table";
+import { ApplicationWorkbench } from "@/components/admin/application-tools";
 import { AdminPage, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
 import { statusLabels } from "@/components/admin/status";
 import { requireAdmin } from "@/lib/auth";
 import { applicationStats, countApplications, listAllApplications } from "@/lib/data/applications";
 import { listDestinations } from "@/lib/data/catalog";
+import { listUsers } from "@/lib/data/users";
+import { isStaffRole } from "@/lib/rbac-constants";
 import { listAllVisaOptions, visaOptionStats } from "@/lib/data/visa-options";
 import { href } from "@/lib/href";
 import type { Page } from "@/lib/page";
@@ -23,17 +25,23 @@ export default async function AdminApplicationsPage({ params, searchParams }: Pa
   const destination = typeof sp.destination === "string" ? sp.destination : undefined;
   const rawOption = typeof sp.option === "string" ? sp.option : undefined;
   const option = rawOption && /^[0-9a-f-]{36}$/i.test(rawOption) ? rawOption : undefined;
+  const assignee = typeof sp.assignee === "string" && /^[0-9a-f-]{36}$/i.test(sp.assignee) ? sp.assignee : undefined;
+  const paid: "paid" | "unpaid" | undefined = sp.paid === "paid" ? "paid" : sp.paid === "unpaid" ? "unpaid" : undefined;
+  const timing = sp.timing === "late" ? "late" as const : undefined;
+  const board = sp.view === "board";
   const page = Math.max(1, Number(sp.page) || 1);
   const pageSize = 50;
-  const filter = { status, q, from, to, destination, option };
-  const [apps, stats, total, destinations, visaOptions, optionStats] = await Promise.all([
-    listAllApplications({ ...filter, limit: pageSize, offset: (page - 1) * pageSize }),
+  const filter = { status, q, from, to, destination, option, assignee, paid, timing };
+  const [apps, stats, total, destinations, visaOptions, optionStats, users] = await Promise.all([
+    listAllApplications({ ...filter, limit: board ? 80 : pageSize, offset: board ? 0 : (page - 1) * pageSize }),
     applicationStats(),
     countApplications(filter),
     listDestinations({ includeInactive: true }),
     listAllVisaOptions(),
     visaOptionStats(destination),
+    listUsers(),
   ]);
+  const staff = users.filter((user) => isStaffRole(user.role) && user.role !== "viewer").map((user) => ({ id: user.id, label: user.fullName || user.email }));
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const query = new URLSearchParams();
   if (status) query.set("status", status);
@@ -42,6 +50,10 @@ export default async function AdminApplicationsPage({ params, searchParams }: Pa
   if (to) query.set("to", to);
   if (destination) query.set("destination", destination);
   if (option) query.set("option", option);
+  if (assignee) query.set("assignee", assignee);
+  if (paid) query.set("paid", paid);
+  if (timing) query.set("timing", timing);
+  if (board) query.set("view", "board");
   const visibleOptions = destination ? visaOptions.filter((item) => item.destinationId === destinations.find((row) => row.slug === destination)?.id) : visaOptions;
   const groups = new Map<string, typeof visibleOptions>();
   for (const item of visibleOptions) {
@@ -82,11 +94,29 @@ export default async function AdminApplicationsPage({ params, searchParams }: Pa
             </optgroup>
           ))}
         </select>
+        <select name="assignee" defaultValue={assignee ?? ""} className={cn(adminInputClass, "mt-0 w-44")}>
+          <option value="">كل المسؤولين</option>
+          {staff.map((person) => (
+            <option key={person.id} value={person.id}>{person.label}</option>
+          ))}
+        </select>
+        <select name="paid" defaultValue={paid ?? ""} className={cn(adminInputClass, "mt-0 w-36")}>
+          <option value="">كل الدفع</option>
+          <option value="paid">مدفوع</option>
+          <option value="unpaid">غير مدفوع</option>
+        </select>
+        <select name="timing" defaultValue={timing ?? ""} className={cn(adminInputClass, "mt-0 w-36")}>
+          <option value="">كل المواعيد</option>
+          <option value="late">متأخر</option>
+        </select>
         <input name="from" type="date" defaultValue={from} className={cn(adminInputClass, "mt-0 w-36")} />
         <input name="to" type="date" defaultValue={to} className={cn(adminInputClass, "mt-0 w-36")} />
         {status && <input type="hidden" name="status" value={status} />}
         <button className={adminPrimaryClass}>بحث</button>
         <a className="rounded-full border border-line px-4 py-2 text-sm" href={`/api/admin/applications.csv?${query.toString()}`}>CSV</a>
+        <Link href={href(`/admin/applications?${(() => { const next = new URLSearchParams(query); if (board) next.delete("view"); else next.set("view", "board"); return next.toString(); })()}`, locale)} className="rounded-full border border-line px-4 py-2 text-sm">
+          {board ? "جدول" : "لوحة الحالات"}
+        </Link>
       </form>
       {destination && optionStats.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
@@ -107,7 +137,7 @@ export default async function AdminApplicationsPage({ params, searchParams }: Pa
         </div>
       )}
       <div className="mt-4">
-        <ApplicationTable locale={locale} applications={apps} />
+        <ApplicationWorkbench locale={locale} applications={apps} staff={staff} board={board} />
       </div>
       <div className="mt-4 flex items-center justify-between text-sm">
         <span>{total} طلب</span>
