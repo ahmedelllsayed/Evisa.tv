@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/admin/destinations": {
+      "targetKind": "existing-ui",
+      "projectId": "38b734ac-9d01-47bb-bc1b-ffb73d14bee7",
+      "baselineDraftId": "0b074f6c-0260-43ba-8917-c0a58acaa38e",
+      "activeDraftId": "0b074f6c-0260-43ba-8917-c0a58acaa38e",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "src/components/admin/destination-editor.tsx",
+        "src/components/admin/chrome.tsx",
+        "src/components/admin/admin-nav.tsx",
+        "src/app/[locale]/(pages)/admin/layout.tsx",
+        "src/app/globals.css"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "0729b081d575c5ca7d18c706ab1de68f021985a088c245e8a2c22a94e8fcb2e4",
+        "src/components/admin/destination-editor.tsx": "2df2d7f1310e066fcc9dbacb18184b512bbc4859d2ef9923206cb8e1a8e46dce",
+        "src/components/admin/chrome.tsx": "fadae88a568d1a146be661f6217f25c51358cc88155ed8221e0ce37e114f91ef",
+        "src/components/admin/admin-nav.tsx": "05db47c3b2884eca29b110de422ce02165bd0bacbf1bcddd728138771265a8ca",
+        "src/app/[locale]/(pages)/admin/layout.tsx": "515c2d22db341b0b199bf1ce811cd26f3cb66d4223ff627796d5b02e04c708b7",
+        "src/app/globals.css": "57dd088a16a534740cff8e6583e2e283ea68df0f7deac4ee33113a9eaf7c7118"
+      },
+      "components": [
+        {
+          "name": "AdminNav",
+          "id": "b400aabe-43b2-47dc-9092-bb32a22eb500",
+          "sourcePath": "src/components/admin/admin-nav.tsx"
+        }
+      ],
+      "drafts": {
+        "0b074f6c-0260-43ba-8917-c0a58acaa38e": {
+          "title": "محرر الوجهات الرئيسي والتفصيلي",
+          "visualDirection": "master-detail media studio on the existing admin tokens",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-10-02T03:20:00.000Z"
+    },
+    "/admin/queue": {
+      "targetKind": "new-ui",
+      "projectId": "38b734ac-9d01-47bb-bc1b-ffb73d14bee7",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "src/app/globals.css",
+        "src/components/admin/admin-nav.tsx",
+        "src/components/admin/chrome.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "0729b081d575c5ca7d18c706ab1de68f021985a088c245e8a2c22a94e8fcb2e4",
+        "src/app/globals.css": "57dd088a16a534740cff8e6583e2e283ea68df0f7deac4ee33113a9eaf7c7118",
+        "src/components/admin/admin-nav.tsx": "062139528bce3017838a57af3f2b7ee5ba103e4fad2a1299c400e440d4eee893",
+        "src/components/admin/chrome.tsx": "d549f7fa3e6f3a58846787d268d04161d9412ee56a2b8c3f720051523e8ba7b6"
+      },
+      "components": [],
+      "updatedAt": "2026-10-04T11:05:00.000Z",
+      "activeDraftId": "b2deef99-429f-432b-b024-3193b5f9b047",
+      "drafts": {
+        "b2deef99-429f-432b-b024-3193b5f9b047": {
+          "title": "طابور العمليات",
+          "visualDirection": "calm operations queue on existing tokens",
+          "currentVersion": 1,
+          "parentDraftId": null
+        }
+      }
+    },
+    "/admin/applications": {
+      "targetKind": "new-ui",
+      "projectId": "38b734ac-9d01-47bb-bc1b-ffb73d14bee7",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "src/app/globals.css",
+        "src/components/admin/admin-nav.tsx",
+        "src/components/admin/chrome.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "0729b081d575c5ca7d18c706ab1de68f021985a088c245e8a2c22a94e8fcb2e4",
+        "src/app/globals.css": "57dd088a16a534740cff8e6583e2e283ea68df0f7deac4ee33113a9eaf7c7118",
+        "src/components/admin/admin-nav.tsx": "062139528bce3017838a57af3f2b7ee5ba103e4fad2a1299c400e440d4eee893",
+        "src/components/admin/chrome.tsx": "d549f7fa3e6f3a58846787d268d04161d9412ee56a2b8c3f720051523e8ba7b6"
+      },
+      "components": [],
+      "updatedAt": "2026-10-04T11:05:00.000Z",
+      "activeDraftId": "04d1a186-395c-43b1-a0b3-d24cf49dbce4",
+      "sourceTarget": "/admin/queue",
+      "sourceDraftId": "b2deef99-429f-432b-b024-3193b5f9b047",
+      "drafts": {
+        "04d1a186-395c-43b1-a0b3-d24cf49dbce4": {
+          "title": "مساحة الطلب",
+          "visualDirection": "summary column plus work tabs",
+          "currentVersion": 1,
+          "parentDraftId": "b2deef99-429f-432b-b024-3193b5f9b047"
+        }
+      }
+    },
+    "/admin/pages": {
+      "targetKind": "new-ui",
+      "projectId": "38b734ac-9d01-47bb-bc1b-ffb73d14bee7",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "src/app/globals.css",
+        "src/components/admin/admin-nav.tsx",
+        "src/components/admin/chrome.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "0729b081d575c5ca7d18c706ab1de68f021985a088c245e8a2c22a94e8fcb2e4",
+        "src/app/globals.css": "57dd088a16a534740cff8e6583e2e283ea68df0f7deac4ee33113a9eaf7c7118",
+        "src/components/admin/admin-nav.tsx": "062139528bce3017838a57af3f2b7ee5ba103e4fad2a1299c400e440d4eee893",
+        "src/components/admin/chrome.tsx": "d549f7fa3e6f3a58846787d268d04161d9412ee56a2b8c3f720051523e8ba7b6"
+      },
+      "components": [],
+      "updatedAt": "2026-10-04T11:05:00.000Z",
+      "activeDraftId": "39460b73-af05-43e9-8bd5-ea41c55f1c16",
+      "sourceTarget": "/admin/queue",
+      "sourceDraftId": "b2deef99-429f-432b-b024-3193b5f9b047",
+      "drafts": {
+        "39460b73-af05-43e9-8bd5-ea41c55f1c16": {
+          "title": "نمط المحتوى",
+          "visualDirection": "master-detail content editor",
+          "currentVersion": 1,
+          "parentDraftId": "b2deef99-429f-432b-b024-3193b5f9b047"
+        }
+      }
+    }
+  }
+}

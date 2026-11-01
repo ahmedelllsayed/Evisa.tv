@@ -1,0 +1,813 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getCurrentUser, requireAdmin } from "@/lib/auth";
+import type { CmsContent, CmsTemplate } from "@/lib/cms/registry";
+import { addDocument, addEvent, deleteDocument, getApplication, getDocument, patchTraveler, saveStaffChecks, setAssignee, setDocumentStatus, setStatus, listTravelers, listDocuments } from "@/lib/data/applications";
+import { sendMail } from "@/lib/email";
+import { visaFilesMail, staffReplyMail, manualCustomerMail } from "@/lib/email-template";
+import { isArabicLocale, tf } from "@/lib/i18n";
+import { documentGaps } from "@/lib/application-rules";
+import { ensureReferralCode, referralLink } from "@/lib/data/growth";
+import { siteConfig } from "@/config/site.config";
+import { localizedVisaLabel } from "@/lib/localize";
+import { notifyUser } from "@/lib/data/notifications";
+import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, readStoredBytes, removeFile, storeFile } from "@/lib/storage";
+import { deleteContactMessage, setMessageRead, setRefundRequestStatus } from "@/lib/data/inbox";
+import { refundApplication } from "@/lib/payments";
+import {
+  createDestination,
+  deleteDestination,
+  saveDestinationWithOptions,
+  deleteFaq,
+  deleteHoliday,
+  deleteReview,
+  deleteTravelEvent,
+  saveHoliday,
+  saveTravelEvent,
+  updateDestination,
+  upsertFaq,
+  upsertReview,
+  type DestinationInput,
+  type TravelEventInput,
+} from "@/lib/data/catalog";
+import { deletePage, savePage, setPagePublished } from "@/lib/data/pages";
+import { readLogoFile, storeBrandLogo } from "@/lib/brand-logo";
+import { saveDestinationMedia, type DestinationMediaKind } from "@/lib/destination-media";
+import { saveCitizenshipCodes, saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
+import { sql } from "@/lib/data/db";
+import { createUser, deleteUser, setUserBanned, setUserRole, updateUser, type UserInput } from "@/lib/data/users";
+import type { ApplicationDocument, ApplicationStatus, VisaOptionInput, VisaType } from "@/lib/types";
+
+async function guard(locale: string) {
+  return requireAdmin(locale);
+}
+
+export async function recordAudit(action: string, target?: string, detail?: string) {
+  const user = await getCurrentUser();
+  await sql("insert into admin_audit (actor_email, action, target, detail) values ($1,$2,$3,$4)", [
+    user?.email ?? null,
+    action,
+    target ?? null,
+    detail ?? null,
+  ]);
+}
+
+function refresh(locale: string, path = "") {
+  revalidatePath(`/${locale}${path}`);
+  revalidatePath(`/${locale}`, "layout");
+  revalidatePath(`/${locale}/admin`, "layout");
+}
+
+export async function adminSetStatus(locale: string, id: string, status: ApplicationStatus, title: string, description: string) {
+  await guard(locale);
+  const result = await setStatus(id, status, { title, description, onTime: true });
+  refresh(locale, "/admin");
+  refresh(locale, `/admin/applications/${id}`);
+  refresh(locale, "/account");
+  refresh(locale, `/account/applications/${id}`);
+  return result;
+}
+
+export async function adminRefund(locale: string, id: string) {
+  await guard(locale);
+  const result = await refundApplication(id);
+  if (result.ok) {
+    await setRefundRequestStatus(id, "approved");
+    const app = await getApplication(id);
+    if (app) {
+      const mailLocale = app.locale || locale;
+      await notifyUser({
+        userId: app.userId,
+        applicationId: app.id,
+        title: tf(mailLocale, "notify.refundTitle", { ref: app.reference }),
+        body: tf(mailLocale, "notify.refundApproved", { ref: app.reference }),
+      });
+    }
+  }
+  refresh(locale, "/admin");
+  refresh(locale, `/admin/applications/${id}`);
+  refresh(locale, "/account");
+  refresh(locale, `/account/applications/${id}`);
+  return result;
+}
+
+export async function adminDeclineRefund(locale: string, id: string) {
+  await guard(locale);
+  await setRefundRequestStatus(id, "declined");
+  await addEvent(id, {
+    title: "Refund request declined",
+    description: "Staff declined the refund request.",
+    internal: true,
+    onTime: true,
+  });
+  const declined = await getApplication(id);
+  if (declined) {
+    const mailLocale = declined.locale || locale;
+    await notifyUser({
+      userId: declined.userId,
+      applicationId: declined.id,
+      title: tf(mailLocale, "notify.refundTitle", { ref: declined.reference }),
+      body: tf(mailLocale, "notify.refundDeclined", { ref: declined.reference }),
+    });
+  }
+  refresh(locale, `/admin/applications/${id}`);
+  refresh(locale, `/account/applications/${id}`);
+  return { ok: true as const };
+}
+
+export async function adminSetAssignee(locale: string, id: string, assigneeId: string | null) {
+  await guard(locale);
+  await setAssignee(id, assigneeId);
+  refresh(locale, `/admin/applications/${id}`);
+}
+
+export async function adminAddEvent(locale: string, id: string, title: string, description: string) {
+  await guard(locale);
+  await addEvent(id, { title, description, onTime: true, internal: true });
+  refresh(locale, `/admin/applications/${id}`);
+}
+
+export async function adminUploadIssuedVisa(locale: string, applicationId: string, formData: FormData) {
+  await guard(locale);
+  const app = await getApplication(applicationId);
+  if (!app) return { ok: false as const, error: "الطلب غير موجود." };
+  if (app.status !== "approved") return { ok: false as const, error: "ارفع التأشيرة بعد الموافقة على الطلب." };
+  const files = formData.getAll("file").filter((item): item is File => item instanceof File && item.size > 0);
+  if (!files.length) return { ok: false as const, error: "اختر ملف التأشيرة." };
+  if (files.length > 8) return { ok: false as const, error: "يمكن رفع 8 ملفات في المرة الواحدة." };
+  if (files.reduce((sum, file) => sum + file.size, 0) > 25 * 1024 * 1024) {
+    return { ok: false as const, error: "مجموع الملفات أكبر من 25 ميغابايت." };
+  }
+  for (const file of files) {
+    if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: "كل ملف يجب أن يكون أصغر من 10 ميغابايت." };
+    if (!ALLOWED_TYPES.includes(file.type)) return { ok: false as const, error: "استخدم JPG أو PNG أو WebP أو PDF." };
+  }
+  const attachments: { filename: string; content: Buffer; contentType: string }[] = [];
+  for (const file of files) {
+    const storagePath = await storeFile(app.userId, app.id, file);
+    const saved = await addDocument({
+      applicationId: app.id,
+      travelerId: null,
+      kind: "issued_visa",
+      storagePath,
+      fileName: file.name,
+      mimeType: file.type,
+      sizeBytes: file.size,
+      issuedByAdmin: true,
+    });
+    await setDocumentStatus(saved.id, "verified");
+    attachments.push({ filename: file.name, content: await readStoredBytes(storagePath), contentType: file.type });
+  }
+  await addEvent(app.id, {
+    status: "approved",
+    title: "Visa file ready",
+    description: "The issued visa files are available in your account.",
+    onTime: true,
+  });
+  const mailLocale = app.locale || locale;
+  await notifyUser({
+    userId: app.userId,
+    applicationId: app.id,
+    title: tf(mailLocale, "notify.visaTitle", { ref: app.reference }),
+    body: tf(mailLocale, "notify.visaBody", { ref: app.reference, n: files.length }),
+  });
+  if (app.userEmail) {
+    const settings = await getSiteSettings();
+    const country = isArabicLocale(mailLocale) && app.destinationNameAr ? app.destinationNameAr : app.destinationName;
+    const mail = visaFilesMail({
+      locale: mailLocale,
+      brand: settings.name,
+      country,
+      visaType: localizedVisaLabel(app, mailLocale) || country,
+      reference: app.reference,
+      files: files.length,
+      applicationId: app.id,
+      tagline: settings.tagline,
+      supportEmail: settings.supportEmail,
+    });
+    const mailed = await sendMail({
+      to: app.userEmail,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+      attachments,
+    });
+    refresh(locale, `/admin/applications/${applicationId}`);
+    refresh(locale, `/account/applications/${applicationId}`);
+    if (!mailed.sent) return { ok: false as const, error: "حُفظت الملفات، لكن تعذر إرفاقها في البريد." };
+  } else {
+    refresh(locale, `/admin/applications/${applicationId}`);
+    refresh(locale, `/account/applications/${applicationId}`);
+  }
+  return { ok: true as const };
+}
+
+export async function adminDeleteIssuedVisa(locale: string, applicationId: string, documentId: string) {
+  await guard(locale);
+  const doc = await getDocument(documentId);
+  if (!doc || doc.applicationId !== applicationId || doc.kind !== "issued_visa") {
+    return { ok: false as const, error: "الملف غير موجود." };
+  }
+  await deleteDocument(documentId, { allowIssuedVisa: true });
+  await removeFile(doc.storagePath);
+  refresh(locale, `/admin/applications/${applicationId}`);
+  refresh(locale, `/account/applications/${applicationId}`);
+  return { ok: true as const };
+}
+
+export async function adminSetDocumentStatus(
+  locale: string,
+  applicationId: string,
+  documentId: string,
+  status: ApplicationDocument["status"],
+  reason?: string,
+) {
+  await guard(locale);
+  const result = await setDocumentStatus(documentId, status, reason);
+  if (result.ok && status === "rejected") {
+    const [doc, app] = await Promise.all([getDocument(documentId), getApplication(applicationId)]);
+    if (doc && app) {
+      const mailLocale = app.locale || locale;
+      await notifyUser({
+        userId: app.userId,
+        applicationId: app.id,
+        title: tf(mailLocale, "notify.docTitle", { ref: app.reference }),
+        body: tf(mailLocale, "notify.docBody", { ref: app.reference, reason: reason?.trim() || "" }),
+      });
+    }
+  }
+  refresh(locale, `/admin/applications/${applicationId}`);
+  refresh(locale, `/apply/${applicationId}`);
+  refresh(locale, `/account/applications/${applicationId}`);
+  return result;
+}
+
+const optionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function optionField(fd: FormData, key: string, name: string) {
+  return String(fd.get(`opt.${key}.${name}`) ?? "");
+}
+
+function cleanDocumentList(values: FormDataEntryValue[]) {
+  const seen = new Set<string>();
+  const documents: string[] = [];
+  for (const raw of values) {
+    const kind = String(raw).trim().replace(/\s+/g, " ").slice(0, 180);
+    if (!kind || kind === "issued_visa" || seen.has(kind)) continue;
+    seen.add(kind);
+    documents.push(kind);
+  }
+  return documents;
+}
+
+function parseVisaOptions(fd: FormData): { ok: true; options: VisaOptionInput[] } | { ok: false; error: string } {
+  const keys = fd.getAll("optionKey").map(String).filter(Boolean);
+  if (!keys.length) return { ok: false, error: "أضف نوع تأشيرة واحداً على الأقل." };
+  const defaultKey = String(fd.get("defaultOption") || "");
+  const options: VisaOptionInput[] = [];
+  for (const [index, key] of keys.entries()) {
+    const kind = optionField(fd, key, "kind");
+    const embassy = kind === "sticker";
+    const visaType: VisaType = kind === "eta" ? "eta" : embassy ? "sticker" : "e-visa";
+    const method = embassy ? "Embassy" : kind === "eta" ? "e-Visa portal" : "Paperless";
+    const methodAr = embassy ? "عبر السفارة" : kind === "eta" ? "بوابة التأشيرة" : "بدون ورق";
+    const stay = optionField(fd, key, "stay").trim() || null;
+    const stayAr = optionField(fd, key, "stayAr").trim() || null;
+    const entry = optionField(fd, key, "entry").trim() || null;
+    const entryAr = optionField(fd, key, "entryAr").trim() || null;
+    const validity = optionField(fd, key, "validity").trim() || null;
+    const validityAr = optionField(fd, key, "validityAr").trim() || null;
+    let label = optionField(fd, key, "label").trim();
+    let labelAr = optionField(fd, key, "labelAr").trim();
+    if (!label) label = [stay, entry].filter(Boolean).join(" · ") || "Standard";
+    if (!labelAr) labelAr = [stayAr, entryAr].filter(Boolean).join(" · ");
+    const govFee = Number(optionField(fd, key, "govFee") || 0);
+    const serviceFee = Number(optionField(fd, key, "serviceFee") || 0);
+    const processingHours = Number(optionField(fd, key, "processingHours")) || null;
+    const expressOn = optionField(fd, key, "expressOn") === "on";
+    const expressHours = expressOn ? Number(optionField(fd, key, "expressHours")) || null : null;
+    const expressFee = expressOn ? Number(optionField(fd, key, "expressFee") || 0) : null;
+    const custom = optionField(fd, key, "documentsMode") === "custom";
+    const documents = custom ? cleanDocumentList(fd.getAll(`opt.${key}.documents`)) : null;
+    const active = optionField(fd, key, "active") === "on";
+    if (!Number.isFinite(govFee) || govFee < 0 || !Number.isFinite(serviceFee) || serviceFee < 0 || (expressFee != null && expressFee < 0)) {
+      return { ok: false, error: `رسوم «${label}» يجب أن تكون صفراً أو أكثر.` };
+    }
+    if (!processingHours) return { ok: false, error: `حدد وقت المعالجة العادي لنوع «${label}».` };
+    if (expressOn && !expressHours) return { ok: false, error: `حدد مدة المعالجة السريعة لنوع «${label}».` };
+    if (expressHours != null && expressHours >= processingHours) {
+      return { ok: false, error: `وقت السرعة في «${label}» يجب أن يكون أقصر من الوقت العادي.` };
+    }
+    if (custom && !documents?.length) return { ok: false, error: `اختر مستندات «${label}» أو أعدها لمستندات الدولة.` };
+    options.push({
+      id: optionIdPattern.test(key) ? key : null,
+      label,
+      labelAr: labelAr || null,
+      visaType,
+      embassyVisit: embassy,
+      method,
+      methodAr,
+      validity,
+      validityAr,
+      stay,
+      stayAr,
+      entry,
+      entryAr,
+      govFee,
+      serviceFee,
+      processingHours,
+      expressHours,
+      expressFee,
+      documents,
+      isDefault: key === defaultKey,
+      isActive: active,
+      sortOrder: index,
+    });
+  }
+  if (!options.some((option) => option.isDefault && option.isActive)) {
+    const fallback = options.find((option) => option.isActive);
+    for (const option of options) option.isDefault = option === fallback;
+  }
+  return { ok: true, options };
+}
+
+function mirrorOption(input: DestinationInput, option: VisaOptionInput) {
+  input.visaType = option.visaType;
+  input.embassyVisit = option.embassyVisit;
+  input.method = option.method;
+  input.methodAr = option.methodAr;
+  input.validity = option.validity;
+  input.validityAr = option.validityAr;
+  input.stay = option.stay;
+  input.stayAr = option.stayAr;
+  input.entry = option.entry;
+  input.entryAr = option.entryAr;
+  input.govFee = option.govFee;
+  input.serviceFee = option.serviceFee;
+  input.processingHours = option.processingHours;
+  input.expressHours = option.expressHours;
+  input.expressFee = option.expressFee;
+}
+
+export async function adminSaveDestination(locale: string, id: string | null, input: DestinationInput, options?: VisaOptionInput[]) {
+  await guard(locale);
+  try {
+    const savedId = options
+      ? await saveDestinationWithOptions(id, input, options)
+      : id
+        ? (await updateDestination(id, input), id)
+        : await createDestination(input);
+    refresh(locale, "");
+    refresh(locale, "/admin/destinations");
+    refresh(locale, `/visa/${input.slug}`);
+    return { ok: true as const, id: savedId };
+  } catch (error) {
+    const text = String(error);
+    if (text.includes("لا يتبع هذه الدولة")) {
+      return { ok: false as const, error: "نوع التأشيرة لا يتبع هذه الدولة." };
+    }
+    if (text.includes("23505") || text.includes("duplicate") || text.includes("unique")) {
+      return { ok: false as const, error: "الرابط أو رمز الدولة مستخدم لوجهة أخرى." };
+    }
+    throw error;
+  }
+}
+
+export async function adminSaveDestinationForm(locale: string, id: string | null, fd: FormData) {
+  await guard(locale);
+  const sourceLines = String(fd.get("sources") || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const sources: DestinationInput["sources"] = [];
+  for (const line of sourceLines) {
+    const [label, ...rest] = line.split("|");
+    const url = rest.join("|").trim();
+    if (!label.trim() || !/^https?:\/\//.test(url)) {
+      return { ok: false as const, error: "كل مصدر يحتاج اسماً ورابطاً يبدأ بـ http أو https، بهذا الشكل: الاسم | الرابط" };
+    }
+    sources.push({ label: label.trim(), url });
+  }
+  const reasons = String(fd.get("rejectionReasons") || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split("|").map((part) => part.trim());
+      return {
+        title: parts[0] ?? "",
+        body: parts[1] || parts[0] || "",
+        titleAr: parts[2] || undefined,
+        bodyAr: parts[3] || undefined,
+      };
+    });
+  const optional = (name: string) => String(fd.get(name) || "").trim() || null;
+  const input: DestinationInput = {
+    name: String(fd.get("name") || "").trim(),
+    nameAr: optional("nameAr"),
+    slug: String(fd.get("slug") || "").trim(),
+    code: String(fd.get("code") || "").trim().toUpperCase(),
+    region: optional("region"),
+    visaRequired: fd.get("visaRequired") === "on",
+    visaType: String(fd.get("visaType") || "e-visa") as DestinationInput["visaType"],
+    validity: optional("validity"),
+    validityAr: optional("validityAr"),
+    stay: optional("stay"),
+    stayAr: optional("stayAr"),
+    entry: optional("entry"),
+    entryAr: optional("entryAr"),
+    acceptedAt: optional("acceptedAt"),
+    method: optional("method"),
+    methodAr: optional("methodAr"),
+    govFee: Number(fd.get("govFee") || 0),
+    serviceFee: Number(fd.get("serviceFee") || 0),
+    processingHours: Number(fd.get("processingHours")) || null,
+    expressHours: Number(fd.get("expressHours")) || null,
+    expressFee: Number(fd.get("expressFee")) || null,
+    embassyVisit: false,
+    documents: cleanDocumentList(fd.getAll("documents")),
+    image: optional("image"),
+    heroImage: optional("heroImage"),
+    flag: optional("flag"),
+    videoUrl: optional("videoUrl"),
+    cities: String(fd.get("cities") || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+    rejectionReasons: reasons,
+    sources,
+    sortOrder: Number(fd.get("sortOrder") || 0),
+    isActive: fd.get("isActive") === "on",
+  };
+  if (!input.name || !input.slug || !input.code) {
+    return { ok: false as const, error: "الاسم والرابط ورمز الدولة مطلوبة." };
+  }
+  const parsed = parseVisaOptions(fd);
+  if (!parsed.ok) return parsed;
+  if (input.visaRequired && !parsed.options.some((option) => option.isActive)) {
+    return { ok: false as const, error: "أبقِ نوع تأشيرة ظاهراً واحداً على الأقل." };
+  }
+  const mirror = parsed.options.find((option) => option.isDefault) ?? parsed.options[0];
+  if (mirror) mirrorOption(input, mirror);
+  const saved = await adminSaveDestination(locale, id, input, parsed.options);
+  if (!saved.ok) return saved;
+  const files: [string, DestinationMediaKind, "image" | "heroImage" | "flag" | "videoUrl"][] = [
+    ["imageFile", "image", "image"],
+    ["heroFile", "hero", "heroImage"],
+    ["flagFile", "flag", "flag"],
+    ["videoFile", "video", "videoUrl"],
+  ];
+  let changed = false;
+  for (const [field, kind, key] of files) {
+    const file = fd.get(field);
+    if (!(file instanceof File) || file.size === 0) continue;
+    const stored = await saveDestinationMedia(saved.id, kind, file);
+    if (!stored.ok) return stored;
+    input[key] = stored.url;
+    changed = true;
+  }
+  if (changed) {
+    const again = await adminSaveDestination(locale, saved.id, input);
+    if (!again.ok) return again;
+  }
+  return { ok: true as const, id: saved.id };
+}
+
+export async function adminDeleteDestination(locale: string, id: string) {
+  await guard(locale);
+  const result = await deleteDestination(id);
+  refresh(locale, "/admin/destinations");
+  return result;
+}
+
+export async function adminSaveHoliday(locale: string, input: { id?: string; countryCode: string; date: string; name: string }) {
+  await guard(locale);
+  try {
+    await saveHoliday(input);
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "تعذر حفظ العطلة." };
+  }
+  refresh(locale, "");
+  refresh(locale, "/admin/holidays");
+  return { ok: true as const };
+}
+
+export async function adminDeleteHoliday(locale: string, id: string) {
+  await guard(locale);
+  await deleteHoliday(id);
+  refresh(locale, "");
+  refresh(locale, "/admin/holidays");
+}
+
+export async function adminSaveTravelEvent(locale: string, input: TravelEventInput) {
+  await guard(locale);
+  try {
+    await saveTravelEvent(input);
+  } catch (error) {
+    return { ok: false as const, error: error instanceof Error ? error.message : "تعذر حفظ الفعالية." };
+  }
+  refresh(locale, "");
+  refresh(locale, "/admin/events");
+  return { ok: true as const };
+}
+
+export async function adminDeleteTravelEvent(locale: string, id: string) {
+  await guard(locale);
+  await deleteTravelEvent(id);
+  refresh(locale, "");
+  refresh(locale, "/admin/events");
+}
+
+export async function adminSaveFaq(
+  locale: string,
+  input: { id?: string; scope: string; category: string; categoryAr?: string | null; question: string; questionAr?: string | null; answer: string; answerAr?: string | null; destinationId: string | null; sortOrder: number },
+) {
+  await guard(locale);
+  await upsertFaq(input);
+  refresh(locale, "/admin/faqs");
+}
+
+export async function adminDeleteFaq(locale: string, id: string) {
+  await guard(locale);
+  await deleteFaq(id);
+  refresh(locale, "/admin/faqs");
+}
+
+export async function adminSaveReview(
+  locale: string,
+  input: { id?: string; scope: string; author: string; location: string | null; title: string | null; titleAr?: string | null; body: string; bodyAr?: string | null; rating: number; product: string | null; destinationId: string | null },
+) {
+  await guard(locale);
+  await upsertReview(input);
+  refresh(locale, "/admin/reviews");
+}
+
+export async function adminDeleteReview(locale: string, id: string) {
+  await guard(locale);
+  await deleteReview(id);
+  refresh(locale, "/admin/reviews");
+}
+
+export async function adminSavePage(
+  locale: string,
+  input: { id?: string; slug: string; template: CmsTemplate; title: string; published: boolean; sortOrder: number; content: CmsContent },
+) {
+  await guard(locale);
+  await savePage(input);
+  refresh(locale, `/${input.slug.replace(/^\/+/, "")}`);
+  refresh(locale, "/admin/pages");
+}
+
+export async function adminSetPagePublished(locale: string, id: string, slug: string, published: boolean) {
+  await guard(locale);
+  await setPagePublished(id, published);
+  refresh(locale, `/${slug}`);
+  refresh(locale, "/admin/pages");
+}
+
+export async function adminDeletePage(locale: string, id: string, slug: string) {
+  await guard(locale);
+  const result = await deletePage(id);
+  refresh(locale, `/${slug}`);
+  refresh(locale, "/admin/pages");
+  return result;
+}
+
+export async function adminSaveSettings(locale: string, input: SiteSettings) {
+  await guard(locale);
+  await saveSiteSettings(input);
+  refresh(locale);
+  refresh(locale, "/admin/settings");
+  refresh(locale, "/visa");
+  refresh(locale, "/contact");
+}
+
+export async function adminSaveSettingsForm(locale: string, fd: FormData) {
+  await guard(locale);
+  const current = await getSiteSettings();
+  let logoUrl = current.logoUrl;
+  let storedLogo: { bytes: Buffer; mime: string } | null | undefined;
+  const file = fd.get("logo");
+  if (file instanceof File && file.size > 0) {
+    const parsed = await readLogoFile(file);
+    if (!parsed.ok) return parsed;
+    storedLogo = parsed.logo;
+    logoUrl = `/brand-logo?v=${Date.now()}`;
+  } else if (fd.get("clearLogo") === "on") {
+    storedLogo = null;
+    logoUrl = "";
+  }
+  const offices = String(fd.get("offices") || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [city, ...rest] = line.split("|");
+      return { city: city.trim(), address: rest.join("|").trim() };
+    })
+    .filter((office) => office.city && office.address);
+  await saveSiteSettings({
+    name: String(fd.get("name") || ""),
+    legalName: String(fd.get("legalName") || ""),
+    description: String(fd.get("description") || ""),
+    tagline: String(fd.get("tagline") || ""),
+    generalEmail: String(fd.get("generalEmail") || ""),
+    supportEmail: String(fd.get("supportEmail") || ""),
+    pressEmail: String(fd.get("pressEmail") || ""),
+    partnershipsEmail: String(fd.get("partnershipsEmail") || ""),
+    phone: String(fd.get("phone") || ""),
+    whatsapp: String(fd.get("whatsapp") || ""),
+    offices,
+    approvalRate: current.approvalRate,
+    approvalOverall: current.approvalOverall,
+    bookingUrl: String(fd.get("bookingUrl") || ""),
+    logoUrl,
+    extras: {
+      ...current.extras,
+      seoTitleEn: String(fd.get("seoTitleEn") || ""),
+      seoTitleAr: String(fd.get("seoTitleAr") || ""),
+      seoDescriptionEn: String(fd.get("seoDescriptionEn") || ""),
+      seoDescriptionAr: String(fd.get("seoDescriptionAr") || ""),
+      ogImage: String(fd.get("ogImage") || ""),
+      favicon: String(fd.get("favicon") || ""),
+      social: String(fd.get("social") || ""),
+      showFaq: false,
+      showReviews: false,
+      showStats: false,
+      showEvents: fd.get("showEvents") === "on",
+      showMap: fd.get("showMap") === "on",
+      announcementEn: String(fd.get("announcementEn") || ""),
+      announcementAr: String(fd.get("announcementAr") || ""),
+      gaMeasurementId: String(fd.get("gaMeasurementId") || "").trim(),
+      consentEnabled: fd.get("consentEnabled") === "on",
+      consentTextEn: String(fd.get("consentTextEn") || ""),
+      consentTextAr: String(fd.get("consentTextAr") || ""),
+      maintenance: fd.get("maintenance") === "on",
+      paymobIntegrationId: String(fd.get("paymobIntegrationId") || "").replace(/\D/g, ""),
+      offerTitleEn: String(fd.get("offerTitleEn") || ""),
+      offerTitleAr: String(fd.get("offerTitleAr") || ""),
+      offerUrl: String(fd.get("offerUrl") || ""),
+      offerNoteEn: String(fd.get("offerNoteEn") || ""),
+      offerNoteAr: String(fd.get("offerNoteAr") || ""),
+    },
+  });
+  if (storedLogo !== undefined) await storeBrandLogo(storedLogo);
+  await recordAudit("settings.save", "site_settings");
+  refresh(locale);
+  refresh(locale, "/admin/settings");
+  refresh(locale, "/visa");
+  refresh(locale, "/contact");
+  return { ok: true as const };
+}
+
+export async function adminSetMessageRead(locale: string, id: string, read: boolean) {
+  await guard(locale);
+  await setMessageRead(id, read);
+  refresh(locale, "/admin/messages");
+}
+
+export async function adminDeleteMessage(locale: string, id: string) {
+  await guard(locale);
+  await deleteContactMessage(id);
+  await recordAudit("message.delete", id);
+  refresh(locale, "/admin/messages");
+}
+
+export async function adminReplyMessage(locale: string, id: string, email: string, body: string) {
+  await guard(locale);
+  const text = body.trim();
+  if (text.length < 2) return { ok: false as const, error: "اكتب الرد." };
+  const settings = await getSiteSettings();
+  const mail = staffReplyMail(locale, settings.name, text, settings.tagline, settings.supportEmail);
+  const sent = await sendMail({ to: email, subject: mail.subject, text: mail.text, html: mail.html });
+  if (!sent.sent) return { ok: false as const, error: "تعذر إرسال البريد. تحقق من إعداد Resend." };
+  await setMessageRead(id, true);
+  await recordAudit("message.reply", id);
+  refresh(locale, "/admin/messages");
+  return { ok: true as const };
+}
+
+export async function adminPatchTraveler(
+  locale: string,
+  id: string,
+  input: { firstName: string; lastName: string; passportNumber: string; nationality: string },
+) {
+  await guard(locale);
+  if (!input.firstName.trim() || !input.lastName.trim()) return { ok: false as const, error: "الاسم مطلوب." };
+  await patchTraveler(id, input);
+  await recordAudit("traveler.update", id);
+  refresh(locale, "/admin/applications");
+  return { ok: true as const };
+}
+
+export async function adminSetUserBanned(locale: string, id: string, banned: boolean) {
+  await guard(locale);
+  const result = await setUserBanned(id, banned);
+  if (result.ok) await recordAudit(banned ? "user.ban" : "user.unban", id);
+  refresh(locale, "/admin/users");
+  return result;
+}
+
+export async function adminSaveCitizenships(locale: string, codes: string[]) {
+  await guard(locale);
+  await saveCitizenshipCodes(codes);
+  revalidatePath("/en-EG", "layout");
+  revalidatePath("/ar-EG", "layout");
+  refresh(locale, "/admin/citizenships");
+  return { ok: true as const };
+}
+
+export async function adminSetUserRole(locale: string, id: string, role: "user" | "admin") {
+  await guard(locale);
+  const result = await setUserRole(id, role);
+  refresh(locale, "/admin/users");
+  refresh(locale, "/admin");
+  return result;
+}
+
+export async function adminCreateUser(locale: string, input: UserInput) {
+  await guard(locale);
+  const result = await createUser(input);
+  refresh(locale, "/admin/users");
+  refresh(locale, "/admin");
+  return result;
+}
+
+export async function adminUpdateUser(locale: string, id: string, input: UserInput) {
+  await guard(locale);
+  const result = await updateUser(id, input);
+  refresh(locale, "/admin/users");
+  refresh(locale, "/admin");
+  return result;
+}
+
+export async function adminDeleteUser(locale: string, id: string) {
+  const admin = await requireAdmin(locale);
+  const result = await deleteUser(id, admin.id);
+  refresh(locale, "/admin/users");
+  refresh(locale, "/admin");
+  return result;
+}
+
+export async function adminSaveChecks(
+  locale: string,
+  applicationId: string,
+  checks: { passport: boolean; photo: boolean; documents: boolean },
+) {
+  await guard(locale);
+  const saved = await saveStaffChecks(applicationId, checks);
+  if (!saved) return { ok: false as const, error: "الطلب غير موجود." };
+  await addEvent(applicationId, {
+    title: "قائمة التحقق",
+    description: `جواز ${checks.passport ? "تم" : "لا"} · صورة ${checks.photo ? "تم" : "لا"} · مستندات ${checks.documents ? "تم" : "لا"}`,
+    internal: true,
+  });
+  await recordAudit("application.checks", applicationId);
+  refresh(locale, `/admin/applications/${applicationId}`);
+  return { ok: true as const };
+}
+
+export async function adminSendCustomerNote(locale: string, applicationId: string, kind: "resume" | "documents" | "review" | "referral") {
+  await guard(locale);
+  const app = await getApplication(applicationId);
+  if (!app?.userEmail) return { ok: false as const, error: "لا يوجد بريد للعميل." };
+  if (kind === "resume" && app.status !== "draft" && app.status !== "payment_pending") {
+    return { ok: false as const, error: "هذا القالب للطلبات غير المكتملة فقط." };
+  }
+  if (kind === "review" && app.status !== "approved") return { ok: false as const, error: "طلب التقييم يكون بعد الموافقة." };
+  if (kind === "documents") {
+    const [travelers, documents] = await Promise.all([listTravelers(app.id), listDocuments(app.id)]);
+    if (documentGaps(app.documentsRequired, travelers, documents.filter((document) => document.kind !== "issued_visa")).length === 0) {
+      return { ok: false as const, error: "لا يوجد نقص في المستندات." };
+    }
+  }
+  const settings = await getSiteSettings();
+  const mailLocale = app.locale || locale;
+  const country = isArabicLocale(mailLocale) && app.destinationNameAr ? app.destinationNameAr : app.destinationName;
+  const code = kind === "referral" ? await ensureReferralCode(app.userId) : "";
+  if (kind === "referral" && !code) return { ok: false as const, error: "تعذر إنشاء رابط الدعوة." };
+  const href =
+    kind === "review"
+      ? `${siteConfig.url}/${mailLocale}/contact`
+      : kind === "referral"
+        ? referralLink(code)
+        : `${siteConfig.url}/${mailLocale}/apply/${app.id}`;
+  const mail = manualCustomerMail({
+    locale: mailLocale,
+    brand: settings.name,
+    tagline: settings.tagline,
+    supportEmail: settings.supportEmail,
+    kind,
+    country,
+    visaType: localizedVisaLabel(app, mailLocale) || country,
+    reference: app.reference,
+    href,
+  });
+  const sent = await sendMail({ to: app.userEmail, subject: mail.subject, text: mail.text, html: mail.html });
+  if (!sent.sent) return { ok: false as const, error: "تعذر إرسال البريد. تحقق من إعداد Resend." };
+  await addEvent(app.id, { title: "رسالة من الموظف", description: mail.subject, internal: true });
+  await recordAudit("application.mail", app.id, kind);
+  refresh(locale, `/admin/applications/${applicationId}`);
+  return { ok: true as const };
+}

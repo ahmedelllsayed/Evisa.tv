@@ -1,0 +1,31 @@
+create table if not exists travel_orders (
+  id uuid primary key default gen_random_uuid(),
+  reference text not null unique,
+  user_id uuid,
+  locale text not null default 'en-EG',
+  email text not null,
+  phone text not null,
+  services jsonb not null,
+  passenger jsonb not null,
+  trip jsonb not null,
+  quote jsonb not null default '{}'::jsonb,
+  amount numeric(12, 2) not null,
+  currency char(3) not null default 'EGP',
+  status text not null default 'pending_payment',
+  merchant_order_id text unique,
+  paymob_order_id text,
+  transaction_id text,
+  paid_at timestamptz,
+  flight_pnr text,
+  flight_order_id text,
+  flight_hold_until timestamptz,
+  hotel_confirmation text,
+  hotel_booking_id text,
+  hotel_cancel_until timestamptz,
+  files jsonb not null default '[]'::jsonb,
+  error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists travel_orders_status_idx on travel_orders (status, created_at desc);

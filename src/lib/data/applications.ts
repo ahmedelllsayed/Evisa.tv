@@ -1,0 +1,987 @@
+import "server-only";
+import { randomInt } from "node:crypto";
+import type {
+  Application,
+  ApplicationDocument,
+  ApplicationEvent,
+  ApplicationStatus,
+  ApplicationStep,
+  Payment,
+  Traveler,
+  VisaDetails,
+} from "@/lib/types";
+import type { AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
+import { documentGaps } from "@/lib/application-rules";
+import { statusUpdateMail } from "@/lib/email-template";
+import { paymobDecision, paymentCanMarkPaid } from "@/lib/paymob-decision";
+import { t, tf, type MessageKey, isArabicLocale } from "@/lib/i18n";
+import { sendMail } from "@/lib/email";
+import { localizedVisaLabel } from "@/lib/localize";
+import { getSiteSettings } from "@/lib/data/settings";
+import { notifyUser } from "./notifications";
+import { formatAt, formatMoney, governmentFeeCharged, guaranteedDate, optionHours, optionServiceFee } from "@/lib/visa";
+import { getDestinationById } from "./catalog";
+import { getActiveVisaOption, getDefaultVisaOption, snapshotVisaOption } from "./visa-options";
+import { day, getDb, iso, isoOrNull, json, num, numOrNull, one, sql } from "./db";
+
+type Row = Record<string, unknown>;
+
+const requiredDocsSql = `
+  case
+    when vo.documents is not null and jsonb_typeof(vo.documents) = 'array' and jsonb_array_length(vo.documents) > 0 then vo.documents
+    else d.documents
+  end`;
+
+const APP_SELECT = `
+  select a.*, d.name as destination_name, d.name_ar as destination_name_ar, d.slug as destination_slug, d.flag as destination_flag,
+         d.image as destination_image, ${requiredDocsSql} as destination_documents, p.email as user_email,
+         assignee.email as assignee_email
+  from applications a
+  join destinations d on d.id = a.destination_id
+  join profiles p on p.id = a.user_id
+  left join profiles assignee on assignee.id = a.assignee_id
+  left join visa_options vo on vo.id = a.visa_option_id`;
+
+function staffChecks(value: unknown): Application["staffChecks"] {
+  const raw = json<Partial<Application["staffChecks"]>>(value, {});
+  return {
+    passport: raw.passport === true,
+    photo: raw.photo === true,
+    documents: raw.documents === true,
+  };
+}
+
+function toApplication(r: Row): Application {
+  return {
+    id: String(r.id),
+    reference: String(r.reference),
+    userId: String(r.user_id),
+    userEmail: (r.user_email as string) ?? undefined,
+    destinationId: String(r.destination_id),
+    destinationName: String(r.destination_name),
+    destinationNameAr: (r.destination_name_ar as string) ?? null,
+    destinationSlug: String(r.destination_slug),
+    destinationFlag: (r.destination_flag as string) ?? null,
+    destinationImage: (r.destination_image as string) ?? null,
+    documentsRequired: json<string[]>(r.destination_documents, []),
+    visaOptionId: (r.visa_option_id as string) ?? null,
+    visaLabel: (r.visa_label as string) ?? null,
+    visaLabelAr: (r.visa_label_ar as string) ?? null,
+    visaDetails: r.visa_details == null ? null : json<VisaDetails | null>(r.visa_details, null),
+    status: r.status as ApplicationStatus,
+    step: r.step as ApplicationStep,
+    departureDate: day(r.departure_date),
+    express: Boolean(r.express),
+    guaranteedAt: isoOrNull(r.guaranteed_at),
+    travelerCount: num(r.traveler_count),
+    govFee: num(r.gov_fee),
+    serviceFee: num(r.service_fee),
+    totalAmount: num(r.total_amount),
+    currency: String(r.currency).trim(),
+    paidAt: isoOrNull(r.paid_at),
+    deliveredAt: isoOrNull(r.delivered_at),
+    assigneeId: (r.assignee_id as string) ?? null,
+    assigneeEmail: (r.assignee_email as string) ?? null,
+    locale: String(r.locale ?? "en-EG"),
+    staffChecks: staffChecks(r.staff_checks),
+    createdAt: iso(r.created_at),
+    updatedAt: iso(r.updated_at),
+  };
+}
+
+function newReference() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return "ATL-" + Array.from({ length: 7 }, () => alphabet[randomInt(alphabet.length)]).join("");
+}
+
+export async function createApplication(input: {
+  userId: string;
+  destinationId: string;
+  departureDate: string | null;
+  express: boolean;
+  locale?: string;
+  visaOptionId?: string | null;
+}) {
+  const d = await getDestinationById(input.destinationId);
+  if (!d || !d.isActive || !d.visaRequired) throw new Error("This destination is not available for applications");
+  const option = input.visaOptionId
+    ? await getActiveVisaOption(d.id, input.visaOptionId)
+    : await getDefaultVisaOption(d.id);
+  if (!option) throw new Error("This visa type is not available");
+  const express = input.express && option.expressHours !== null;
+  const hours = optionHours(option, express);
+  const govFee = governmentFeeCharged(option);
+  const serviceFee = optionServiceFee(option, express);
+  const row = await one<{ id: string }>(
+    `insert into applications (reference, user_id, destination_id, departure_date, express, guaranteed_at,
+       gov_fee, service_fee, total_amount, currency, locale, visa_option_id, visa_label, visa_label_ar, visa_details)
+     values ($1,$2,$3,$4::date,$5,$6::timestamptz,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb) returning id`,
+    [
+      newReference(), input.userId, d.id, input.departureDate, express, guaranteedDate(hours).toISOString(),
+      govFee, serviceFee, govFee + serviceFee, d.currency, input.locale || "en-EG",
+      option.id, option.label, option.labelAr, JSON.stringify(snapshotVisaOption(option)),
+    ],
+  );
+  await addEvent(row!.id, { status: "draft", title: "Application started", description: `${d.name} · ${option.label}` });
+  return row!.id;
+}
+
+export async function changeApplicationOption(id: string, optionId: string, expressWanted: boolean) {
+  const app = await getApplication(id);
+  if (!app) return { ok: false as const, error: "الطلب غير موجود." };
+  if ((app.status !== "draft" && app.status !== "payment_pending") || app.paidAt) {
+    return { ok: false as const, error: "لا يمكن تغيير نوع تأشيرة مدفوعة." };
+  }
+  const option = await getActiveVisaOption(app.destinationId, optionId);
+  if (!option) return { ok: false as const, error: "نوع التأشيرة غير متاح." };
+  const express = expressWanted && option.expressHours !== null;
+  const hours = optionHours(option, express);
+  const count = Math.max(1, app.travelerCount);
+  const govFee = governmentFeeCharged(option) * count;
+  const serviceFee = optionServiceFee(option, express) * count;
+  const row = await one<{ id: string }>(
+    `update applications set visa_option_id = $2, visa_label = $3, visa_label_ar = $4, visa_details = $5::jsonb,
+       express = $6, guaranteed_at = $7::timestamptz, gov_fee = $8, service_fee = $9, total_amount = $8::numeric + $9::numeric, updated_at = now()
+     where id = $1 and paid_at is null and status in ('draft', 'payment_pending')
+     returning id`,
+    [id, option.id, option.label, option.labelAr, JSON.stringify(snapshotVisaOption(option)), express, guaranteedDate(hours).toISOString(), govFee, serviceFee],
+  );
+  if (!row) return { ok: false as const, error: "لا يمكن تغيير نوع تأشيرة مدفوعة." };
+  await addEvent(id, { status: app.status, title: "تغيير نوع التأشيرة", description: option.labelAr || option.label });
+  return { ok: true as const };
+}
+
+export async function getApplication(id: string) {
+  const r = await one(`${APP_SELECT} where a.id = $1`, [id]);
+  return r ? toApplication(r) : null;
+}
+
+export async function listApplicationsForUser(userId: string) {
+  return (await sql(`${APP_SELECT} where a.user_id = $1 order by a.created_at desc`, [userId])).map(toApplication);
+}
+
+const gapCountSql = `
+  select count(*)::int as n
+  from applications a
+  join destinations d on d.id = a.destination_id
+  left join visa_options vo on vo.id = a.visa_option_id
+  where a.user_id = $1
+    and a.status not in ('draft', 'approved', 'rejected', 'cancelled', 'refunded')
+    and (
+      exists (
+        select 1 from documents doc
+        where doc.application_id = a.id and doc.status = 'rejected' and doc.kind <> 'issued_visa'
+      )
+      or exists (
+        select 1
+        from travelers t
+        cross join lateral jsonb_array_elements_text(
+          case
+            when vo.documents is not null and jsonb_typeof(vo.documents) = 'array' and jsonb_array_length(vo.documents) > 0 then vo.documents
+            when jsonb_typeof(d.documents) = 'array' and jsonb_array_length(d.documents) > 0 then d.documents
+            else '["passport"]'::jsonb
+          end
+        ) as req(kind)
+        where t.application_id = a.id
+          and not exists (
+            select 1 from documents doc
+            where doc.application_id = a.id
+              and doc.traveler_id = t.id
+              and doc.kind = req.kind
+              and doc.status <> 'rejected'
+          )
+      )
+    )`;
+
+export async function accountStats(userId: string): Promise<AccountStats> {
+  const row = await one<{ open: number; done: number; gaps: number; visas: number }>(
+    `select
+       (select count(*)::int from applications where user_id = $1 and status not in ('approved', 'rejected', 'cancelled', 'refunded')) as open,
+       (select count(*)::int from applications where user_id = $1 and status in ('approved', 'rejected', 'cancelled', 'refunded')) as done,
+       (select count(*)::int from documents doc join applications a on a.id = doc.application_id where a.user_id = $1 and doc.kind = 'issued_visa') as visas,
+       (${gapCountSql}) as gaps`,
+    [userId],
+  );
+  return {
+    open: row?.open ?? 0,
+    done: row?.done ?? 0,
+    gaps: row?.gaps ?? 0,
+    visas: row?.visas ?? 0,
+  };
+}
+
+export async function listPaymentsForUser(userId: string): Promise<UserPaymentRow[]> {
+  const rows = await sql(
+    `select p.id, p.application_id, p.provider, p.provider_ref, p.amount, p.currency, p.status, p.created_at,
+            p.merchant_order_id, a.reference, d.name as destination_name, d.slug as destination_slug
+     from payments p
+     join applications a on a.id = p.application_id
+     join destinations d on d.id = a.destination_id
+     where a.user_id = $1
+     order by p.created_at desc`,
+    [userId],
+  );
+  return rows.map((row) => ({
+    id: String(row.id),
+    applicationId: String(row.application_id),
+    reference: String(row.reference),
+    destinationName: String(row.destination_name),
+    destinationSlug: String(row.destination_slug),
+    provider: String(row.provider),
+    providerRef: (row.provider_ref as string) ?? null,
+    amount: num(row.amount),
+    currency: String(row.currency).trim(),
+    status: row.status as UserPaymentRow["status"],
+    createdAt: iso(row.created_at),
+    merchantOrderId: (row.merchant_order_id as string) ?? null,
+  }));
+}
+
+export async function listIssuedVisasForUser(userId: string): Promise<IssuedVisaRow[]> {
+  const rows = await sql(
+    `select doc.id, doc.application_id, doc.file_name, doc.storage_path, doc.mime_type, doc.size_bytes, doc.created_at,
+            a.reference, a.delivered_at, a.visa_label, a.visa_label_ar, d.name as destination_name, d.slug as destination_slug
+     from documents doc
+     join applications a on a.id = doc.application_id
+     join destinations d on d.id = a.destination_id
+     where a.user_id = $1 and doc.kind = 'issued_visa'
+     order by doc.created_at desc`,
+    [userId],
+  );
+  return rows.map((row) => ({
+    id: String(row.id),
+    applicationId: String(row.application_id),
+    reference: String(row.reference),
+    destinationName: String(row.destination_name),
+    destinationSlug: String(row.destination_slug),
+    visaLabel: (row.visa_label as string) ?? null,
+    visaLabelAr: (row.visa_label_ar as string) ?? null,
+    fileName: String(row.file_name),
+    storagePath: String(row.storage_path),
+    mimeType: (row.mime_type as string) ?? null,
+    sizeBytes: numOrNull(row.size_bytes),
+    createdAt: iso(row.created_at),
+    deliveredAt: isoOrNull(row.delivered_at),
+  }));
+}
+
+export async function listDocumentsForUser(userId: string): Promise<UserFileRow[]> {
+  const rows = await sql(
+    `select doc.id, doc.application_id, doc.kind, doc.file_name, doc.storage_path, doc.status, doc.reject_reason, doc.created_at,
+            a.reference, d.name as destination_name,
+            nullif(trim(coalesce(t.first_name, '') || ' ' || coalesce(t.last_name, '')), '') as traveler_name
+     from documents doc
+     join applications a on a.id = doc.application_id
+     join destinations d on d.id = a.destination_id
+     left join travelers t on t.id = doc.traveler_id
+     where a.user_id = $1 and doc.kind <> 'issued_visa'
+     order by a.created_at desc, doc.created_at desc`,
+    [userId],
+  );
+  return rows.map((row) => ({
+    id: String(row.id),
+    applicationId: String(row.application_id),
+    reference: String(row.reference),
+    destinationName: String(row.destination_name),
+    travelerName: (row.traveler_name as string) ?? null,
+    kind: String(row.kind),
+    fileName: String(row.file_name),
+    storagePath: String(row.storage_path),
+    status: row.status as UserFileRow["status"],
+    rejectReason: (row.reject_reason as string) ?? null,
+    createdAt: iso(row.created_at),
+  }));
+}
+
+export async function findOpenApplication(userId: string, destinationId: string) {
+  const r = await one(
+    `${APP_SELECT} where a.user_id = $1 and a.destination_id = $2 and a.status in ('draft', 'payment_pending')
+     order by a.created_at desc limit 1`,
+    [userId, destinationId],
+  );
+  return r ? toApplication(r) : null;
+}
+
+export type ApplicationListFilter = {
+  status?: string;
+  q?: string;
+  queue?: QueueFilter;
+  assigneeId?: string;
+  destination?: string;
+  option?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+};
+
+function buildApplicationWhere(filter: ApplicationListFilter) {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (filter.status) {
+    params.push(filter.status);
+    where.push(`a.status = $${params.length}`);
+  }
+  if (filter.q) {
+    params.push(`%${filter.q.toLowerCase()}%`);
+    where.push(`(lower(a.reference) like $${params.length} or lower(p.email) like $${params.length} or lower(d.name) like $${params.length})`);
+  }
+  const open = "a.status not in ('approved', 'rejected', 'cancelled', 'refunded')";
+  if (filter.queue === "mine" && filter.assigneeId) {
+    params.push(filter.assigneeId);
+    where.push(`a.assignee_id = $${params.length}::uuid`, open);
+  } else if (filter.queue === "unassigned") {
+    where.push("a.assignee_id is null", "a.status <> 'draft'", open);
+  } else if (filter.queue === "late") {
+    where.push("a.guaranteed_at is not null", "a.guaranteed_at < now()", open);
+  } else if (filter.queue === "documents") {
+    where.push("exists (select 1 from documents doc where doc.application_id = a.id and doc.status in ('uploaded', 'rejected') and doc.kind <> 'issued_visa')");
+  } else if (filter.queue === "paid_review") {
+    where.push("a.paid_at is not null", "a.status = 'submitted'");
+  } else if (filter.queue === "followup") {
+    where.push(followupSql);
+  } else if (filter.queue === "attention") {
+    where.push(
+      "a.status not in ('approved', 'rejected', 'cancelled', 'refunded')",
+      `(
+        (a.guaranteed_at is not null and a.guaranteed_at < now())
+        or (a.assignee_id is null and a.status <> 'draft')
+        or exists (select 1 from documents doc where doc.application_id = a.id and doc.status in ('uploaded', 'rejected') and doc.kind <> 'issued_visa')
+        or (a.paid_at is not null and a.status = 'submitted')
+        or ${paymentReviewSql}
+        or ${refundRequestSql}
+      )`,
+    );
+  }
+  if (filter.destination) {
+    params.push(filter.destination);
+    where.push(`d.slug = $${params.length}`);
+  }
+  if (filter.option) {
+    params.push(filter.option);
+    where.push(`a.visa_option_id = $${params.length}::uuid`);
+  }
+  if (filter.from) {
+    params.push(filter.from);
+    where.push(`a.created_at >= $${params.length}::date`);
+  }
+  if (filter.to) {
+    params.push(filter.to);
+    where.push(`a.created_at < ($${params.length}::date + interval '1 day')`);
+  }
+  return { where, params };
+}
+
+export async function listAllApplications(filter: ApplicationListFilter = {}) {
+  const { where, params } = buildApplicationWhere(filter);
+  const limit = Math.min(100, Math.max(1, filter.limit ?? 50));
+  const offset = Math.max(0, filter.offset ?? 0);
+  params.push(limit, offset);
+  const order = filter.queue === "followup" ? "a.created_at asc" : "a.created_at desc";
+  const rows = await sql(
+    `${APP_SELECT} ${where.length ? "where " + where.join(" and ") : ""} order by ${order} limit $${params.length - 1} offset $${params.length}`,
+    params,
+  );
+  return rows.map(toApplication);
+}
+
+export async function countApplications(filter: ApplicationListFilter = {}) {
+  const { where, params } = buildApplicationWhere(filter);
+  const row = await one<{ n: number }>(
+    `select count(*)::int as n from applications a join profiles p on p.id = a.user_id join destinations d on d.id = a.destination_id ${where.length ? "where " + where.join(" and ") : ""}`,
+    params,
+  );
+  return row?.n ?? 0;
+}
+
+export async function applicationsByDay() {
+  return sql<{ day: string; n: number }>(
+    `select to_char(created_at, 'YYYY-MM-DD') as day, count(*)::int as n
+     from applications where created_at > now() - interval '30 days'
+     group by 1 order by 1`,
+  );
+}
+
+export async function applicationStats() {
+  const rows = await sql<{ status: string; n: number; revenue: string | null }>(
+    "select status, count(*)::int as n, sum(case when paid_at is not null then total_amount end) as revenue from applications group by status",
+  );
+  return rows.map((r) => ({ status: r.status, count: r.n, revenue: num(r.revenue) }));
+}
+
+export async function setStep(id: string, step: ApplicationStep) {
+  const rows = await sql(
+    `update applications set step = $2, updated_at = now() where id = $1 and status in ${editableStatusSql} returning id`,
+    [id, step],
+  );
+  return rows.length > 0;
+}
+
+export async function setStatus(id: string, status: ApplicationStatus, event?: { title: string; description?: string; onTime?: boolean }) {
+  if (status === "filed") {
+    const current = await getApplication(id);
+    if (!current) return { ok: false as const, error: "الطلب غير موجود." };
+    const [travelers, documents] = await Promise.all([listTravelers(id), listDocuments(id)]);
+    if (documentGaps(current.documentsRequired, travelers, documents.filter((document) => document.kind !== "issued_visa")).length > 0) {
+      return { ok: false as const, error: "لا يمكن التقديم وفي المستندات نقص أو رفض." };
+    }
+  }
+  await sql(
+    `update applications set status = $2, updated_at = now(),
+       delivered_at = case when $2 = 'approved' then now() else delivered_at end
+     where id = $1`,
+    [id, status],
+  );
+  if (event) await addEvent(id, { status, ...event });
+  const app = await getApplication(id);
+  if (app) {
+    const locale = app.locale || "en-EG";
+    const statusLabel = t(locale, `status.${status}` as MessageKey);
+    const when = app.guaranteedAt ? formatAt(app.guaranteedAt, locale) : "—";
+    await notifyUser({
+      userId: app.userId,
+      applicationId: app.id,
+      title: tf(locale, "notify.statusTitle", { ref: app.reference, status: statusLabel }),
+      body: tf(locale, "notify.statusBody", { ref: app.reference, status: statusLabel, date: when }),
+    });
+    if (app.userEmail) {
+      const settings = await getSiteSettings();
+      const country = isArabicLocale(locale) && app.destinationNameAr ? app.destinationNameAr : app.destinationName;
+      const visaType = localizedVisaLabel(app, locale) || country;
+      const mail = statusUpdateMail({
+        locale,
+        brand: settings.name,
+        country,
+        visaType,
+        reference: app.reference,
+        status: statusLabel,
+        statusKey: status,
+        target: when,
+        travellers: app.travelerCount,
+        total: formatMoney(app.totalAmount, app.currency, locale),
+        express: app.express,
+        applicationId: app.id,
+        tagline: settings.tagline,
+        supportEmail: settings.supportEmail,
+      });
+      await sendMail({ to: app.userEmail, subject: mail.subject, text: mail.text, html: mail.html });
+    }
+  }
+  return { ok: true as const };
+}
+
+export async function setAssignee(id: string, assigneeId: string | null) {
+  await sql("update applications set assignee_id = $2, updated_at = now() where id = $1", [id, assigneeId]);
+}
+
+export async function saveStaffChecks(id: string, checks: Application["staffChecks"]) {
+  const rows = await sql(
+    `update applications set staff_checks = $2::jsonb, updated_at = now() where id = $1 returning id`,
+    [id, JSON.stringify({ passport: checks.passport === true, photo: checks.photo === true, documents: checks.documents === true })],
+  );
+  return rows.length > 0;
+}
+
+const closedSql = "('approved', 'rejected', 'cancelled', 'refunded')";
+const paymentReviewSql = `exists (
+  select 1 from application_events ev
+  where ev.application_id = a.id and ev.internal = true and ev.title = 'Payment needs review'
+)`;
+const refundRequestSql = `exists (
+  select 1 from refund_requests rr
+  where rr.application_id = a.id and rr.status = 'open'
+)`;
+const editableStatusSql = "('draft', 'payment_pending')";
+const followupSql = `(
+  a.status in ('draft', 'payment_pending')
+  or (
+    a.status in ('submitted', 'in_review')
+    and (
+      exists (
+        select 1 from travelers tr
+        where tr.application_id = a.id
+          and not exists (
+            select 1 from documents doc
+            where doc.application_id = a.id and doc.traveler_id = tr.id and doc.kind <> 'issued_visa' and doc.status <> 'rejected'
+          )
+      )
+      or exists (
+        select 1 from documents doc
+        where doc.application_id = a.id and doc.kind <> 'issued_visa' and doc.status = 'rejected'
+      )
+    )
+  )
+)`;
+
+export type QueueFilter = "attention" | "mine" | "unassigned" | "late" | "documents" | "paid_review" | "followup";
+
+export async function queueCounts(assigneeId: string) {
+  const row = await one<{ mine: number; unassigned: number; late: number; documents: number; paid_review: number; followup: number }>(
+    `select
+       (select count(*)::int from applications where assignee_id = $1 and status not in ${closedSql}) as mine,
+       (select count(*)::int from applications where assignee_id is null and status not in ('draft', 'approved', 'rejected', 'cancelled', 'refunded')) as unassigned,
+       (select count(*)::int from applications where guaranteed_at is not null and guaranteed_at < now() and status not in ${closedSql}) as late,
+       (select count(distinct application_id)::int from documents where status in ('uploaded', 'rejected') and kind <> 'issued_visa') as documents,
+       (select count(*)::int from applications where paid_at is not null and status = 'submitted') as paid_review,
+       (select count(*)::int from applications a where ${followupSql}) as followup`,
+    [assigneeId],
+  );
+  return {
+    mine: row?.mine ?? 0,
+    unassigned: row?.unassigned ?? 0,
+    late: row?.late ?? 0,
+    documents: row?.documents ?? 0,
+    paidReview: row?.paid_review ?? 0,
+    followup: row?.followup ?? 0,
+  };
+}
+
+export async function opsCounts() {
+  const [late, pending, attention] = await Promise.all([
+    one<{ n: number }>(
+      `select count(*)::int as n from applications
+       where guaranteed_at is not null and guaranteed_at < now()
+         and status not in ${closedSql}`,
+    ),
+    one<{ n: number }>("select count(*)::int as n from documents where status = 'uploaded' and kind <> 'issued_visa'"),
+    one<{ n: number }>(
+      `select count(*)::int as n from applications a
+       where a.status not in ${closedSql}
+         and (
+           (a.guaranteed_at is not null and a.guaranteed_at < now())
+           or (a.assignee_id is null and a.status <> 'draft')
+           or exists (select 1 from documents d where d.application_id = a.id and d.status in ('uploaded', 'rejected') and d.kind <> 'issued_visa')
+           or (a.paid_at is not null and a.status = 'submitted')
+           or ${paymentReviewSql}
+           or ${refundRequestSql}
+         )`,
+    ),
+  ]);
+  return { late: late?.n ?? 0, pendingDocuments: pending?.n ?? 0, attention: attention?.n ?? 0 };
+}
+
+// ----- Travelers -----
+
+function toTraveler(r: Row): Traveler {
+  return {
+    id: String(r.id),
+    applicationId: String(r.application_id),
+    firstName: String(r.first_name),
+    lastName: String(r.last_name),
+    sex: (r.sex as string) ?? null,
+    dateOfBirth: day(r.date_of_birth),
+    nationality: r.nationality ? String(r.nationality).trim() : null,
+    passportNumber: (r.passport_number as string) ?? null,
+    passportExpiry: day(r.passport_expiry),
+    sortOrder: num(r.sort_order),
+  };
+}
+
+export async function listTravelers(applicationId: string) {
+  return (await sql("select * from travelers where application_id = $1 order by sort_order, created_at", [applicationId])).map(toTraveler);
+}
+
+export type TravelerInput = Omit<Traveler, "id" | "applicationId" | "sortOrder"> & { id?: string };
+
+/** Replaces the traveler list, keeping ids (and their documents) for travelers that still exist. */
+export async function patchTraveler(id: string, input: { firstName: string; lastName: string; passportNumber: string; nationality: string }) {
+  await sql(
+    `update travelers set first_name = $2, last_name = $3, passport_number = $4, nationality = nullif($5, '') where id = $1`,
+    [id, input.firstName.trim(), input.lastName.trim(), input.passportNumber.trim() || null, input.nationality.trim().toUpperCase()],
+  );
+}
+
+export async function saveTravelers(
+  applicationId: string,
+  travelers: TravelerInput[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = await getDb();
+  return db.transaction(async (tx) => {
+    const [current] = await tx.query<{ status: string; traveler_count: number }>(
+      "select status, traveler_count from applications where id = $1 for update",
+      [applicationId],
+    );
+    if (!current) return { ok: false as const, error: "Application not found." };
+    if (current.status !== "draft" && current.status !== "payment_pending") {
+      return { ok: false as const, error: "This application can no longer be edited." };
+    }
+    const [charge] = await tx.query(
+      "select 1 from payments where application_id = $1 and status in ('pending', 'paid') limit 1",
+      [applicationId],
+    );
+    if (charge && travelers.length !== num(current.traveler_count)) {
+      return { ok: false as const, error: "The number of travellers is locked because a payment has already been started." };
+    }
+    const keep = travelers.map((t) => t.id).filter(Boolean) as string[];
+    if (charge) {
+      const existing = await tx.query<{ id: string }>("select id from travelers where application_id = $1", [applicationId]);
+      const existingIds = new Set(existing.map((row) => String(row.id)));
+      const samePeople = keep.length === travelers.length && keep.length === existingIds.size && keep.every((id) => existingIds.has(id));
+      if (!samePeople) {
+        return { ok: false as const, error: "The number of travellers is locked because a payment has already been started." };
+      }
+    }
+    await tx.query(
+      `delete from travelers where application_id = $1 ${keep.length ? "and not (id = any($2::uuid[]))" : ""}`,
+      keep.length ? [applicationId, `{${keep.join(",")}}`] : [applicationId],
+    );
+    for (const [i, t] of travelers.entries()) {
+      const dateOfBirth = t.dateOfBirth?.trim() ? t.dateOfBirth.trim() : null;
+      const passportExpiry = t.passportExpiry?.trim() ? t.passportExpiry.trim() : null;
+      const values = [t.firstName, t.lastName, t.sex, dateOfBirth, t.nationality, t.passportNumber, passportExpiry, i];
+      if (t.id) {
+        await tx.query(
+          `update travelers set first_name=$3, last_name=$4, sex=$5, date_of_birth=$6::date, nationality=$7,
+             passport_number=$8, passport_expiry=$9::date, sort_order=$10 where id=$1 and application_id=$2`,
+          [t.id, applicationId, ...values],
+        );
+      } else {
+        await tx.query(
+          `insert into travelers (application_id, first_name, last_name, sex, date_of_birth, nationality, passport_number, passport_expiry, sort_order)
+           values ($1,$2,$3,$4,$5::date,$6,$7,$8::date,$9)`,
+          [applicationId, ...values],
+        );
+      }
+    }
+    if (!charge) {
+      const a = await tx.query<{ gov_fee: string; service_fee: string; traveler_count: number }>(
+        "select gov_fee, service_fee, traveler_count from applications where id = $1",
+        [applicationId],
+      );
+      const count = Math.max(1, travelers.length);
+      const perTravelerGov = num(a[0].gov_fee) / Math.max(1, a[0].traveler_count);
+      const perTravelerService = num(a[0].service_fee) / Math.max(1, a[0].traveler_count);
+      await tx.query(
+        `update applications set traveler_count = $2, gov_fee = $3, service_fee = $4, total_amount = $3::numeric + $4::numeric, updated_at = now() where id = $1`,
+        [applicationId, count, perTravelerGov * count, perTravelerService * count],
+      );
+    }
+    return { ok: true as const };
+  });
+}
+
+// ----- Documents -----
+
+function toDocument(r: Row): ApplicationDocument {
+  return {
+    id: String(r.id),
+    applicationId: String(r.application_id),
+    travelerId: (r.traveler_id as string) ?? null,
+    kind: String(r.kind),
+    storagePath: String(r.storage_path),
+    fileName: String(r.file_name),
+    mimeType: (r.mime_type as string) ?? null,
+    sizeBytes: numOrNull(r.size_bytes),
+    status: r.status as ApplicationDocument["status"],
+    rejectReason: (r.reject_reason as string) ?? null,
+    createdAt: iso(r.created_at),
+  };
+}
+
+export async function listDocuments(applicationId: string) {
+  return (await sql("select * from documents where application_id = $1 order by created_at", [applicationId])).map(toDocument);
+}
+
+export async function getDocument(id: string) {
+  const r = await one("select * from documents where id = $1", [id]);
+  return r ? toDocument(r) : null;
+}
+
+export async function addDocument(input: Omit<ApplicationDocument, "id" | "status" | "createdAt" | "rejectReason"> & { issuedByAdmin?: boolean }) {
+  if (input.kind === "issued_visa" && !input.issuedByAdmin) {
+    throw new Error("That document is issued by our team.");
+  }
+  if (input.kind !== "issued_visa") {
+    const app = await one<{ status: string }>("select status from applications where id = $1", [input.applicationId]);
+    if (!app || (app.status !== "draft" && app.status !== "payment_pending")) {
+      throw new Error("This application can no longer be edited.");
+    }
+    await sql(
+      `delete from documents where application_id = $1 and kind = $2 and traveler_id is not distinct from $3::uuid`,
+      [input.applicationId, input.kind, input.travelerId],
+    );
+  }
+  const r = await one(
+    `insert into documents (application_id, traveler_id, kind, storage_path, file_name, mime_type, size_bytes)
+     values ($1,$2,$3,$4,$5,$6,$7) returning *`,
+    [input.applicationId, input.travelerId, input.kind, input.storagePath, input.fileName, input.mimeType, input.sizeBytes],
+  );
+  return toDocument(r!);
+}
+
+export async function deleteDocument(id: string, opts?: { allowIssuedVisa?: boolean }) {
+  const doc = await getDocument(id);
+  if (!doc) return;
+  const app = await one<{ status: string }>("select status from applications where id = $1", [doc.applicationId]);
+  if (doc.kind === "issued_visa") {
+    if (!opts?.allowIssuedVisa) throw new Error("That document is issued by our team.");
+  } else if (!app || (app.status !== "draft" && app.status !== "payment_pending")) {
+    throw new Error("This application can no longer be edited.");
+  }
+  await sql("delete from documents where id = $1", [id]);
+}
+
+export async function setDocumentStatus(id: string, status: ApplicationDocument["status"], reason?: string) {
+  if (status === "rejected" && !reason?.trim()) return { ok: false as const, error: "اكتب سبب الرفض." };
+  await sql("update documents set status = $2, reject_reason = $3 where id = $1", [
+    id,
+    status,
+    status === "rejected" ? reason!.trim() : null,
+  ]);
+  return { ok: true as const };
+}
+
+// ----- Timeline -----
+
+export async function addEvent(
+  applicationId: string,
+  e: { status?: string | null; title: string; description?: string | null; onTime?: boolean; internal?: boolean },
+) {
+  await sql(
+    "insert into application_events (application_id, status, title, description, on_time, internal) values ($1,$2,$3,$4,$5,$6)",
+    [applicationId, e.status ?? null, e.title, e.description ?? null, e.onTime ?? true, e.internal ?? false],
+  );
+  await sql("update applications set updated_at = now() where id = $1", [applicationId]);
+}
+
+export async function listEvents(applicationId: string, opts: { publicOnly?: boolean } = {}): Promise<ApplicationEvent[]> {
+  const rows = await sql(
+    `select * from application_events where application_id = $1 ${opts.publicOnly ? "and internal = false" : ""} order by created_at, id`,
+    [applicationId],
+  );
+  return rows.map((r) => ({
+    id: String(r.id),
+    applicationId: String(r.application_id),
+    status: (r.status as string) ?? null,
+    title: String(r.title),
+    description: (r.description as string) ?? null,
+    onTime: Boolean(r.on_time),
+    internal: Boolean(r.internal),
+    createdAt: iso(r.created_at),
+  }));
+}
+
+// ----- Payments -----
+
+function toPayment(r: Row): Payment {
+  return {
+    id: String(r.id),
+    applicationId: String(r.application_id),
+    provider: String(r.provider),
+    providerRef: (r.provider_ref as string) ?? null,
+    amount: num(r.amount),
+    currency: String(r.currency).trim(),
+    status: r.status as Payment["status"],
+    createdAt: iso(r.created_at),
+    transactionId: (r.transaction_id as string) ?? null,
+    checkoutUrl: (r.checkout_url as string) ?? null,
+    merchantOrderId: (r.merchant_order_id as string) ?? null,
+    paymobOrderId: (r.paymob_order_id as string) ?? null,
+  };
+}
+
+export async function createPayment(input: {
+  applicationId: string;
+  provider: string;
+  providerRef: string;
+  amount: number;
+  currency: string;
+  merchantOrderId?: string | null;
+  paymobOrderId?: string | null;
+  method?: string | null;
+  billingName?: string | null;
+  billingEmail?: string | null;
+  billingPhone?: string | null;
+  checkoutUrl?: string | null;
+}) {
+  await sql(
+    `insert into payments (
+       application_id, provider, provider_ref, amount, currency, merchant_order_id, paymob_order_id, method, billing_name, billing_email, billing_phone, checkout_url
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     on conflict (provider, provider_ref) do update set
+       amount = excluded.amount,
+       currency = excluded.currency,
+       merchant_order_id = coalesce(excluded.merchant_order_id, payments.merchant_order_id),
+       paymob_order_id = coalesce(excluded.paymob_order_id, payments.paymob_order_id),
+       method = coalesce(excluded.method, payments.method),
+       billing_name = coalesce(excluded.billing_name, payments.billing_name),
+       billing_email = coalesce(excluded.billing_email, payments.billing_email),
+       billing_phone = coalesce(excluded.billing_phone, payments.billing_phone),
+       checkout_url = coalesce(excluded.checkout_url, payments.checkout_url)
+     where payments.status = 'pending'`,
+    [
+      input.applicationId, input.provider, input.providerRef, input.amount, input.currency,
+      input.merchantOrderId ?? null, input.paymobOrderId ?? null, input.method ?? null,
+      input.billingName ?? null, input.billingEmail ?? null, input.billingPhone ?? null,
+      input.checkoutUrl ?? null,
+    ],
+  );
+  await sql("update applications set status = 'payment_pending', step = 'payment', updated_at = now() where id = $1 and status = 'draft'", [
+    input.applicationId,
+  ]);
+}
+
+export async function listPayments(applicationId: string) {
+  return (await sql("select * from payments where application_id = $1 order by created_at desc", [applicationId])).map(toPayment);
+}
+
+export async function findPendingPayment(applicationId: string) {
+  const row = await one(
+    "select * from payments where application_id = $1 and status = 'pending' order by created_at desc limit 1",
+    [applicationId],
+  );
+  return row ? toPayment(row) : null;
+}
+
+export async function getPaymentByMerchantOrder(merchantOrderId: string) {
+  const row = await one("select * from payments where merchant_order_id = $1 or provider_ref = $1 limit 1", [merchantOrderId]);
+  return row ? toPayment(row) : null;
+}
+
+export async function getPaymentByProviderRef(provider: string, providerRef: string) {
+  const row = await one("select * from payments where provider = $1 and provider_ref = $2", [provider, providerRef]);
+  return row ? toPayment(row) : null;
+}
+
+/** Idempotent. A payment can move an application to submitted only from draft or payment_pending, and only for the stored amount. */
+export async function markPaid(provider: string, providerRef: string, expectedAmount?: number) {
+  const db = await getDb();
+  return db.transaction(async (tx) => {
+    const [existing] = await tx.query<Row>("select * from payments where provider = $1 and provider_ref = $2", [provider, providerRef]);
+    if (!existing) return false;
+    const payment = toPayment(existing);
+    if (expectedAmount != null && Math.abs(payment.amount - expectedAmount) > 0.01) return false;
+    if (payment.status === "paid") return true;
+    if (payment.status !== "pending") return false;
+    const [app] = await tx.query<Row>("select status from applications where id = $1", [payment.applicationId]);
+    const status = String(app?.status ?? "");
+    if (status !== "draft" && status !== "payment_pending") return false;
+    await tx.query("update payments set status = 'paid', processed_at = now() where id = $1 and status = 'pending'", [payment.id]);
+    await tx.query(
+      `update applications set status = 'submitted', step = 'done', paid_at = now(), updated_at = now()
+       where id = $1 and status in ('draft', 'payment_pending')`,
+      [payment.applicationId],
+    );
+    await tx.query(
+      "insert into application_events (application_id, status, title, description) values ($1, 'submitted', $2, $3)",
+      [payment.applicationId, "Payment received", "Your application is submitted and our team is checking your documents"],
+    );
+    return true;
+  });
+}
+
+const PAYMENT_REVIEW_TITLE = "Payment needs review";
+
+type Queryable = { query: <T = Row>(text: string, params?: unknown[]) => Promise<T[]> };
+
+async function notePaymentReview(tx: Queryable, applicationId: string, description: string) {
+  await tx.query(
+    `insert into application_events (application_id, title, description, on_time, internal)
+     select $1, $2, $3, false, true
+     where not exists (
+       select 1 from application_events
+       where application_id = $1 and internal = true and title = $2 and description = $3
+     )`,
+    [applicationId, PAYMENT_REVIEW_TITLE, description],
+  );
+}
+
+export async function applyPaymobCallback(input: {
+  merchantOrderId: string;
+  paymobOrderId: string | null;
+  transactionId: string;
+  amountCents: number;
+  currency: string;
+  success: boolean;
+  pending: boolean;
+  refunded: boolean;
+  method: string | null;
+}) {
+  if (!input.paymobOrderId) return { ok: false as const, reason: "order" as const };
+  const db = await getDb();
+  return db.transaction(async (tx) => {
+    const [existing] = await tx.query<Row>(
+      "select * from payments where provider = 'paymob' and paymob_order_id = $1 limit 1",
+      [input.paymobOrderId],
+    );
+    if (!existing) return { ok: false as const, reason: "missing" as const };
+    const payment = toPayment(existing);
+    const decision = paymobDecision(
+      {
+        merchantOrderId: payment.merchantOrderId,
+        currency: payment.currency,
+        amount: payment.amount,
+        transactionId: payment.transactionId,
+        status: payment.status,
+      },
+      input,
+    );
+    if (!decision.ok) {
+      const detail =
+        decision.reason === "order"
+          ? `Paymob order ${input.paymobOrderId} arrived with merchant reference ${input.merchantOrderId}, which does not match the stored reference. The application was not marked paid.`
+          : decision.reason === "currency"
+            ? `Paymob reported currency ${input.currency || "unknown"} for order ${input.paymobOrderId}; the stored currency is ${payment.currency}. The application was not marked paid.`
+            : `Paymob reported ${input.amountCents} cents for order ${input.paymobOrderId}; the stored amount is ${Math.round(payment.amount * 100)} cents. The application was not marked paid.`;
+      await notePaymentReview(tx, payment.applicationId, detail);
+      return { ok: false as const, reason: decision.reason };
+    }
+    if (decision.reason === "duplicate") return { ok: true as const, reason: "duplicate" as const };
+    if (decision.reason === "refunded") {
+      await tx.query("update payments set status = 'refunded', transaction_id = $2, processed_at = now() where id = $1 and status = 'paid'", [
+        payment.id,
+        input.transactionId,
+      ]);
+      await tx.query(
+        `update applications set status = 'refunded', updated_at = now()
+         where id = $1 and status in ('draft', 'payment_pending', 'submitted', 'in_review', 'filed')`,
+        [payment.applicationId],
+      );
+      return { ok: true as const, reason: "refunded" as const };
+    }
+    if (decision.reason === "pending") return { ok: true as const, reason: "pending" as const };
+    if (decision.reason === "failed") {
+      await tx.query(
+        "update payments set status = 'failed', transaction_id = $2, method = coalesce($3, method), processed_at = now() where id = $1 and status = 'pending'",
+        [payment.id, input.transactionId, input.method],
+      );
+      return { ok: true as const, reason: "failed" as const };
+    }
+    const [app] = await tx.query<Row>("select status from applications where id = $1", [payment.applicationId]);
+    const status = String(app?.status ?? "");
+    if (!paymentCanMarkPaid(status)) {
+      await notePaymentReview(
+        tx,
+        payment.applicationId,
+        `Paymob charged transaction ${input.transactionId} for order ${input.paymobOrderId}, but the application is ${status}. It was not marked paid.`,
+      );
+      return { ok: true as const, reason: "ignored" as const };
+    }
+    const paidRows = await tx.query(
+      `update payments set status = 'paid', transaction_id = $2, paymob_order_id = coalesce($3, paymob_order_id), method = coalesce($4, method), processed_at = now()
+       where id = $1 and status = 'pending' returning id`,
+      [payment.id, input.transactionId, input.paymobOrderId, input.method],
+    );
+    if (!paidRows.length) return { ok: true as const, reason: "ignored" as const };
+    await tx.query(
+      `update applications set status = 'submitted', step = 'done', paid_at = coalesce(paid_at, now()), updated_at = now()
+       where id = $1 and status in ('draft', 'payment_pending')`,
+      [payment.applicationId],
+    );
+    await tx.query(
+      "insert into application_events (application_id, status, title, description) values ($1, 'submitted', $2, $3)",
+      [payment.applicationId, "Payment received", "Your application is submitted and our team is checking your documents"],
+    );
+    return { ok: true as const, reason: "paid" as const };
+  });
+}
+
+export async function markRefunded(applicationId: string, paymentId: string) {
+  const updated = await sql("update payments set status = 'refunded' where id = $1 and status = 'paid' returning id", [paymentId]);
+  if (!updated.length) return { ok: false as const, error: "لا توجد دفعة مكتملة للاسترداد." };
+  return setStatus(applicationId, "refunded", {
+    title: "Refunded",
+    description: "The payment was marked refunded under the refunds policy.",
+    onTime: true,
+  });
+}
