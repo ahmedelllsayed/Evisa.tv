@@ -23,13 +23,13 @@ function toUser(r: Record<string, unknown>): User {
     email: String(r.email),
     fullName: (r.full_name as string) ?? null,
     phone: (r.phone as string) ?? null,
-    role: r.role === "admin" ? "admin" : "user",
+    role: String(r.role || "user"), // Now supports all AdminRole values
   };
 }
 
 /** Creates or updates the profile row and applies ADMIN_EMAILS. */
 async function syncProfile(id: string | null, email: string, fullName?: string | null) {
-  const role = serverEnv().adminEmails.includes(email.toLowerCase()) ? "admin" : null;
+  const role = serverEnv().adminEmails.includes(email.toLowerCase()) ? "super_admin" : null;
   const row = id
     ? await one(
         `insert into profiles (id, email, full_name, role) values ($1, $2, $3, coalesce($4, 'user'))
@@ -115,7 +115,8 @@ export async function requireUser(locale: string, next?: string): Promise<User> 
 
 export async function requireAdmin(locale: string): Promise<User> {
   const user = await requireUser(locale, `/${locale}/admin/queue`);
-  if (user.role !== "admin") redirect(`/${locale}`);
+  // Allow all admin roles except regular user
+  if (user.role === "user") redirect(`/${locale}`);
   return user;
 }
 

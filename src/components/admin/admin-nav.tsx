@@ -18,6 +18,7 @@ import {
   Settings,
   Star,
   Users,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -39,6 +40,13 @@ const groups: { label: string; links: { href: string; label: string; icon: Lucid
     ],
   },
   {
+    label: "الإدارة",
+    links: [
+      { href: "/admin/staff", label: "الموظفون", icon: UserCog },
+      { href: "/admin/users", label: "المستخدمون", icon: Users },
+    ],
+  },
+  {
     label: "المحتوى",
     links: [
       { href: "/admin/destinations", label: "الوجهات", icon: Map },
@@ -47,7 +55,6 @@ const groups: { label: string; links: { href: string; label: string; icon: Lucid
       { href: "/admin/pages", label: "الصفحات", icon: FileText },
       { href: "/admin/faqs", label: "الأسئلة", icon: CircleHelp },
       { href: "/admin/reviews", label: "التقييمات", icon: Star },
-      { href: "/admin/users", label: "المستخدمون", icon: Users },
       { href: "/admin/settings", label: "الإعدادات", icon: Settings },
       { href: "/admin/citizenships", label: "الجنسيات", icon: Globe2 },
       { href: "/admin/fees", label: "سجل الرسوم", icon: Receipt },

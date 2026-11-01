@@ -1,5 +1,50 @@
 export type VisaType = "e-visa" | "sticker" | "eta" | "visa-free";
 
+// Admin Roles & Permissions
+export type AdminRole = "super_admin" | "admin" | "manager" | "operator" | "support" | "viewer" | "user";
+
+export type AdminPermissionAction = "view" | "create" | "edit" | "delete" | "assign" | "approve" | "refund" | "ban" | "change_role" | "publish" | "export" | "manage";
+
+export type AdminResource = "applications" | "users" | "content" | "settings" | "reports" | "audit" | "staff";
+
+export type AdminPermissions = {
+  [key in AdminResource]: AdminPermissionAction[];
+};
+
+export type StaffProfile = {
+  userId: string;
+  department: string | null;
+  specialty: string[];
+  maxApplications: number;
+  notes: string | null;
+  active: boolean;
+  hiredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminRole = "super_admin" | "admin" | "manager" | "operator" | "support" | "viewer" | "user";
+
+export type AdminPermissionAction = "view" | "create" | "edit" | "delete" | "assign" | "approve" | "refund" | "ban" | "change_role" | "publish" | "export" | "manage";
+
+export type AdminResource = "applications" | "users" | "content" | "settings" | "reports" | "audit" | "staff";
+
+export type AdminPermissions = {
+  [key in AdminResource]: AdminPermissionAction[];
+};
+
+export type StaffProfile = {
+  userId: string;
+  department: string | null;
+  specialty: string[];
+  maxApplications: number;
+  notes: string | null;
+  active: boolean;
+  hiredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Destination = {
   id: string;
   code: string;
