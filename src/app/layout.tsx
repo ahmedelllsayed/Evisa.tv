@@ -40,9 +40,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const localeHeader = (await headers()).get("x-locale") ?? siteConfig.defaultLocale;
   const arabic = isLocale(localeHeader) && localeHeader.startsWith("ar");
   return (
-    <html lang={arabic ? "ar" : "en"} dir="ltr" className={`${fontVariables} h-full`} style={{ ...brandCssVariables(), colorScheme: "light" } as CSSProperties} suppressHydrationWarning>
+    <html lang={arabic ? "ar" : "en"} dir={arabic ? "rtl" : "ltr"} className={`${fontVariables} h-full`} style={{ ...brandCssVariables(), colorScheme: "light" } as CSSProperties} suppressHydrationWarning>
       <body className="flex min-h-full w-full max-w-full flex-col bg-white text-black">
-        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-black focus:px-4 focus:py-2 focus:text-white focus:outline-none focus:ring-2 focus:ring-white">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-black focus:px-4 focus:py-2 focus:text-white focus:outline-none focus:ring-2 focus:ring-white">
           {arabic ? "تخطى إلى المحتوى الرئيسي" : "Skip to main content"}
         </a>
         <Providers locale={isLocale(localeHeader) ? localeHeader : siteConfig.defaultLocale}>

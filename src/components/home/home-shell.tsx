@@ -133,7 +133,6 @@ export function HomeShell({
     <>
       <header
         ref={headerRef}
-        dir="ltr"
         style={{ overflowAnchor: "none" }}
         className={cn("sticky top-0 z-40 bg-white", (compact || mapOpen) && "shadow-[0_8px_24px_rgba(17,24,39,0.06)]")}
       >
@@ -315,7 +314,7 @@ export function HomeShell({
               type="button"
               aria-label={t(locale, "home.top")}
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-              className="fixed right-3 bottom-32 z-20 flex size-11 items-center justify-center rounded-full bg-white shadow-float lg:hidden"
+              className="fixed end-3 bottom-32 z-20 flex size-11 items-center justify-center rounded-full bg-white shadow-float lg:hidden"
             >
               <ChevronUp className="size-5" />
             </button>

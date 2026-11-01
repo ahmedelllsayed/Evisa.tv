@@ -197,7 +197,7 @@ export function MapView({
   }, [ready, paused, pins.length, locale]);
 
   return (
-    <div className="visa-map relative h-full w-full overflow-hidden rounded-t-[22px] bg-[#c5dff0]">
+    <div dir="ltr" className="visa-map relative h-full w-full overflow-hidden rounded-t-[22px] bg-[#c5dff0]">
       <div ref={host} className="absolute inset-0" />
       <div className="absolute top-[46%] right-3 z-[500] flex -translate-y-1/2 flex-col items-center gap-3">
         <button

@@ -226,7 +226,7 @@ function Overview({
       )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {cards.map(([value, key, target]) => (
-          <button key={key} type="button" onClick={() => onTab(target)} className="min-w-0 rounded-2xl border border-line bg-white p-4 text-left transition-colors hover:border-brand-200">
+          <button key={key} type="button" onClick={() => onTab(target)} className="min-w-0 rounded-2xl border border-line bg-white p-4 text-start transition-colors hover:border-brand-200">
             <p className="text-2xl font-semibold text-[#16182b] tabular-nums">{value}</p>
             <p className="mt-1 text-xs text-muted-ink">{t(locale, key)}</p>
           </button>

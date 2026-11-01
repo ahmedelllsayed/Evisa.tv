@@ -91,7 +91,7 @@ export function TypePicker({
               onClick={() => onSelect(option.id)}
               whileTap={{ scale: 0.985 }}
               className={cn(
-                "relative rounded-2xl border bg-white p-4 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-300",
+                "relative rounded-2xl border bg-white p-4 text-start outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-300",
                 on ? "border-transparent" : "border-line hover:border-brand-200",
               )}
             >
@@ -274,7 +274,7 @@ function SpeedTile({
       onClick={onSelect}
       whileTap={{ scale: 0.985 }}
       className={cn(
-        "relative rounded-2xl border bg-white p-4 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-300",
+        "relative rounded-2xl border bg-white p-4 text-start outline-none transition-colors focus-visible:ring-2 focus-visible:ring-brand-300",
         on ? "border-transparent" : "border-line hover:border-brand-200",
       )}
     >

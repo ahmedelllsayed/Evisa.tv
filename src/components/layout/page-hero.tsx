@@ -17,7 +17,7 @@ export function PageHero({
 }) {
   return (
     <Reveal>
-      <header className={`mx-auto px-4 pt-12 pb-8 ${large ? "max-w-5xl" : "max-w-3xl"} ${align === "left" ? "text-left" : "text-center"}`}>
+      <header className={`mx-auto px-4 pt-12 pb-8 ${large ? "max-w-5xl" : "max-w-3xl"} ${align === "left" ? "text-start" : "text-center"}`}>
         {kicker && <p className="text-sm font-medium text-brand">{kicker}</p>}
         <h1 className={`mt-2 leading-tight tracking-tight text-[#16182b] ${large ? "max-w-2xl text-3xl font-semibold md:text-5xl" : "text-3xl font-semibold md:text-4xl"}`}>{title}</h1>
         <span className={`mt-3 block h-[3px] w-10 rounded-full bg-brand ${align === "center" ? "mx-auto" : ""}`} />

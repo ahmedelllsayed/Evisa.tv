@@ -14,6 +14,10 @@ html[lang="ar"] body {
   line-height: 1.65;
 }
 
+html[lang="ar"] [class*="tracking-"] {
+  letter-spacing: 0;
+}
+
 /* Design tokens extracted from the reference site. Brand values are
    overridden at runtime from src/config/site.config.ts. */
 @theme inline {

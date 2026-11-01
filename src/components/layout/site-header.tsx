@@ -12,7 +12,7 @@ import { UserMenu } from "@/components/layout/user-menu";
 import { CountrySearchOverlay } from "@/components/search/country-search";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { href } from "@/lib/href";
-import { t } from "@/lib/i18n";
+import { isArabicLocale, t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { SearchHit } from "@/lib/search";
 import type { User } from "@/lib/types";
@@ -83,7 +83,7 @@ export function SiteHeader({
   }, [prompts.length]);
   return (
     <>
-      <header dir="ltr" className={cn("sticky top-0 z-40 border-b", dark ? "border-white/10 bg-black text-white" : "border-line/80 bg-white")}>
+      <header className={cn("sticky top-0 z-40 border-b", dark ? "border-white/10 bg-black text-white" : "border-line/80 bg-white")}>
         <div className="mx-auto flex h-16 max-w-site min-w-0 items-center gap-2 px-4 lg:h-[72px] lg:gap-3 lg:px-8">
           <button
             type="button"
@@ -106,7 +106,7 @@ export function SiteHeader({
               type="button"
               onClick={() => setSearchOpen(true)}
               className={cn(
-                "hidden h-10 w-[280px] shrink-0 items-center justify-between gap-2 rounded-full border px-4 text-left text-sm lg:flex",
+                "hidden h-10 w-[280px] shrink-0 items-center justify-between gap-2 rounded-full border px-4 text-start text-sm lg:flex",
                 dark ? "border-white/15 text-white/70" : "border-line text-muted-ink",
               )}
             >
@@ -150,7 +150,7 @@ export function SiteHeader({
         </div>
       </header>
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="left" className="w-[min(100vw,22rem)] overflow-y-auto">
+        <SheetContent side={isArabicLocale(locale) ? "right" : "left"} className="w-[min(100vw,22rem)] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{t(locale, "nav.menu")}</SheetTitle>
           </SheetHeader>

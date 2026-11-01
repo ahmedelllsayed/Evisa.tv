@@ -303,7 +303,7 @@ function Hero({
           ) : null}
           {method ? <FlipText text={method} /> : null}
         </motion.div>
-        <h1 dir={arabic ? "rtl" : undefined} className="mt-3 text-left text-[34px] leading-[1.12] font-semibold tracking-tight text-white sm:text-5xl lg:text-[56px]">
+        <h1 dir={arabic ? "rtl" : undefined} className="mt-3 text-start text-[34px] leading-[1.12] font-semibold tracking-tight text-white sm:text-5xl lg:text-[56px]">
           {words.map((word, index) => (
             <span key={`${word}-${index}`} className="inline-block overflow-hidden pb-1 align-bottom">
               <motion.span

@@ -248,7 +248,7 @@ export function ReviewsCarousel({ reviews, locale, country }: { reviews: Review[
         <StarRow rating={Math.round(average)} />
         <span>· {c(locale, "reviewsCount", { n: rows.length })}</span>
       </div>
-      <div ref={scroller} className="mt-5 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-none" dir="ltr">
+      <div ref={scroller} className="mt-5 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-none">
         {rows.map((row, index) => (
           <motion.figure
             key={row.id}
@@ -360,7 +360,7 @@ export function FaqSection({ faqs, locale, country }: { faqs: Faq[]; locale: str
                 type="button"
                 aria-expanded={isOpen}
                 onClick={() => setOpen(isOpen ? null : row.id)}
-                className="flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-[#fafbfd]"
+                className="flex w-full items-center gap-4 px-4 py-4 text-start transition-colors hover:bg-[#fafbfd]"
               >
                 <span className="min-w-0 flex-1 font-medium text-[#16182b]">{fillTemplate(row.question, country)}</span>
                 <motion.span
@@ -400,7 +400,7 @@ export function FaqSection({ faqs, locale, country }: { faqs: Faq[]; locale: str
 
 export function NearbyStrip({ nearby, locale }: { nearby: Destination[]; locale: string }) {
   return (
-    <div className="mt-5 flex snap-x gap-3 overflow-x-auto pb-2 scrollbar-none" dir="ltr">
+    <div className="mt-5 flex snap-x gap-3 overflow-x-auto pb-2 scrollbar-none">
       {nearby.map((item) => {
         const name = localizedDestinationName(item, locale);
         return (
