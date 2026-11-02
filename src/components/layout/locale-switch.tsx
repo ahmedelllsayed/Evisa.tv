@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { track } from "@/lib/analytics";
 import { switchLocaleHref } from "@/lib/href";
 import { t } from "@/lib/i18n";
@@ -12,12 +12,22 @@ export function rememberLocale(locale: string) {
   track("language_switch", { language: locale });
 }
 
+function subscribeLocation(listener: () => void) {
+  window.addEventListener("popstate", listener);
+  window.addEventListener("hashchange", listener);
+  return () => {
+    window.removeEventListener("popstate", listener);
+    window.removeEventListener("hashchange", listener);
+  };
+}
+
+function locationExtra() {
+  return `${window.location.search}${window.location.hash}`;
+}
+
 export function useLocaleHref(target: string) {
   const path = usePathname() || "/";
-  const [extra, setExtra] = useState("");
-  useEffect(() => {
-    setExtra(`${window.location.search}${window.location.hash}`);
-  }, [path]);
+  const extra = useSyncExternalStore(subscribeLocation, locationExtra, () => "");
   return `${switchLocaleHref(path, "", "", target)}${extra}`;
 }
 

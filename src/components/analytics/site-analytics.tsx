@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { isArabicLocale } from "@/lib/i18n";
 
 const COOKIE = "analytics_consent";
@@ -13,8 +13,16 @@ function readConsent() {
   return match?.split("=")[1] ?? "";
 }
 
+const consentListeners = new Set<() => void>();
+
 function writeConsent(value: "granted" | "denied") {
   document.cookie = `${COOKIE}=${value}; path=/; max-age=${60 * 60 * 24 * 180}; samesite=lax`;
+  consentListeners.forEach((listener) => listener());
+}
+
+function subscribeConsent(listener: () => void) {
+  consentListeners.add(listener);
+  return () => consentListeners.delete(listener);
 }
 
 export function SiteAnalytics({
@@ -29,13 +37,9 @@ export function SiteAnalytics({
   consentText: string;
 }) {
   const path = usePathname();
-  const [choice, setChoice] = useState("");
+  const choice = useSyncExternalStore(subscribeConsent, readConsent, () => "");
   const id = measurementId.trim();
   const allowed = /^G-[A-Z0-9]+$/i.test(id);
-
-  useEffect(() => {
-    setChoice(readConsent());
-  }, []);
 
   useEffect(() => {
     if (!allowed || choice !== "granted" || typeof window.gtag !== "function") return;
@@ -46,7 +50,6 @@ export function SiteAnalytics({
 
   function choose(value: "granted" | "denied") {
     writeConsent(value);
-    setChoice(value);
     window.gtag?.("consent", "update", {
       analytics_storage: value,
       ad_storage: "denied",

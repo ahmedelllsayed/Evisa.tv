@@ -1,5 +1,7 @@
 # Changelog - Admin Dashboard Development
 
+> سجل لوحة الإدارة حتى بداية 2025. ما بعد ذلك، بما فيه التحليلات والتقارير والتنبيهات، موثّق في [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md).
+
 ## [Phase 1] - 2025-01-01
 
 ### ✅ تم الإنجاز

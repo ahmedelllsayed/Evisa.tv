@@ -1,38 +1,81 @@
-import { IBM_Plex_Sans_Arabic, Inter, Outfit, Playfair_Display } from "next/font/google";
+import localFont from "next/font/local";
 
 /**
- * The reference design uses Inter (UI), Gilroy (display headings) and Denton
- * (serif destination names). Gilroy and Denton are commercial fonts, so free
- * look-alikes are used here. With licensed files, swap to `next/font/local`:
- *
- *   import localFont from "next/font/local";
- *   export const displayFont = localFont({ src: "./Gilroy-Bold.woff2", variable: "--font-display" });
+ * Font files live in this folder so production builds do not download from
+ * Google Fonts. Inter, Outfit, Playfair Display, IBM Plex Sans Arabic, Cairo,
+ * and Lato are SIL Open Font License 1.1. See ./fonts/OFL.txt.
  */
-export const sansFont = Inter({
-  subsets: ["latin"],
+
+export const sansFont = localFont({
+  src: "./fonts/inter-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-inter",
   display: "swap",
 });
 
-export const displayFont = Outfit({
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+export const displayFont = localFont({
+  src: "./fonts/outfit-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-display",
   display: "swap",
 });
 
-export const serifFont = Playfair_Display({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+export const serifFont = localFont({
+  src: "./fonts/playfair-display-latin-wght-normal.woff2",
+  weight: "400 900",
   variable: "--font-serif",
   display: "swap",
 });
 
-export const arabicFont = IBM_Plex_Sans_Arabic({
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
+export const arabicFont = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibm-plex-sans-arabic-arabic-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/ibm-plex-sans-arabic-arabic-700-normal.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-arabic",
   display: "swap",
 });
 
-export const fontVariables = `${sansFont.variable} ${displayFont.variable} ${serifFont.variable} ${arabicFont.variable}`;
+export const arabicLatinFont = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-sans-arabic-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibm-plex-sans-arabic-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/ibm-plex-sans-arabic-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/ibm-plex-sans-arabic-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-arabic-latin",
+  display: "swap",
+});
+
+export const adminCairo = localFont({
+  src: [
+    { path: "./fonts/cairo-arabic-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/cairo-arabic-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/cairo-arabic-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-admin-cairo",
+  display: "swap",
+});
+
+export const adminCairoLatin = localFont({
+  src: [
+    { path: "./fonts/cairo-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/cairo-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/cairo-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-admin-cairo-latin",
+  display: "swap",
+});
+
+export const adminLato = localFont({
+  src: [
+    { path: "./fonts/lato-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/lato-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-admin-lato",
+  display: "swap",
+});
+
+export const fontVariables = `${sansFont.variable} ${displayFont.variable} ${serifFont.variable} ${arabicFont.variable} ${arabicLatinFont.variable}`;

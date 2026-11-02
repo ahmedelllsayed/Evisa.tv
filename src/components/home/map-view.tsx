@@ -83,7 +83,9 @@ export function MapView({
     () => destinations.filter((d) => d.lat != null && d.lng != null && d.isActive !== false),
     [destinations],
   );
-  pinsRef.current = pins;
+  useEffect(() => {
+    pinsRef.current = pins;
+  }, [pins]);
 
   useEffect(() => {
     const node = host.current;

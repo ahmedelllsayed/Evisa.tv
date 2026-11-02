@@ -1,6 +1,6 @@
-# Visa platform (Atlys-style)
+# evisa.tv
 
-Next.js 16 app with a destination catalog, application wizard, payments, live tracking and an admin panel. Rebrand by editing `src/config/site.config.ts` and replacing files in `public/brand/`.
+Next.js 16 app for Egyptian-passport visa applications: destination catalog, application wizard, Paymob and Stripe payments, tracking, and an admin panel. The commercial roadmap is [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md). Brand settings live in `src/config/site.config.ts` and `public/brand/`.
 
 ## Run locally
 
@@ -26,7 +26,7 @@ Without extra env vars the app uses:
 ## Rebrand
 
 1. `src/config/site.config.ts` — name, colours, market, contact, feature flags.
-2. `src/config/fonts.ts` — swap Outfit/Playfair for licensed files if you have them.
+2. `src/config/fonts.ts` — local font files in `src/config/fonts/`. The build does not download fonts.
 3. `public/brand/` — logo, destination photos, flags.
 4. `src/data/seed/` — destinations, FAQs, reviews, events. Then `npm run db:reseed`.
 
@@ -48,6 +48,12 @@ Apply the SQL in `supabase/migrations/` to a Supabase project, then `supabase/se
 - `npm run db:migrate` / `db:reseed` / `db:seed-sql`
 - `npm run ref:compare` — Playwright screenshots of local pages at 390 and 1440 widths (dev server must be running)
 - `npm run typecheck`
+- `npm run lint`
+- `npm test`
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs `npm ci`, lint, typecheck, test, and build on pushes to `main` and `staging`, and on pull requests. The production site is `evisa.tv`. A separate `staging.evisa.tv` environment, with its own database and storage bucket, is still an operations task.
 
 ## Deploy on Coolify
 
@@ -63,4 +69,4 @@ Do not commit `.env.local`. Live keys stay in Coolify’s environment settings, 
 8. Supabase Data API policies live in migrations whose names include `supabase` (`0012_supabase_owner_security.sql`, `0014_supabase_requests.sql`). They are skipped on local PGlite. Apply the full `supabase/migrations` folder before exposing the Data API. The app itself uses `DATABASE_URL` and does not rely on those policies.
 9. Local payment check, without Paymob: run `npm run dev`, sign in with the development code shown on the page, finish an application, and complete the mock checkout. The file should leave `draft`, appear in `/en-EG/admin/queue`, and lock travellers and documents. A second checkout for the same pending amount reuses the existing link. Production refuses the mock checkout.
 
-Gilroy and Denton (used on the original site) are commercial fonts; this repo uses Inter, Outfit, Playfair Display, and Cairo for Arabic.
+Gilroy and Denton are commercial fonts and are not in this repo. The shipped faces are Inter, Outfit, Playfair Display, IBM Plex Sans Arabic, plus Cairo and Lato in the admin shell. License text is in `src/config/fonts/OFL.txt`.
