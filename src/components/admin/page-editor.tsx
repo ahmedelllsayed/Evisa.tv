@@ -55,7 +55,8 @@ export function PageEditor({ locale, pages }: { locale: string; pages: ManagedPa
               slug: String(fd.get("slug")),
               template: nextTemplate,
               title: String(fd.get("title")),
-              published: fd.get("published") === "on",
+              published: String(fd.get("workflow") || "published") === "published",
+              workflowStatus: (["draft", "review", "published", "archived"].includes(String(fd.get("workflow"))) ? String(fd.get("workflow")) : "published") as "draft" | "review" | "published" | "archived",
               sortOrder: Number(fd.get("sortOrder") || current?.sortOrder || 200),
               content: nextContent,
             }),
@@ -108,9 +109,18 @@ export function PageEditor({ locale, pages }: { locale: string; pages: ManagedPa
             )}
           </label>
         ))}
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="published" defaultChecked={current?.published ?? true} /> منشورة
+        <label className="text-sm">
+          حالة النشر
+          <select name="workflow" defaultValue={current?.workflowStatus ?? (current?.published === false ? "archived" : "published")} className={adminInputClass}>
+            <option value="draft">مسودة</option>
+            <option value="review">مراجعة</option>
+            <option value="published">منشورة</option>
+            <option value="archived">مؤرشفة</option>
+          </select>
         </label>
+        {current && current.workflowStatus !== "published" ? (
+          <a className="text-sm text-brand" href={`/${locale}/${current.slug}?preview=1`}>معاينة قبل النشر</a>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           <button disabled={pending} className={adminPrimaryClass}>
             حفظ

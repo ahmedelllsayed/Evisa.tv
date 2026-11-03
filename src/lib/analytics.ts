@@ -12,6 +12,9 @@ declare global {
 
 export function track(event: string, params: Params = {}) {
   if (typeof window === "undefined") return;
+  const consentRequired = document.querySelector('meta[name="analytics-consent"]')?.getAttribute("content") === "required";
+  const granted = document.cookie.split("; ").some((row) => row.startsWith("analytics_consent=granted"));
+  if (consentRequired && !granted) return;
   if (typeof window.gtag === "function") window.gtag("event", event, params);
   const name = funnelName(event);
   if (!name) return;

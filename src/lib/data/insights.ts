@@ -44,7 +44,30 @@ const funnelLabels: Record<string, string> = {
   payment_success: "اكتمل الدفع",
   payment_failed: "فشل الدفع",
   offer_click: "عرض إضافي",
+  application_submitted: "أُرسل الطلب",
 };
+
+export async function paymentGaps(days: number) {
+  return sql<{ day: string; payments: string; applications: string }>(
+    `with paid as (
+       select processed_at::date as day, sum(amount) as total
+       from payments where status in ('paid', 'refunded') and processed_at > now() - ($1::int * interval '1 day')
+       group by 1
+     ),
+     files as (
+       select paid_at::date as day, sum(total_amount) as total
+       from applications where paid_at is not null and paid_at > now() - ($1::int * interval '1 day')
+       group by 1
+     )
+     select coalesce(paid.day, files.day)::text as day,
+            coalesce(paid.total, 0)::text as payments,
+            coalesce(files.total, 0)::text as applications
+     from paid full join files on files.day = paid.day
+     where coalesce(paid.total, 0) <> coalesce(files.total, 0)
+     order by 1 desc`,
+    [days],
+  );
+}
 
 export async function getInsights(days: number): Promise<Insights> {
   const [totals, revenueDays, applicationDays, processingDays, funnel, statuses, geography, destinations, payments, staff, documentRejections, reviews] = await Promise.all([

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { AdminApplicationDetail } from "@/components/admin/application-detail";
 import { requireAdmin } from "@/lib/auth";
-import { getApplication, listDocuments, listEvents, listPayments, listTravelers } from "@/lib/data/applications";
+import { getApplication, listDocuments, listEvents, listPayments, listStatusHistory, listTravelers } from "@/lib/data/applications";
 import { getRefundRequest } from "@/lib/data/inbox";
 import { listUsers } from "@/lib/data/users";
 import { isStaffRole } from "@/lib/rbac-constants";
@@ -12,13 +12,14 @@ export default async function AdminApplicationPage({ params }: Page<{ locale: st
   await requireAdmin(locale);
   const app = await getApplication(id);
   if (!app) notFound();
-  const [events, travelers, documents, payments, users, refund] = await Promise.all([
+  const [events, travelers, documents, payments, users, refund, history] = await Promise.all([
     listEvents(id),
     listTravelers(id),
     listDocuments(id),
     listPayments(id),
     listUsers(),
     getRefundRequest(id),
+    listStatusHistory(id),
   ]);
   return (
     <AdminApplicationDetail
@@ -30,6 +31,7 @@ export default async function AdminApplicationPage({ params }: Page<{ locale: st
       payments={payments}
       assignees={users.filter((user) => isStaffRole(user.role) && user.role !== "viewer")}
       refundRequest={refund ? { status: refund.status, reason: refund.reason } : null}
+      history={history}
     />
   );
 }

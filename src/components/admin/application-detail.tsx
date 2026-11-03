@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { adminAddEvent, adminDeclineRefund, adminDeleteIssuedVisa, adminPatchTraveler, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
+import { adminAddEvent, adminDeclineRefund, adminDeleteIssuedVisa, adminPartialRefund, adminPatchTraveler, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
 import { AdminCard, AdminEmpty, AdminPage, adminGhostClass, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
 import { StaffFollowUp } from "@/components/admin/staff-follow-up";
 import { statusLabels } from "@/components/admin/status";
@@ -75,6 +75,7 @@ export function AdminApplicationDetail({
   payments,
   assignees,
   refundRequest = null,
+  history = [],
 }: {
   locale: string;
   application: Application;
@@ -84,6 +85,7 @@ export function AdminApplicationDetail({
   payments: Payment[];
   assignees: AccountRow[];
   refundRequest?: { status: "open" | "approved" | "declined"; reason: string } | null;
+  history?: { id: string; fromStatus: string | null; toStatus: string; actorEmail: string | null; reason: string | null; createdAt: string }[];
 }) {
   const [pending, start] = useTransition();
   const [tab, setTab] = useState<Tab>("travelers");
@@ -355,6 +357,8 @@ export function AdminApplicationDetail({
               {payments.map((payment) => (
                 <li key={payment.id} className="rounded-xl border border-line px-4 py-3">
                   {payment.provider} · {payment.status} · {formatMoney(payment.amount, payment.currency)}
+                  {payment.refundedAmount > 0 && payment.status !== "refunded" ? ` · مسترد جزئياً ${formatMoney(payment.refundedAmount, payment.currency)}` : ""}
+                  {payment.receiptNo ? <span className="mt-1 block text-xs text-muted-ink">إيصال {payment.receiptNo}</span> : null}
                   <span className="mt-1 block text-xs text-muted-ink">{payment.providerRef}</span>
                 </li>
               ))}
@@ -383,26 +387,28 @@ export function AdminApplicationDetail({
             </div>
           )}
           {paid && application.status !== "refunded" && (
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                disabled={pending}
-                className={adminGhostClass}
-                onClick={() =>
-                  start(async () => {
-                    setError(null);
-                    const result = await adminRefund(locale, application.id);
-                    if (!result.ok) setError(result.error);
-                    else setNote("تم تعليم الدفعة كمستردة.");
-                  })
-                }
-              >
+            <form
+              className="mt-4 flex flex-wrap items-center gap-3"
+              action={(fd) =>
+                start(async () => {
+                  setError(null);
+                  const raw = String(fd.get("amount") || "").trim();
+                  const result = raw
+                    ? await adminPartialRefund(locale, application.id, Number(raw))
+                    : await adminRefund(locale, application.id);
+                  if (!result.ok) setError(result.error);
+                  else setNote("partial" in result && result.partial ? "سُجّل استرداد جزئي." : "تم تعليم الدفعة كمستردة.");
+                })
+              }
+            >
+              <input name="amount" type="number" min="1" step="0.01" placeholder="جزئي، أو فارغ للكامل" className={`${adminInputClass} max-w-48`} />
+              <button disabled={pending} className={adminGhostClass}>
                 استرداد
               </button>
               <Link href={href("/transparency/refunds-policy", locale)} className="text-sm text-brand">
                 سياسة الاسترداد
               </Link>
-            </div>
+            </form>
           )}
         </AdminCard>
       )}
@@ -421,6 +427,16 @@ export function AdminApplicationDetail({
             <button className={adminGhostClass}>حفظ الملاحظة</button>
           </form>
           {note && <p className="mt-2 text-sm text-muted-ink">{note}</p>}
+          {history.length > 0 && (
+            <ol className="mt-6 space-y-2 text-sm">
+              {history.map((row) => (
+                <li key={row.id}>
+                  <p className="font-medium">{row.fromStatus ?? "—"} → {row.toStatus}</p>
+                  <p className="text-xs text-muted-ink">{row.actorEmail || "النظام"} · {formatAt(row.createdAt)}{row.reason ? ` · ${row.reason}` : ""}</p>
+                </li>
+              ))}
+            </ol>
+          )}
           <ol className="mt-6 space-y-3 text-sm">
             {events.map((event) => (
               <li key={event.id}>

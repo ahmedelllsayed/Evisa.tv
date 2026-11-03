@@ -71,7 +71,7 @@ export function ApplicationWorkbench({
           onClick={() =>
             start(async () => {
               const result = await adminBulkStatus(locale, selected, status);
-              setMessage(result.ok ? `تحدّث ${result.count} طلب` : result.error);
+              setMessage(result.ok ? `تحدّث ${result.count} طلب${result.skipped ? `، وتُرك ${result.skipped} لأن الانتقال غير مسموح` : ""}` : result.error);
             })
           }
         >

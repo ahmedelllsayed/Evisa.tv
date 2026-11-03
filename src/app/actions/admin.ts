@@ -15,7 +15,7 @@ import { localizedVisaLabel } from "@/lib/localize";
 import { notifyUser } from "@/lib/data/notifications";
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, readStoredBytes, removeFile, storeFile } from "@/lib/storage";
 import { deleteContactMessage, setMessageRead, setRefundRequestStatus } from "@/lib/data/inbox";
-import { refundApplication } from "@/lib/payments";
+import { refundApplication, refundApplicationAmount } from "@/lib/payments";
 import {
   createDestination,
   deleteDestination,
@@ -82,8 +82,31 @@ function refresh(locale: string, path = "") {
 }
 
 export async function adminSetStatus(locale: string, id: string, status: ApplicationStatus, title: string, description: string) {
-  await guard(locale, "applications", status === "approved" || status === "rejected" ? "approve" : "edit");
-  const result = await setStatus(id, status, { title, description, onTime: true });
+  const user = await guard(locale, "applications", status === "approved" || status === "rejected" ? "approve" : "edit");
+  const result = await setStatus(id, status, { title, description, onTime: true }, { actorId: user.id, actorEmail: user.email });
+  refresh(locale, "/admin");
+  refresh(locale, `/admin/applications/${id}`);
+  refresh(locale, "/account");
+  refresh(locale, `/account/applications/${id}`);
+  return result;
+}
+
+export async function adminPartialRefund(locale: string, id: string, amount: number) {
+  await guard(locale, "applications", "refund");
+  const result = await refundApplicationAmount(id, amount);
+  if (result.ok && !("partial" in result && result.partial)) {
+    await setRefundRequestStatus(id, "approved");
+    const app = await getApplication(id);
+    if (app) {
+      const mailLocale = app.locale || locale;
+      await notifyUser({
+        userId: app.userId,
+        applicationId: app.id,
+        title: tf(mailLocale, "notify.refundTitle", { ref: app.reference }),
+        body: tf(mailLocale, "notify.refundApproved", { ref: app.reference }),
+      });
+    }
+  }
   refresh(locale, "/admin");
   refresh(locale, `/admin/applications/${id}`);
   refresh(locale, "/account");
@@ -459,6 +482,8 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
       .filter(Boolean),
     rejectionReasons: reasons,
     sources,
+    sourceUrl: optional("sourceUrl"),
+    reviewedOn: optional("reviewedOn"),
     sortOrder: Number(fd.get("sortOrder") || 0),
     isActive: fd.get("isActive") === "on",
   };
@@ -573,7 +598,7 @@ export async function adminDeleteReview(locale: string, id: string) {
 
 export async function adminSavePage(
   locale: string,
-  input: { id?: string; slug: string; template: CmsTemplate; title: string; published: boolean; sortOrder: number; content: CmsContent },
+  input: { id?: string; slug: string; template: CmsTemplate; title: string; published: boolean; workflowStatus?: "draft" | "review" | "published" | "archived"; sortOrder: number; content: CmsContent },
 ) {
   await guard(locale, "content", "edit");
   await savePage(input);
@@ -868,14 +893,20 @@ export async function adminBulkAssign(locale: string, ids: string[], assigneeId:
 }
 
 export async function adminBulkStatus(locale: string, ids: string[], status: ApplicationStatus) {
-  await guard(locale, "applications", status === "approved" || status === "rejected" ? "approve" : "edit");
+  const user = await guard(locale, "applications", status === "approved" || status === "rejected" ? "approve" : "edit");
   const clean = cleanIds(ids);
   const allowed = ["submitted", "in_review", "filed", "approved", "rejected", "cancelled"];
   if (!clean.length || !allowed.includes(status)) return { ok: false as const, error: "اختر طلبات وحالة صالحة." };
-  await sql("update applications set status = $1, updated_at = now() where id = any($2::uuid[])", [status, clean]);
+  let count = 0;
+  let skipped = 0;
+  for (const id of clean) {
+    const result = await setStatus(id, status, { title: status, description: "", onTime: true }, { actorId: user.id, actorEmail: user.email, notify: false });
+    if (result.ok) count += 1;
+    else skipped += 1;
+  }
   refresh(locale, "/admin/applications");
   refresh(locale, "/admin/queue");
-  return { ok: true as const, count: clean.length };
+  return { ok: true as const, count, skipped };
 }
 
 export async function adminAutoAssign(locale: string) {

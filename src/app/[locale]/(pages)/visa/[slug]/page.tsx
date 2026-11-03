@@ -82,6 +82,20 @@ export default async function VisaPage({ params, searchParams }: Page<{ locale: 
       {destination.heroImage || destination.image ? (
         <link rel="preload" as="image" href={destination.heroImage || destination.image || ""} fetchPriority="high" />
       ) : null}
+      {destination.reviewedAt || destination.sourceUrl ? (
+        <p className="mx-auto max-w-6xl px-4 pt-4 text-xs text-muted-ink">
+          {arabic ? "آخر مراجعة للمتطلبات" : "Requirements last reviewed"}
+          {destination.reviewedAt ? `: ${destination.reviewedAt.slice(0, 10)}` : ""}
+          {destination.sourceUrl ? (
+            <>
+              {" · "}
+              <a href={destination.sourceUrl} className="text-brand" rel="noreferrer">
+                {arabic ? "المصدر الرسمي" : "Official source"}
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
       <CitizenshipDialog initial={citizenship} codes={citizenshipCodes} defaultOpen={!chosen} />
       <VisaPreview
         locale={locale}

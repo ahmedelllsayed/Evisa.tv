@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AdminCard, AdminPage } from "@/components/admin/chrome";
 import { requireAdmin } from "@/lib/auth";
-import { getInsights, insightDays } from "@/lib/data/insights";
+import { getInsights, insightDays, paymentGaps } from "@/lib/data/insights";
 import { href } from "@/lib/href";
 import type { Page } from "@/lib/page";
 
@@ -12,7 +12,7 @@ export default async function PaymentsPage({ params, searchParams }: Page) {
   const sp = await searchParams;
   await requireAdmin(locale);
   const days = insightDays(sp.days);
-  const data = await getInsights(days);
+  const [data, gaps] = await Promise.all([getInsights(days), paymentGaps(days)]);
   const total = data.payments.reduce((sum, row) => sum + row.total, 0);
   const cards = [
     { label: "مدفوع", value: String(data.paid) },
@@ -43,6 +43,18 @@ export default async function PaymentsPage({ params, searchParams }: Page) {
           </AdminCard>
         ))}
       </div>
+      <AdminCard>
+        <h2 className="text-sm font-medium">أيام لا يتطابق فيها سجل الدفع مع الطلبات المدفوعة</h2>
+        <ul className="mt-4 divide-y text-sm">
+          {gaps.length === 0 && <li className="py-3 text-muted-foreground">لا يوجد فرق في هذه الفترة.</li>}
+          {gaps.map((row) => (
+            <li key={row.day} className="flex justify-between gap-3 py-2">
+              <span>{row.day}</span>
+              <span className="text-muted-foreground">مدفوعات {Number(row.payments).toLocaleString("ar-EG")} · طلبات {Number(row.applications).toLocaleString("ar-EG")}</span>
+            </li>
+          ))}
+        </ul>
+      </AdminCard>
       <AdminCard>
         <h2 className="text-sm font-medium">حسب وسيلة الدفع والحالة</h2>
         <ul className="mt-4 divide-y text-sm">

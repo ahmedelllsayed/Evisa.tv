@@ -57,6 +57,8 @@ export type Destination = {
   lng: number | null;
   cities: string[];
   sources: { label: string; url: string }[];
+  sourceUrl?: string | null;
+  reviewedAt?: string | null;
   rejectionReasons: { title: string; body: string; titleAr?: string; bodyAr?: string }[];
   sortOrder: number;
   isActive: boolean;
@@ -284,6 +286,8 @@ export type Payment = {
   checkoutUrl: string | null;
   merchantOrderId: string | null;
   paymobOrderId: string | null;
+  refundedAmount: number;
+  receiptNo: string | null;
 };
 
 export type User = {

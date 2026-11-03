@@ -36,7 +36,7 @@ function lockedResult(app: Application, locale: string) {
   return { ok: false as const, error: t(locale, "err.locked") };
 }
 
-export async function saveTravelersAction(locale: string, applicationId: string, travelers: TravelerInput[]) {
+export async function saveTravelersAction(locale: string, applicationId: string, travelers: TravelerInput[], advance = true) {
   const { user, app } = await owned(locale, applicationId);
   const locked = lockedResult(app, locale);
   if (locked) return locked;
@@ -49,7 +49,7 @@ export async function saveTravelersAction(locale: string, applicationId: string,
   const saved = await saveTravelers(app.id, travelers);
   if (!saved.ok) return saved;
   if (user.id === app.userId) await attachProfileDocuments(user.id, app.id);
-  await setStep(app.id, "documents");
+  if (advance) await setStep(app.id, "documents");
   return { ok: true as const };
 }
 

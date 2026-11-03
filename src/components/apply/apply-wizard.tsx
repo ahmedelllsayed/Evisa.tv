@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { Heading, Swap, surfaceClass } from "@/components/motion/frame";
 import {
   deleteDocumentAction,
@@ -54,6 +54,60 @@ function toDraft(t?: Traveler): Draft {
   };
 }
 
+function draftComplete(draft: Draft) {
+  return [draft.firstName, draft.lastName, draft.dateOfBirth, draft.passportNumber, draft.passportExpiry].every((value) => value.trim());
+}
+
+async function prepareUpload(file: File) {
+  if (!file.type.startsWith("image/") || file.size < 1_500_000 || typeof createImageBitmap !== "function") return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    bitmap.close();
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
+let backupCache: { id: string; raw: string; value: Draft[] | null } = { id: "", raw: "", value: null };
+
+function readDraftBackup(id: string): Draft[] | null {
+  let raw = "";
+  try {
+    raw = window.localStorage.getItem(`evisa-draft:${id}`) ?? "";
+  } catch {
+    raw = "";
+  }
+  if (backupCache.id === id && backupCache.raw === raw) return backupCache.value;
+  let value: Draft[] | null = null;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        const drafts = parsed.filter((item) => item && typeof item === "object").map((item) => toDraft(item as Traveler));
+        value = drafts.length ? drafts : null;
+      }
+    } catch {
+      value = null;
+    }
+  }
+  backupCache = { id, raw, value };
+  return value;
+}
+
+function subscribeDraftBackup() {
+  return () => {};
+}
+
 function draftFromProfile(profile: ProfileVault | null): Draft {
   if (!profile) return toDraft();
   return {
@@ -84,7 +138,17 @@ export function ApplyWizard({
 }) {
   const router = useRouter();
   const [step, setStep] = useState<ApplicationStep>(application.step === "done" ? "review" : application.step);
-  const [drafts, setDrafts] = useState<Draft[]>(travelers.length ? travelers.map(toDraft) : [draftFromProfile(profile)]);
+  const backup = useSyncExternalStore(
+    subscribeDraftBackup,
+    () => (application.status === "draft" || application.status === "payment_pending") && travelers.length === 0 ? readDraftBackup(application.id) : null,
+    () => null,
+  );
+  const serverDrafts = useMemo(
+    () => (travelers.length ? travelers.map(toDraft) : backup ?? [draftFromProfile(profile)]),
+    [backup, profile, travelers],
+  );
+  const [draftOverride, setDraftOverride] = useState<Draft[] | null>(null);
+  const drafts = draftOverride ?? serverDrafts;
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -94,6 +158,19 @@ export function ApplyWizard({
   const savedKinds = new Set(profile?.documents.map((doc) => doc.kind) ?? []);
   const profilePassport = profile?.passportNumber.trim().toLowerCase() ?? "";
   const editable = application.status === "draft" || application.status === "payment_pending";
+
+  useEffect(() => {
+    if (!editable || !draftOverride) return;
+    window.localStorage.setItem(`evisa-draft:${application.id}`, JSON.stringify(draftOverride));
+    if (!draftOverride.every((draft) => draft.id && draftComplete(draft))) return;
+    const timer = window.setTimeout(() => {
+      start(async () => {
+        const saved = await saveTravelersAction(locale, application.id, draftOverride.map((draft) => ({ ...draft, sex: draft.sex || null, nationality: draft.nationality || null })), false);
+        if (!saved.ok) setError(saved.error);
+      });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [application.id, draftOverride, editable, locale, start]);
 
   useEffect(() => {
     if (step === "documents") track("travelers_done", { item_id: application.destinationSlug });
@@ -148,19 +225,20 @@ export function ApplyWizard({
               index={i}
               value={t}
               fromProfile={i === 0 && Boolean(profilePassport) && t.passportNumber.trim().toLowerCase() === profilePassport}
-              onChange={(next) => setDrafts((all) => all.map((x, j) => (j === i ? next : x)))}
-              onRemove={countLocked || drafts.length <= 1 ? undefined : () => setDrafts((all) => all.filter((_, j) => j !== i))}
+              onChange={(next) => setDraftOverride((all) => (all ?? serverDrafts).map((x, j) => (j === i ? next : x)))}
+              onRemove={countLocked || drafts.length <= 1 ? undefined : () => setDraftOverride((all) => (all ?? serverDrafts).filter((_, j) => j !== i))}
             />
           ))}
           {!countLocked && (
             <button
               type="button"
               className="text-sm font-medium text-brand"
-              onClick={() => setDrafts((all) => [...all, toDraft()])}
+              onClick={() => setDraftOverride((all) => [...(all ?? serverDrafts), toDraft()])}
             >
               {t(locale, "apply.addTraveller")}
             </button>
           )}
+          {pending && <p className="text-sm text-muted-ink">{t(locale, "apply.saving")}</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
@@ -235,14 +313,17 @@ export function ApplyWizard({
                             accept="image/*,application/pdf"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
+                              e.target.value = "";
                               if (!file || !traveller.id) return;
-                              const fd = new FormData();
-                              fd.set("locale", locale);
-                              fd.set("applicationId", application.id);
-                              fd.set("travelerId", traveller.id);
-                              fd.set("kind", kind);
-                              fd.set("file", file);
+                              const travelerId = traveller.id;
                               start(async () => {
+                                const prepared = await prepareUpload(file);
+                                const fd = new FormData();
+                                fd.set("locale", locale);
+                                fd.set("applicationId", application.id);
+                                fd.set("travelerId", travelerId);
+                                fd.set("kind", kind);
+                                fd.set("file", prepared);
                                 const res = await uploadDocumentAction(fd);
                                 if (!res.ok) setError(res.error);
                                 router.refresh();
@@ -260,6 +341,7 @@ export function ApplyWizard({
           {gaps.length > 0 && (
             <p className="text-sm text-red-600">{t(locale, "apply.missingDocs")}</p>
           )}
+          {pending && <p className="text-sm text-muted-ink">{t(locale, "apply.uploading")}</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
@@ -317,6 +399,7 @@ export function ApplyWizard({
               </li>
             ))}
           </ul>
+          {pending && <p className="text-sm text-muted-ink">{t(locale, "apply.saving")}</p>}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"

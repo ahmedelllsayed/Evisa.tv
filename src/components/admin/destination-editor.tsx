@@ -83,6 +83,8 @@ function fromDestination(d: Destination): DestinationInput {
     cities: d.cities,
     rejectionReasons: d.rejectionReasons,
     sources: d.sources,
+    sourceUrl: d.sourceUrl ?? "",
+    reviewedOn: d.reviewedAt?.slice(0, 10) ?? "",
     sortOrder: d.sortOrder,
     isActive: d.isActive,
   };
@@ -365,6 +367,14 @@ export function DestinationEditor({
               <label className="text-sm">
                 المدن (مفصولة بفاصلة)
                 <input name="cities" defaultValue={initial.cities.join(", ")} className={adminInputClass} />
+              </label>
+              <label className="text-sm">
+                رابط المصدر الرسمي
+                <input name="sourceUrl" defaultValue={initial.sourceUrl ?? ""} className={adminInputClass} placeholder="https://" />
+              </label>
+              <label className="text-sm">
+                تاريخ مراجعة المتطلبات
+                <input name="reviewedOn" type="date" defaultValue={initial.reviewedOn ?? ""} className={adminInputClass} />
               </label>
               <label className="text-sm">
                 المصادر الرسمية (سطر: الاسم | الرابط)

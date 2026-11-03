@@ -3,6 +3,7 @@ import { AdminAreaChart, AdminBarChart, AdminHoursChart, AdminRevenueChart } fro
 import { AdminCard, AdminPage } from "@/components/admin/chrome";
 import { requireAdmin } from "@/lib/auth";
 import { queueCounts } from "@/lib/data/applications";
+import { staleDestinations } from "@/lib/data/catalog";
 import { getInsights, insightDays } from "@/lib/data/insights";
 import { href } from "@/lib/href";
 import type { Page } from "@/lib/page";
@@ -14,7 +15,7 @@ export default async function AdminHome({ params, searchParams }: Page) {
   const sp = await searchParams;
   const user = await requireAdmin(locale);
   const days = insightDays(sp.days);
-  const [counts, insights] = await Promise.all([queueCounts(user.id), getInsights(days)]);
+  const [counts, insights, stale] = await Promise.all([queueCounts(user.id), getInsights(days), staleDestinations()]);
   const decided = insights.approved + insights.rejected;
   const approval = decided === 0 ? 0 : Math.round((insights.approved / decided) * 100);
   const refundBase = insights.paid + insights.refunded;
@@ -42,6 +43,19 @@ export default async function AdminHome({ params, searchParams }: Page) {
         </div>
       }
     >
+      {stale.length ? (
+        <AdminCard>
+          <h2 className="font-semibold">متطلبات تحتاج مراجعة</h2>
+          <p className="mt-1 text-sm text-muted-foreground">لا يوجد تاريخ مراجعة، أو مضى عليه أكثر من ١٨٠ يوماً.</p>
+          <ul className="mt-3 space-y-1 text-sm">
+            {stale.map((row) => (
+              <li key={row.slug}>
+                <Link href={href("/admin/destinations", locale)} className="text-brand">{row.name}</Link>
+              </li>
+            ))}
+          </ul>
+        </AdminCard>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
           <Link key={card.label} href={href(card.href, locale)}>

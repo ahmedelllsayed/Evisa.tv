@@ -1,13 +1,24 @@
 import { notFound } from "next/navigation";
 import { CmsProse } from "@/components/cms/prose-page";
 import { linesOf } from "@/lib/cms/registry";
+import { getCurrentUser } from "@/lib/auth";
 import { getPage, localizeContent } from "@/lib/data/pages";
+import { isStaffRole } from "@/lib/rbac-constants";
 
-export default async function CustomPage({ params }: { params: Promise<{ locale: string; cms: string[] }> }) {
+export default async function CustomPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string; cms: string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { cms, locale } = await params;
+  const sp = await searchParams;
   const slug = cms.join("/");
   const page = await getPage(slug);
-  if (!page || !page.published) notFound();
+  const preview = sp.preview === "1";
+  const user = preview ? await getCurrentUser() : null;
+  if (!page || (!page.published && !(preview && user && isStaffRole(user.role)))) notFound();
   const content = localizeContent(page.content, locale);
   if (page.template === "prose" || page.template === "contact" || page.template === "fees") {
     return <CmsProse title={content.title || page.title} intro={content.intro} body={content.body} />;

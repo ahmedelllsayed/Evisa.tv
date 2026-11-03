@@ -1,7 +1,8 @@
 import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { sql } from "@/lib/data/db";
 import { getSiteSettings } from "@/lib/data/settings";
-import { createPayment, findPendingPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
+import { addEvent, createPayment, findPendingPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
 import { getCurrentUser } from "@/lib/auth";
 import { env, serverEnv } from "@/lib/env";
 import { t, tf } from "@/lib/i18n";
@@ -190,15 +191,10 @@ export async function paymentReturn(merchantOrderId: string) {
   };
 }
 
-/** Marks the paid charge refunded. A Stripe payment is refunded on Stripe first. */
-export async function refundApplication(applicationId: string) {
-  const payments = await listPayments(applicationId);
-  const paid = payments.find((payment) => payment.status === "paid");
-  if (!paid) return { ok: false as const, error: "لا توجد دفعة مكتملة للاسترداد." };
+async function refundAtProvider(paid: Awaited<ReturnType<typeof listPayments>>[number], cents: number) {
   if (paid.provider === "paymob") {
     if (!paid.transactionId) return { ok: false as const, error: "دفعة Paymob بلا رقم عملية." };
-    const refunded = await refundPaymob(paid.transactionId, Math.round(paid.amount * 100));
-    if (!refunded.ok) return refunded;
+    return refundPaymob(paid.transactionId, cents);
   }
   if (paid.provider === "stripe") {
     const stripeKey = serverEnv().stripeSecretKey;
@@ -210,10 +206,48 @@ export async function refundApplication(applicationId: string) {
       const intent = session.payment_intent;
       const paymentIntent = typeof intent === "string" ? intent : intent?.id;
       if (!paymentIntent) return { ok: false as const, error: "جلسة Stripe بلا عملية دفع." };
-      await stripe.refunds.create({ payment_intent: paymentIntent });
+      await stripe.refunds.create({ payment_intent: paymentIntent, amount: cents });
     } catch {
       return { ok: false as const, error: "تعذر تنفيذ استرداد Stripe." };
     }
   }
+  return { ok: true as const };
+}
+
+/** Marks the remaining paid charge refunded. A Stripe or Paymob payment is refunded at the provider first. */
+export async function refundApplication(applicationId: string) {
+  const payments = await listPayments(applicationId);
+  const paid = payments.find((payment) => payment.status === "paid");
+  if (!paid) return { ok: false as const, error: "لا توجد دفعة مكتملة للاسترداد." };
+  const remaining = Math.max(0, Math.round((paid.amount - paid.refundedAmount) * 100));
+  if (remaining > 0) {
+    const refunded = await refundAtProvider(paid, remaining);
+    if (!refunded.ok) return refunded;
+  }
   return markRefunded(applicationId, paid.id);
+}
+
+export async function refundApplicationAmount(applicationId: string, amount: number) {
+  const payments = await listPayments(applicationId);
+  const paid = payments.find((payment) => payment.status === "paid");
+  if (!paid) return { ok: false as const, error: "لا توجد دفعة مكتملة للاسترداد." };
+  const remaining = Math.round((paid.amount - paid.refundedAmount) * 100) / 100;
+  if (!(amount > 0) || amount - remaining > 0.01) return { ok: false as const, error: "مبلغ الاسترداد أكبر من المتبقي." };
+  if (remaining - amount < 0.02) return refundApplication(applicationId);
+  const refunded = await refundAtProvider(paid, Math.round(amount * 100));
+  if (!refunded.ok) return refunded;
+  const updated = await sql(
+    `update payments set refunded_amount = refunded_amount + $2
+     where id = $1 and status = 'paid' and refunded_amount + $2 <= amount + 0.01
+     returning id`,
+    [paid.id, amount],
+  );
+  if (!updated.length) return { ok: false as const, error: "تعذر تسجيل الاسترداد الجزئي." };
+  await addEvent(applicationId, {
+    title: "استرداد جزئي",
+    description: `${amount} ${paid.currency}`,
+    internal: true,
+    onTime: true,
+  });
+  return { ok: true as const, partial: true as const };
 }

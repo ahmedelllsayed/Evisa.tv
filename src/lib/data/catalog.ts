@@ -43,6 +43,8 @@ function toDestination(r: Row): Destination {
     lng: numOrNull(r.lng),
     cities: json<string[]>(r.cities, []),
     sources: json(r.sources, []),
+    sourceUrl: (r.source_url as string) ?? null,
+    reviewedAt: r.reviewed_at ? iso(r.reviewed_at) : null,
     rejectionReasons: json(r.rejection_reasons, []),
     sortOrder: num(r.sort_order),
     isActive: Boolean(r.is_active),
@@ -311,6 +313,8 @@ export type DestinationInput = {
   cities: string[];
   rejectionReasons: { title: string; body: string; titleAr?: string; bodyAr?: string }[];
   sources: { label: string; url: string }[];
+  sourceUrl?: string | null;
+  reviewedOn?: string | null;
   sortOrder: number;
   isActive: boolean;
 };
@@ -321,18 +325,37 @@ function destinationParams(id: string, input: DestinationInput) {
     input.entry, input.entryAr, input.acceptedAt, input.method, input.methodAr, input.govFee, input.serviceFee, input.processingHours, input.expressHours,
     input.expressFee, JSON.stringify(input.documents), input.image, input.heroImage, input.flag,
     JSON.stringify(input.cities), JSON.stringify(input.rejectionReasons), JSON.stringify(input.sources), input.sortOrder, input.isActive,
-    input.videoUrl, input.embassyVisit,
+    input.videoUrl, input.embassyVisit, input.sourceUrl ?? null, input.reviewedOn || null,
   ];
 }
 
 const DESTINATION_UPDATE = `update destinations set name=$2, name_ar=$3, slug=$4, code=$5, region=$6, visa_required=$7, visa_type=$8, validity=$9, validity_ar=$10, stay=$11, stay_ar=$12,
        entry=$13, entry_ar=$14, accepted_at=$15, method=$16, method_ar=$17, gov_fee=$18, service_fee=$19, processing_hours=$20, express_hours=$21,
        express_fee=$22, documents=$23::jsonb, image=$24, hero_image=$25, flag=$26, cities=$27::jsonb,
-       rejection_reasons=$28::jsonb, sources=$29::jsonb, sort_order=$30, is_active=$31, video_url=$32, embassy_visit=$33, updated_at=now()
+       rejection_reasons=$28::jsonb, sources=$29::jsonb, sort_order=$30, is_active=$31, video_url=$32, embassy_visit=$33,
+       source_url=$34, reviewed_at=case when $35::text is null or $35::text = '' then reviewed_at else $35::timestamptz end, updated_at=now()
      where id=$1`;
 
 async function writeDestination(tx: Pick<Db, "query">, id: string, input: DestinationInput) {
   await tx.query(DESTINATION_UPDATE, destinationParams(id, input));
+  await tx.query(
+    `insert into visa_requirement_versions (destination_id, nationality_code, version, status, requirements_json, source_url, reviewed_at)
+     select $1, 'EG', coalesce((select max(version) from visa_requirement_versions where destination_id = $1 and visa_option_id is null and nationality_code = 'EG'), 0) + 1,
+       'published', $2::jsonb, $3, case when $4::text is null or $4::text = '' then null else $4::timestamptz end
+     where not exists (
+       select 1 from visa_requirement_versions
+       where destination_id = $1 and visa_option_id is null and nationality_code = 'EG' and requirements_json = $2::jsonb
+     )`,
+    [id, JSON.stringify({ documents: input.documents, visa_type: input.visaType }), input.sourceUrl ?? null, input.reviewedOn || null],
+  );
+}
+
+export async function staleDestinations() {
+  return sql<{ name: string; slug: string }>(
+    `select name, slug from destinations
+     where is_active and visa_required and (reviewed_at is null or reviewed_at < now() - interval '180 days')
+     order by name limit 8`,
+  );
 }
 
 export async function updateDestination(id: string, input: DestinationInput) {

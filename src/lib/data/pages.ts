@@ -11,9 +11,15 @@ export type ManagedPage = {
   template: CmsTemplate;
   title: string;
   published: boolean;
+  workflowStatus: "draft" | "review" | "published" | "archived";
   sortOrder: number;
   content: CmsContent;
 };
+
+function pageWorkflow(value: unknown, published: boolean): ManagedPage["workflowStatus"] {
+  if (value === "draft" || value === "review" || value === "published" || value === "archived") return value;
+  return published ? "published" : "archived";
+}
 
 function toContent(value: unknown): CmsContent {
   const raw = json<Record<string, unknown>>(value, {});
@@ -33,6 +39,7 @@ function toPage(r: Record<string, unknown>): ManagedPage {
     template,
     title: String(r.title),
     published: Boolean(r.published),
+    workflowStatus: pageWorkflow(r.workflow_status, Boolean(r.published)),
     sortOrder: Number(r.sort_order ?? 0),
     content: mergeContent(defaultContent(slug, template), toContent(r.content)),
   };
@@ -90,27 +97,29 @@ export async function unpublishedSlugs(): Promise<Set<string>> {
   return new Set(rows.map((row) => row.slug));
 }
 
-export async function savePage(input: { id?: string; slug: string; template: CmsTemplate; title: string; published: boolean; sortOrder: number; content: CmsContent }) {
+export async function savePage(input: { id?: string; slug: string; template: CmsTemplate; title: string; published: boolean; workflowStatus?: ManagedPage["workflowStatus"]; sortOrder: number; content: CmsContent }) {
   const slug = input.slug.replace(/^\/+/, "").replace(/\/+$/, "");
   if (!slug || slug.includes("..")) throw new Error("رابط الصفحة غير صالح");
+  const workflow = input.workflowStatus ?? (input.published ? "published" : "archived");
+  const published = workflow === "published";
   if (input.id) {
     await sql(
-      `update pages set slug=$2, template=$3, title=$4, published=$5, sort_order=$6, content=$7::jsonb, updated_at=now() where id=$1`,
-      [input.id, slug, input.template, input.title, input.published, input.sortOrder, JSON.stringify(input.content)],
+      `update pages set slug=$2, template=$3, title=$4, published=$5, workflow_status=$6, sort_order=$7, content=$8::jsonb, updated_at=now() where id=$1`,
+      [input.id, slug, input.template, input.title, published, workflow, input.sortOrder, JSON.stringify(input.content)],
     );
     return;
   }
   await sql(
-    `insert into pages (slug, template, title, published, sort_order, content)
-     values ($1,$2,$3,$4,$5,$6::jsonb)
+    `insert into pages (slug, template, title, published, workflow_status, sort_order, content)
+     values ($1,$2,$3,$4,$5,$6,$7::jsonb)
      on conflict (slug) do update set template=excluded.template, title=excluded.title, published=excluded.published,
-       sort_order=excluded.sort_order, content=excluded.content, updated_at=now()`,
-    [slug, input.template, input.title, input.published, input.sortOrder, JSON.stringify(input.content)],
+       workflow_status=excluded.workflow_status, sort_order=excluded.sort_order, content=excluded.content, updated_at=now()`,
+    [slug, input.template, input.title, published, workflow, input.sortOrder, JSON.stringify(input.content)],
   );
 }
 
 export async function setPagePublished(id: string, published: boolean) {
-  await sql("update pages set published=$2, updated_at=now() where id=$1", [id, published]);
+  await sql("update pages set published=$2, workflow_status=$3, updated_at=now() where id=$1", [id, published, published ? "published" : "archived"]);
 }
 
 export async function deletePage(id: string) {

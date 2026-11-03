@@ -8,6 +8,7 @@ export const funnelEvents = [
   "payment_success",
   "payment_failed",
   "offer_click",
+  "application_submitted",
 ] as const;
 
 export type FunnelEvent = (typeof funnelEvents)[number];
@@ -16,6 +17,11 @@ const aliases: Record<string, FunnelEvent> = {
   begin_checkout: "begin_application",
   add_payment_info: "payment_start",
   purchase: "payment_success",
+  visa_viewed: "view_visa",
+  application_started: "begin_application",
+  documents_uploaded: "documents_done",
+  checkout_started: "payment_start",
+  payment_succeeded: "payment_success",
 };
 
 export function funnelName(event: string): FunnelEvent | null {

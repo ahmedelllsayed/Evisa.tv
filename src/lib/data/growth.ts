@@ -3,11 +3,12 @@ import { siteConfig } from "@/config/site.config";
 import type { FunnelEvent } from "@/lib/funnel";
 import { one, sql } from "./db";
 
-export async function recordFunnel(name: FunnelEvent, locale: string | null, destinationSlug: string | null) {
-  await sql("insert into funnel_events (name, locale, destination_slug) values ($1, $2, $3)", [
+export async function recordFunnel(name: FunnelEvent, locale: string | null, destinationSlug: string | null, device: string | null = null) {
+  await sql("insert into funnel_events (name, locale, destination_slug, device) values ($1, $2, $3, $4)", [
     name,
     locale?.slice(0, 12) || null,
     destinationSlug?.slice(0, 80) || null,
+    device === "mobile" || device === "desktop" ? device : null,
   ]);
 }
 
