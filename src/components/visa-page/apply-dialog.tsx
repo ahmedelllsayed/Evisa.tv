@@ -10,7 +10,14 @@ import { isArabicLocale, t, tf } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { localizedDestinationName } from "@/lib/localize";
 import type { Destination, VisaOption } from "@/lib/types";
-import { formatAt, formatMoney, guaranteedDate, optionHours, optionTotal, processingLabel } from "@/lib/visa";
+import { calendarDate, formatAt, formatMoney, guaranteedDate, optionHours, optionTotal, processingLabel } from "@/lib/visa";
+
+function parseCalendarDate(value: string | null | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year!, (month ?? 1) - 1, day);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
 
 export function ApplyDialog({
   open,
@@ -20,6 +27,7 @@ export function ApplyDialog({
   locale,
   express,
   now,
+  initialDate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,8 +36,9 @@ export function ApplyDialog({
   locale: string;
   express: boolean;
   now: Date;
+  initialDate?: string | null;
 }) {
-  const [date, setDate] = useState<Date | undefined>();
+  const [date, setDate] = useState<Date | undefined>(() => parseCalendarDate(initialDate));
   const [pending, start] = useTransition();
   const hours = optionHours(option, express);
   const fee = optionTotal(option, express);
@@ -61,7 +70,7 @@ export function ApplyDialog({
               return startApplicationAction({
                 locale,
                 destinationId: destination.id,
-                departureDate: date ? date.toISOString().slice(0, 10) : null,
+                departureDate: date ? calendarDate(date) : null,
                 express,
                 visaOptionId: option.id || null,
               });

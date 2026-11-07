@@ -78,7 +78,7 @@ export default async function VisaPage({ params, searchParams }: Page<{ locale: 
   };
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       {destination.heroImage || destination.image ? (
         <link rel="preload" as="image" href={destination.heroImage || destination.image || ""} fetchPriority="high" />
       ) : null}
@@ -109,6 +109,8 @@ export default async function VisaPage({ params, searchParams }: Page<{ locale: 
         existingOptionId={existing?.visaOptionId}
         existingExpress={existing?.express}
         applyOpen={String(sp.apply ?? "") === "1"}
+        initialExpress={String(sp.express ?? "") === "1"}
+        initialDate={typeof sp.date === "string" ? sp.date : null}
         nowIso={new Date().toISOString()}
         approvalRate={approvalRate}
         brandName={settings.name}

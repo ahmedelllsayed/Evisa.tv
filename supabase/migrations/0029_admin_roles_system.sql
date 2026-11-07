@@ -45,9 +45,7 @@ insert into admin_permissions (role, resources) values
   ('support', '{"applications":["view"],"users":["view"],"content":["view"],"settings":[],"reports":["view"],"audit":[],"staff":[]}'::jsonb),
   ('viewer', '{"applications":["view"],"users":[],"content":["view"],"settings":[],"reports":["view"],"audit":[],"staff":[]}'::jsonb),
   ('user', '{"applications":[],"users":[],"content":[],"settings":[],"reports":[],"audit":[],"staff":[]}'::jsonb)
-on conflict (role) do update
-  set resources = excluded.resources,
-      updated_at = now();
+on conflict (role) do nothing;
 
 create table if not exists staff_profiles (
   user_id uuid primary key references profiles (id) on delete cascade,

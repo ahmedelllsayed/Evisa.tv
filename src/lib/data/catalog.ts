@@ -140,6 +140,7 @@ function toReview(r: Row): Review {
     body: String(r.body),
     bodyAr: (r.body_ar as string) ?? null,
     rating: num(r.rating),
+    isSample: Boolean(r.is_sample),
     product: (r.product as string) ?? null,
     url: (r.url as string) ?? null,
     publishedAt: day(r.published_at) ?? "",
@@ -434,7 +435,7 @@ export async function deleteReview(id: string) {
 
 export async function publicReviewStats() {
   const row = await one<{ reviews: number; rating: string | null }>(
-    "select count(*)::int as reviews, round(avg(rating)::numeric, 1)::text as rating from reviews",
+    "select count(*)::int as reviews, round(avg(rating)::numeric, 1)::text as rating from reviews where is_sample is not true",
   );
   const reviews = row?.reviews ?? 0;
   return { reviewCount: reviews, rating: reviews > 0 && row?.rating ? row.rating : null };
@@ -451,6 +452,6 @@ export async function computedApprovalRate(): Promise<number | null> {
   const approved = row?.approved ?? 0;
   const rejected = row?.rejected ?? 0;
   const decided = approved + rejected;
-  if (!decided) return null;
+  if (decided < 20) return null;
   return Math.round((approved / decided) * 1000) / 10;
 }

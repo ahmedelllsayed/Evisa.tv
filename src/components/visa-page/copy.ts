@@ -39,7 +39,7 @@ const copy = {
   promiseReview: { en: "Staff check every file before it is filed", ar: "يراجع الفريق كل ملف قبل تقديمه" },
   promisePrice: { en: "The full price is shown before you pay", ar: "السعر الكامل يظهر قبل الدفع" },
   promiseTrack: { en: "Track every step from your account", ar: "تابع كل خطوة من حسابك" },
-  approvedShare: { en: "of decided {name} applications were approved", ar: "من طلبات {name} المحسومة تمت الموافقة عليها" },
+  approvedShare: { en: "of all decided applications on Evisa were approved", ar: "من كل الطلبات المحسومة على Evisa تمت الموافقة عليها" },
   reviewsCount: { en: "{n} reviews", ar: "{n} تقييمات" },
   stepsTitle: { en: "What happens after you start", ar: "ماذا يحدث بعد بدء الطلب" },
   nearbyTitle: { en: "Also near {name}", ar: "وجهات قريبة من {name}" },

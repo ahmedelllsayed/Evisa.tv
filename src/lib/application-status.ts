@@ -1,14 +1,14 @@
 import type { ApplicationStatus } from "@/lib/types";
 
 const adminTransitions: Record<ApplicationStatus, ApplicationStatus[]> = {
-  draft: ["payment_pending", "cancelled", "refunded"],
-  payment_pending: ["draft", "submitted", "cancelled", "refunded"],
-  submitted: ["in_review", "filed", "approved", "rejected", "cancelled", "refunded"],
-  in_review: ["submitted", "filed", "approved", "rejected", "cancelled", "refunded"],
-  filed: ["in_review", "approved", "rejected", "cancelled", "refunded"],
-  approved: ["refunded"],
-  rejected: ["in_review", "refunded"],
-  cancelled: ["refunded"],
+  draft: ["payment_pending", "cancelled"],
+  payment_pending: ["draft", "submitted", "cancelled"],
+  submitted: ["in_review", "filed", "approved", "rejected", "cancelled"],
+  in_review: ["submitted", "filed", "approved", "rejected", "cancelled"],
+  filed: ["in_review", "approved", "rejected", "cancelled"],
+  approved: [],
+  rejected: ["in_review"],
+  cancelled: [],
   refunded: [],
 };
 

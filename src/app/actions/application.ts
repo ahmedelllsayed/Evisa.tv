@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { changeApplicationOption, createApplication, findOpenApplication } from "@/lib/data/applications";
+import { createApplication, findOpenApplication, resumeOpenApplication } from "@/lib/data/applications";
 import { getDestinationById } from "@/lib/data/catalog";
 
 export async function startApplicationAction(input: {
@@ -16,19 +16,20 @@ export async function startApplicationAction(input: {
   if (!dest) redirect(`/${input.locale}`);
   const user = await getCurrentUser();
   if (!user) {
-    const type = input.visaOptionId ? `&type=${encodeURIComponent(input.visaOptionId)}` : "";
-    const next = `/${input.locale}/visa/${dest.slug}?apply=1${type}`;
+    const params = new URLSearchParams({ apply: "1" });
+    if (input.visaOptionId) params.set("type", input.visaOptionId);
+    if (input.departureDate) params.set("date", input.departureDate);
+    if (input.express) params.set("express", "1");
+    const next = `/${input.locale}/visa/${dest.slug}?${params.toString()}`;
     redirect(`/${input.locale}/sign-in?next=${encodeURIComponent(next)}`);
   }
   const existing = await findOpenApplication(user.id, dest.id);
   if (existing) {
-    const optionId = input.visaOptionId || null;
-    const optionChanged = Boolean(optionId) && existing.visaOptionId !== optionId;
-    const expressChanged = existing.express !== Boolean(input.express);
-    if (optionChanged || expressChanged) {
-      const nextOption = optionId || existing.visaOptionId;
-      if (nextOption) await changeApplicationOption(existing.id, nextOption, input.express);
-    }
+    await resumeOpenApplication(existing.id, {
+      departureDate: input.departureDate,
+      express: input.express,
+      optionId: input.visaOptionId || existing.visaOptionId,
+    });
     redirect(`/${input.locale}/apply/${existing.id}`);
   }
   const id = await createApplication({

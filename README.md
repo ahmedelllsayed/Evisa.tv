@@ -53,15 +53,15 @@ Apply the SQL in `supabase/migrations/` to a Supabase project, then `supabase/se
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs `npm ci`, lint, typecheck, test, and build on pushes to `main` and `staging`, and on pull requests. The production site is `evisa.tv`. A separate `staging.evisa.tv` environment, with its own database and storage bucket, is still an operations task.
+`.github/workflows/ci.yml` runs `npm ci`, lint, typecheck, test, and build on pushes to `main` and `staging`, and on pull requests. The production site is `evisa.tv`. `staging.evisa.tv` still needs its own DNS record, Coolify app and database. Incidents and backups are in [docs/RUNBOOK.md](docs/RUNBOOK.md). The commercial plan and what is already in the code are in [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md).
 
 ## Deploy on Coolify
 
 Do not commit `.env.local`. Live keys stay in Coolify’s environment settings, not in the image.
 
 1. Push the repository. If the Git root is the parent folder, set the Coolify base directory to `atlys-clone`. The build pack is Dockerfile and the exposed port is `3000`.
-2. Create a Postgres database in Coolify and set `DATABASE_URL` to its internal URL. The app applies `supabase/migrations` and seeds an empty catalog on first boot. PGlite is refused in production.
-3. Add persistent storage mounted at `/app/.data/uploads` so passport files survive a redeploy.
+2. Create a Postgres database in Coolify and set `DATABASE_URL` to its internal URL. The app records applied files in `schema_migrations` and only runs new files. An existing database is baselined instead of replaying old files. PGlite is refused in production. Passport bytes stay in this database.
+3. Add persistent storage mounted at `/app/.data/uploads`. Schedule `POST /api/cron/mail`, `/api/cron/payments` and `/api/cron/cleanup` with `Authorization: Bearer $CRON_SECRET`. Schedule a database backup every 6 hours.
 4. Set `NEXT_PUBLIC_SITE_URL` to `https://<domain>` and mark it available at build time. Set `AUTH_SECRET` to a new long random value. Set `ADMIN_EMAILS` to the admin address.
 5. Set `RESEND_API_KEY` and `RESEND_FROM` on a verified domain. Production does not show the sign-in code on the page, so email must be able to send it.
 6. Point the Coolify health check at `http://localhost:3000/api/health`.

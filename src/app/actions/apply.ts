@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { t } from "@/lib/i18n";
-import { isFullAdmin, isStaffRole } from "@/lib/rbac-constants";
+import { isFullAdmin } from "@/lib/rbac-constants";
 import { documentGaps } from "@/lib/application-rules";
 import { requireUser } from "@/lib/auth";
 import {
@@ -11,13 +11,16 @@ import {
   getApplication,
   listDocuments,
   listTravelers,
+  replaceRejectedDocument,
   saveTravelers,
   setStep,
   type TravelerInput,
 } from "@/lib/data/applications";
 import { attachProfileDocuments, getProfileDocumentByPath, getProfileVault, saveProfileDocument } from "@/lib/data/profile-vault";
 import { createCheckout } from "@/lib/payments";
-import { ALLOWED_TYPES, copyStoredFile, MAX_UPLOAD_BYTES, removeFile, storeFile } from "@/lib/storage";
+import { sql } from "@/lib/data/db";
+import { acceptedUpload } from "@/lib/uploads";
+import { copyStoredFile, removeFile, storeFile } from "@/lib/storage";
 import type { Application, ApplicationStep } from "@/lib/types";
 
 function canEdit(status: string) {
@@ -27,7 +30,7 @@ function canEdit(status: string) {
 async function owned(locale: string, id: string) {
   const user = await requireUser(locale, `/${locale}/apply/${id}`);
   const app = await getApplication(id);
-  if (!app || (app.userId !== user.id && !isStaffRole(user.role))) redirect(`/${locale}/account`);
+  if (!app || app.userId !== user.id) redirect(`/${locale}/account`);
   return { user, app };
 }
 
@@ -46,6 +49,14 @@ export async function saveTravelersAction(locale: string, applicationId: string,
     (t) => !text(t.firstName) || !text(t.lastName) || !text(t.dateOfBirth) || !text(t.passportNumber) || !text(t.passportExpiry),
   );
   if (incomplete) return { ok: false as const, error: t(locale, "err.incomplete") };
+  if (app.departureDate) {
+    const depart = new Date(`${app.departureDate}T00:00:00Z`).getTime();
+    const short = travelers.some((traveler) => {
+      const expiry = new Date(`${traveler.passportExpiry}T00:00:00Z`).getTime();
+      return Number.isNaN(expiry) || expiry < depart + 180 * 864e5;
+    });
+    if (short) return { ok: false as const, error: t(locale, "err.passportShort") };
+  }
   const saved = await saveTravelers(app.id, travelers);
   if (!saved.ok) return saved;
   if (user.id === app.userId) await attachProfileDocuments(user.id, app.id);
@@ -62,21 +73,39 @@ export async function uploadDocumentAction(formData: FormData) {
   const { user, app } = await owned(locale, applicationId);
   if (kind === "issued_visa") return { ok: false as const, error: t(locale, "err.issued") };
   const locked = lockedResult(app, locale);
-  if (locked) return locked;
+  const rejected = locked
+    ? (await listDocuments(app.id)).find(
+        (doc) => doc.status === "rejected" && doc.kind === kind && (doc.travelerId ?? null) === (travelerId ?? null),
+      )
+    : undefined;
+  if (locked && !rejected) return locked;
   if (!(file instanceof File) || !file.size) return { ok: false as const, error: t(locale, "err.chooseFile") };
-  if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: t(locale, "err.fileSize") };
-  if (!ALLOWED_TYPES.includes(file.type)) return { ok: false as const, error: t(locale, "err.fileType") };
-  const storagePath = await storeFile(user.id, app.id, file);
+  const checked = await acceptedUpload(file);
+  if (!checked.ok) return { ok: false as const, error: t(locale, checked.error) };
+  const storagePath = await storeFile(user.id, app.id, checked.file);
   try {
-    await addDocument({
-      applicationId: app.id,
-      travelerId,
-      kind,
-      storagePath,
-      fileName: file.name,
-      mimeType: file.type,
-      sizeBytes: file.size,
-    });
+    if (rejected) {
+      await replaceRejectedDocument({
+        documentId: rejected.id,
+        applicationId: app.id,
+        travelerId,
+        kind,
+        storagePath,
+        fileName: checked.file.name,
+        mimeType: checked.file.type,
+        sizeBytes: checked.file.size,
+      });
+    } else {
+      await addDocument({
+        applicationId: app.id,
+        travelerId,
+        kind,
+        storagePath,
+        fileName: checked.file.name,
+        mimeType: checked.file.type,
+        sizeBytes: checked.file.size,
+      });
+    }
   } catch (error) {
     await removeFile(storagePath).catch(() => undefined);
     return { ok: false as const, error: error instanceof Error ? error.message : t(locale, "err.saveDoc") };
@@ -131,9 +160,20 @@ export async function goToStepAction(locale: string, applicationId: string, step
   return { ok: true as const };
 }
 
-export async function startPaymentAction(locale: string, applicationId: string) {
+export async function startPaymentAction(locale: string, applicationId: string, phone?: string, acceptedTerms = false) {
   const { user, app } = await owned(locale, applicationId);
   if (!canEdit(app.status)) return { ok: false as const, error: t(locale, "err.payLocked") };
+  if (!acceptedTerms) return { ok: false as const, error: t(locale, "apply.terms") };
+  await sql(
+    "insert into application_events (application_id, status, title, description, internal) values ($1,$2,'terms.accepted',$3,true)",
+    [app.id, app.status, new Date().toISOString()],
+  );
+  const nextPhone = (phone ?? user.phone ?? "").trim();
+  if (!nextPhone) return { ok: false as const, error: t(locale, "err.payPhone") };
+  if (nextPhone !== (user.phone ?? "")) {
+    await sql("update profiles set phone = $2 where id = $1", [user.id, nextPhone]);
+  }
+  user.phone = nextPhone;
   const travelers = await listTravelers(app.id);
   const documents = await listDocuments(app.id);
   const required = app.documentsRequired.length ? app.documentsRequired : ["passport"];

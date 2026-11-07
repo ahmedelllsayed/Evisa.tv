@@ -29,7 +29,7 @@ export async function listAdminAlerts(): Promise<AdminAlert[]> {
     sql<{ id: string; reference: string; guaranteed_at: string }>(
       `select id, reference, guaranteed_at from applications
        where guaranteed_at is not null and guaranteed_at < now()
-         and status not in ('approved', 'rejected', 'cancelled', 'refunded')
+         and status not in ('draft', 'payment_pending', 'approved', 'rejected', 'cancelled', 'refunded')
        order by guaranteed_at asc limit 6`,
     ),
   ]);

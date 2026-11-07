@@ -4,13 +4,11 @@ import { requireUser } from "@/lib/auth";
 import { getApplication, listDocuments, listPayments, listTravelers } from "@/lib/data/applications";
 import { attachProfileDocuments, getProfileVault } from "@/lib/data/profile-vault";
 import type { Page } from "@/lib/page";
-import { isStaffRole } from "@/lib/rbac-constants";
-
 export default async function ApplyPage({ params }: Page<{ locale: string; id: string }>) {
   const { locale, id } = await params;
   const user = await requireUser(locale, `/${locale}/apply/${id}`);
   const application = await getApplication(id);
-  if (!application || (application.userId !== user.id && !isStaffRole(user.role))) notFound();
+  if (!application || application.userId !== user.id) notFound();
   const reusable = application.userId === user.id && (application.status === "draft" || application.status === "payment_pending");
   if (reusable) await attachProfileDocuments(user.id, id);
   const [travelers, documents, profile, payments] = await Promise.all([
@@ -28,6 +26,7 @@ export default async function ApplyPage({ params }: Page<{ locale: string; id: s
       documents={documents}
       profile={profile}
       countLocked={countLocked}
+      phone={user.phone}
     />
   );
 }

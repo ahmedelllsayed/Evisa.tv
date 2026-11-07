@@ -85,6 +85,19 @@ function decodeSession(token: string | undefined) {
   return userId;
 }
 
+async function otpLimited(email: string) {
+  const { headers } = await import("next/headers");
+  const headerStore = await headers();
+  const ip = (headerStore.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
+  const [byIp, byEmail] = await Promise.all([
+    one<{ n: number }>("select count(*)::int as n from auth_attempts where ip = $1 and created_at > now() - interval '1 hour'", [ip]),
+    one<{ n: number }>("select count(*)::int as n from auth_attempts where email = $1 and created_at > now() - interval '1 day'", [email]),
+  ]);
+  if ((byIp?.n ?? 0) >= 20 || (byEmail?.n ?? 0) >= 8) return true;
+  await sql("insert into auth_attempts (kind, email, ip) values ('otp', $1, $2)", [email, ip]);
+  return false;
+}
+
 function hashCode(email: string, code: string) {
   return createHash("sha256").update(`${email}:${code}:${serverEnv().authSecret}`).digest("hex");
 }
@@ -135,13 +148,15 @@ export async function sendEmailCode(email: string, locale = "en-EG"): Promise<Ot
     [normalized],
   );
   if (recent?.too_soon) return { ok: false, error: t(locale, "err.wait") };
+  const limited = await otpLimited(normalized);
+  if (limited) return { ok: false, error: t(locale, "err.wait") };
   if (process.env.NODE_ENV === "production" && !process.env.RESEND_API_KEY) {
     return { ok: false, error: t(locale, "err.mailOff") };
   }
   const code = String(randomInt(100000, 1000000));
   await sql(
     `insert into local_otps (email, code_hash, attempts, expires_at) values ($1, $2, 0, now() + interval '10 minutes')
-     on conflict (email) do update set code_hash = excluded.code_hash, attempts = 0, expires_at = excluded.expires_at`,
+     on conflict (email) do update set code_hash = excluded.code_hash, expires_at = excluded.expires_at`,
     [normalized, hashCode(normalized, code)],
   );
   const settings = await getSiteSettings();

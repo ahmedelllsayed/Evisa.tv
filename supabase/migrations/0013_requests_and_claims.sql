@@ -20,7 +20,7 @@ create table if not exists contact_messages (
   created_at timestamptz not null default now()
 );
 
-delete from fee_changes where reason in ('Government fee reduced', 'Exchange rate update');
+-- Fee history is no longer deleted on migrate. A previous version removed two seeded reasons on every boot.
 
 insert into pages (slug, template, title, published, sort_order)
 values ('editorial-policy', 'prose', 'Editorial policy', true, 160)

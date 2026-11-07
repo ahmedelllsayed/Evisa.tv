@@ -1,7 +1,7 @@
 const closed = new Set(["approved", "rejected", "cancelled", "refunded"]);
 
 export function isPastGuarantee(status: string, guaranteedAt: string | null) {
-  if (!guaranteedAt || closed.has(status)) return false;
+  if (!guaranteedAt || closed.has(status) || status === "draft" || status === "payment_pending") return false;
   return new Date(guaranteedAt).getTime() < Date.now();
 }
 
@@ -37,4 +37,20 @@ export function documentGaps(
     }
   }
   return gaps;
+}
+
+/** Filing needs every required document present and marked verified. */
+export function documentsReadyToFile(
+  required: string[],
+  travelers: { id: string }[],
+  documents: { travelerId: string | null; kind: string; status: string }[],
+) {
+  const kinds = required.length ? required : ["passport"];
+  if (!travelers.length) return false;
+  return travelers.every((traveler) =>
+    kinds.every((kind) => {
+      const doc = documents.find((item) => item.travelerId === traveler.id && item.kind === kind);
+      return doc?.status === "verified";
+    }),
+  );
 }

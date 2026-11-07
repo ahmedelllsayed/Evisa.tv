@@ -13,7 +13,8 @@ test("staff can move a submitted file through review and approval", () => {
   assert.equal(canTransition("in_review", "filed"), true);
   assert.equal(canTransition("filed", "approved"), true);
   assert.equal(canTransition("submitted", "approved"), true);
-  assert.equal(canTransition("approved", "refunded"), true);
+  assert.equal(canTransition("approved", "refunded"), false);
+  assert.equal(canTransition("approved", "refunded", "payment"), true);
 });
 
 test("payment can submit only an unpaid draft and can refund a charged file", () => {

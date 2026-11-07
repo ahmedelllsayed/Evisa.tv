@@ -68,7 +68,7 @@ async function lastAdmin(id: string) {
 
 export async function setUserBanned(id: string, banned: boolean) {
   if (!banned) {
-    await sql("update profiles set banned = false where id = $1", [id]);
+    await sql("update profiles set banned = false where id = $1 and anonymized_at is null", [id]);
     return { ok: true as const };
   }
   if (await lastAdmin(id)) return { ok: false as const, error: "لا يمكن حظر آخر مدير." };
@@ -126,8 +126,22 @@ export async function updateUser(id: string, input: UserInput) {
 export async function deleteUser(id: string, actorId: string) {
   if (id === actorId) return { ok: false as const, error: "لا يمكنك حذف حسابك الحالي." };
   if (await lastAdmin(id)) return { ok: false as const, error: "لا يمكن حذف آخر مدير." };
+  const paid = await one<{ n: number }>(
+    `select count(*)::int as n from payments p
+     join applications a on a.id = p.application_id
+     where a.user_id = $1 and p.status in ('paid', 'refunded')`,
+    [id],
+  );
+  if ((paid?.n ?? 0) > 0) {
+    return { ok: false as const, error: "لا يمكن حذف حساب له مدفوعات. عطّل الحساب لإخفاء بياناته مع الإبقاء على السجلات." };
+  }
   await sql("update applications set assignee_id = null where assignee_id = $1", [id]);
-  const removed = await sql("delete from profiles where id = $1 returning id", [id]);
-  if (!removed.length) return { ok: false as const, error: "المستخدم غير موجود." };
+  const hidden = await sql(
+    `update profiles set banned = true, anonymized_at = coalesce(anonymized_at, now()),
+       email = $2, full_name = null, phone = null
+     where id = $1 returning id`,
+    [id, `removed+${id}@invalid.local`],
+  );
+  if (!hidden.length) return { ok: false as const, error: "المستخدم غير موجود." };
   return { ok: true as const };
 }

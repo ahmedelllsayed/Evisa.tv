@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useLiveApplication } from "@/components/account/live-application";
+import { uploadDocumentAction } from "@/app/actions/apply";
 import { requestRefundAction } from "@/app/actions/inbox";
 import { documentGaps, isPastGuarantee } from "@/lib/application-rules";
 import { href, visaHref } from "@/lib/href";
@@ -70,6 +71,7 @@ export function ApplicationTracker({
   refundStatus?: "open" | "approved" | "declined" | null;
 }) {
   useLiveApplication(application.id);
+  const [, start] = useTransition();
   const late = isPastGuarantee(application.status, application.guaranteedAt);
   const gaps = documentGaps(application.documentsRequired, travelers, documents);
   return (
@@ -141,6 +143,26 @@ export function ApplicationTracker({
               {document.status === "rejected" && (
                 <span className="mt-1 block text-xs text-red-600">
                   {t(locale, "account.docRejected")}{document.rejectReason ? `: ${document.rejectReason}` : ""}
+                  <label className="mt-2 block">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf,.heic"
+                      className="text-xs"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        const body = new FormData();
+                        body.set("locale", locale);
+                        body.set("applicationId", document.applicationId);
+                        body.set("travelerId", document.travelerId ?? "");
+                        body.set("kind", document.kind);
+                        body.set("file", file);
+                        start(async () => {
+                          await uploadDocumentAction(body);
+                        });
+                      }}
+                    />
+                  </label>
                 </span>
               )}
             </li>

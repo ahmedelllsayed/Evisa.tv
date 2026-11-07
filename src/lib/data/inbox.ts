@@ -71,7 +71,8 @@ export async function listContactMessages(query = ""): Promise<ContactMessage[]>
   const term = `%${query.trim().toLowerCase()}%`;
   const rows = await sql(
     `select * from contact_messages
-     where $1 = '%%' or lower(name) like $1 or lower(email) like $1 or lower(coalesce(topic, '')) like $1 or lower(body) like $1
+     where deleted_at is null
+       and ($1 = '%%' or lower(name) like $1 or lower(email) like $1 or lower(coalesce(topic, '')) like $1 or lower(body) like $1)
      order by created_at desc limit 200`,
     [term],
   );
@@ -91,5 +92,9 @@ export async function setMessageRead(id: string, read: boolean) {
 }
 
 export async function deleteContactMessage(id: string) {
-  await sql("delete from contact_messages where id = $1", [id]);
+  await sql("update contact_messages set deleted_at = now() where id = $1", [id]);
+}
+
+export async function saveMessageReply(messageId: string, authorEmail: string | null, body: string) {
+  await sql("insert into message_replies (message_id, author_email, body) values ($1,$2,$3)", [messageId, authorEmail, body]);
 }

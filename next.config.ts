@@ -26,6 +26,22 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
+          { key: "Strict-Transport-Security", value: "max-age=15552000; includeSubDomains" },
+          {
+            key: "Content-Security-Policy-Report-Only",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https://flagcdn.com",
+              "font-src 'self' data:",
+              "connect-src 'self' https://accept.paymob.com https://eg.checkout.paymob.com https://api.stripe.com",
+              "frame-src 'self' https://accept.paymob.com https://eg.checkout.paymob.com https://js.stripe.com https://hooks.stripe.com",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self' https://accept.paymob.com https://eg.checkout.paymob.com https://checkout.stripe.com",
+            ].join("; "),
+          },
         ],
       },
     ];

@@ -14,7 +14,7 @@ import { siteConfig } from "@/config/site.config";
 import { localizedVisaLabel } from "@/lib/localize";
 import { notifyUser } from "@/lib/data/notifications";
 import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, readStoredBytes, removeFile, storeFile } from "@/lib/storage";
-import { deleteContactMessage, setMessageRead, setRefundRequestStatus } from "@/lib/data/inbox";
+import { deleteContactMessage, saveMessageReply, setMessageRead, setRefundRequestStatus } from "@/lib/data/inbox";
 import { refundApplication, refundApplicationAmount } from "@/lib/payments";
 import {
   createDestination,
@@ -94,6 +94,7 @@ export async function adminSetStatus(locale: string, id: string, status: Applica
 export async function adminPartialRefund(locale: string, id: string, amount: number) {
   await guard(locale, "applications", "refund");
   const result = await refundApplicationAmount(id, amount);
+  if (result.ok) await recordAudit("payment.refund", id, String(amount));
   if (result.ok && !("partial" in result && result.partial)) {
     await setRefundRequestStatus(id, "approved");
     const app = await getApplication(id);
@@ -117,6 +118,7 @@ export async function adminPartialRefund(locale: string, id: string, amount: num
 export async function adminRefund(locale: string, id: string) {
   await guard(locale, "applications", "refund");
   const result = await refundApplication(id);
+  if (result.ok) await recordAudit("payment.refund", id, "full");
   if (result.ok) {
     await setRefundRequestStatus(id, "approved");
     const app = await getApplication(id);
@@ -729,6 +731,8 @@ export async function adminReplyMessage(locale: string, id: string, email: strin
   const mail = staffReplyMail(locale, settings.name, text, settings.tagline, settings.supportEmail);
   const sent = await sendMail({ to: email, subject: mail.subject, text: mail.text, html: mail.html });
   if (!sent.sent) return { ok: false as const, error: "تعذر إرسال البريد. تحقق من إعداد Resend." };
+  const actor = await getCurrentUser();
+  await saveMessageReply(id, actor?.email ?? null, text);
   await setMessageRead(id, true);
   await recordAudit("message.reply", id);
   refresh(locale, "/admin/messages");
@@ -748,9 +752,20 @@ export async function adminPatchTraveler(
   return { ok: true as const };
 }
 
+async function manageable(actorRole: AdminRole, id: string) {
+  const target = await one<{ role: string }>("select role from profiles where id = $1", [id]);
+  if (!target) return { ok: false as const, error: "المستخدم غير موجود." };
+  if (!canManageUser(actorRole, parseAdminRole(target.role))) {
+    return { ok: false as const, error: "لا يمكنك تعديل هذا الحساب" };
+  }
+  return { ok: true as const };
+}
+
 export async function adminSetUserBanned(locale: string, id: string, banned: boolean) {
   const access = await guardUsers(locale, "ban");
   if (access.error) return { ok: false as const, error: access.error };
+  const allowed = await manageable(access.user.role, id);
+  if (!allowed.ok) return allowed;
   const result = await setUserBanned(id, banned);
   if (result.ok) await recordAudit(banned ? "user.ban" : "user.unban", id);
   refresh(locale, "/admin/users");
@@ -771,7 +786,10 @@ export async function adminSetUserRole(locale: string, id: string, role: AdminRo
   if (access.error) return { ok: false as const, error: access.error };
   const assignable = await getAssignableRoles();
   if (!assignable.includes(role)) return { ok: false as const, error: "لا يمكنك تعيين هذا الدور" };
+  const allowed = await manageable(access.user.role, id);
+  if (!allowed.ok) return allowed;
   const result = await setUserRole(id, role);
+  if (result.ok) await recordAudit("user.role", id, role);
   refresh(locale, "/admin/users");
   refresh(locale, "/admin");
   return result;
@@ -810,7 +828,10 @@ export async function adminUpdateUser(locale: string, id: string, input: UserInp
 export async function adminDeleteUser(locale: string, id: string) {
   const access = await guardUsers(locale, "delete");
   if (access.error) return { ok: false as const, error: access.error };
+  const allowed = await manageable(access.user.role, id);
+  if (!allowed.ok) return allowed;
   const result = await deleteUser(id, access.user.id);
+  if (result.ok) await recordAudit("user.anonymize", id);
   refresh(locale, "/admin/users");
   refresh(locale, "/admin");
   return result;

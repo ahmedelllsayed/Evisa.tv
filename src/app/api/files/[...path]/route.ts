@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { isStaffRole } from "@/lib/rbac-constants";
+import { sql } from "@/lib/data/db";
 import { getApplication, getDocument } from "@/lib/data/applications";
 import { getProfileDocumentByPath } from "@/lib/data/profile-vault";
 import { readFileForDownload } from "@/lib/storage";
 
-export async function GET(_req: Request, ctx: { params: Promise<{ path: string[] }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ path: string[] }> }) {
   const { path: parts } = await ctx.params;
   const storagePath = parts.map(decodeURIComponent).join("/");
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const owned = await resolveOwnedFile(storagePath, user.id, isStaffRole(user.role));
+  const staffReader = user.role === "operator" || user.role === "manager" || user.role === "admin" || user.role === "super_admin";
+  const owned = await resolveOwnedFile(storagePath, user.id, staffReader);
   if (owned === "missing") return NextResponse.json({ error: "not found" }, { status: 404 });
   if (owned === "forbidden") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || null;
+  await sql("insert into file_access_events (actor_id, storage_path, ip) values ($1,$2,$3)", [user.id, storagePath, ip]).catch(() => undefined);
   const file = await readFileForDownload(storagePath);
   if ("url" in file) return NextResponse.redirect(file.url);
   const fileName = (owned.fileName || "document").replace(/[\r\n"]/g, "").slice(0, 120) || "document";

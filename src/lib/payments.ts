@@ -2,7 +2,7 @@ import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { sql } from "@/lib/data/db";
 import { getSiteSettings } from "@/lib/data/settings";
-import { addEvent, createPayment, findPendingPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
+import { addEvent, createPayment, failPendingPayments, findPendingPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
 import { getCurrentUser } from "@/lib/auth";
 import { env, serverEnv } from "@/lib/env";
 import { t, tf } from "@/lib/i18n";
@@ -28,12 +28,13 @@ export async function createCheckout(application: Application, locale: string, c
   if (fresh.status !== "draft" && fresh.status !== "payment_pending") {
     return { ok: false as const, error: t(locale, "err.payLocked") };
   }
+  await failPendingPayments(fresh.id, true);
   const pending = await findPendingPayment(fresh.id);
   if (pending) {
     const sameAmount = Math.abs(pending.amount - fresh.totalAmount) < 0.01 && pending.currency.toUpperCase() === fresh.currency.toUpperCase();
     const url = sameAmount ? reusableCheckoutUrl(pending, locale) : null;
     if (url) return { ok: true as const, url };
-    return { ok: false as const, error: t(locale, "err.payProgress") };
+    await failPendingPayments(fresh.id, false);
   }
   const settings = await getSiteSettings();
   const integrationOverride = settings.extras.paymobIntegrationId ? [settings.extras.paymobIntegrationId] : undefined;
@@ -174,6 +175,13 @@ export async function handleStripeWebhook(rawBody: string, signature: string | n
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as { id: string };
     await confirmStripe(session.id);
+  }
+  if (event.type === "checkout.session.expired") {
+    const session = event.data.object as { id: string };
+    await sql(
+      "update payments set status = 'failed', processed_at = now() where provider = 'stripe' and provider_ref = $1 and status = 'pending'",
+      [session.id],
+    );
   }
   return { ok: true, status: 200 };
 }

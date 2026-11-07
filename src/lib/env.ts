@@ -2,10 +2,14 @@ import "server-only";
 
 export { env, supabaseEnabled } from "@/lib/public-env";
 
+const EXAMPLE_AUTH_SECRET = "change-me-to-a-long-random-string";
+
 export function serverEnv() {
   const authSecret = process.env.AUTH_SECRET;
-  if (!authSecret && process.env.NODE_ENV === "production") {
-    throw new Error("AUTH_SECRET must be set in production");
+  if (process.env.NODE_ENV === "production") {
+    if (!authSecret || authSecret.length < 32 || authSecret === EXAMPLE_AUTH_SECRET) {
+      throw new Error("AUTH_SECRET must be a unique secret of at least 32 characters");
+    }
   }
   const integrationIds = (process.env.PAYMOB_INTEGRATION_IDS ?? "")
     .split(",")

@@ -89,6 +89,7 @@ export type Review = {
   body: string;
   bodyAr?: string | null;
   rating: number;
+  isSample?: boolean;
   product: string | null;
   url: string | null;
   publishedAt: string;

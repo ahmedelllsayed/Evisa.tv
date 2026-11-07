@@ -265,7 +265,11 @@ export function ReviewsCarousel({ reviews, locale, country }: { reviews: Review[
               <span className="flex size-9 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700">{initials(row.author)}</span>
               <span className="min-w-0">
                 <span className="block truncate font-medium text-[#16182b]">{row.author}</span>
-                {row.location ? <span className="block truncate text-xs text-muted-ink">{row.location}</span> : null}
+                <span className="block truncate text-xs text-muted-ink">
+                  {row.isSample ? t(locale, "visa.sample") : ""}
+                  {row.isSample && row.location ? " · " : ""}
+                  {row.location ?? ""}
+                </span>
               </span>
             </figcaption>
           </motion.figure>

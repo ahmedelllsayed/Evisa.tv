@@ -12,7 +12,7 @@ import type {
 } from "@/lib/types";
 import type { AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { canTransition, transitionError } from "@/lib/application-status";
-import { documentGaps } from "@/lib/application-rules";
+import { documentsReadyToFile } from "@/lib/application-rules";
 import { statusUpdateMail } from "@/lib/email-template";
 import { paymobDecision, paymentCanMarkPaid } from "@/lib/paymob-decision";
 import { t, tf, type MessageKey, isArabicLocale } from "@/lib/i18n";
@@ -133,6 +133,23 @@ export async function createApplication(input: {
   );
   await addEvent(row!.id, { status: "draft", title: "Application started", description: `${d.name} · ${option.label}` });
   return row!.id;
+}
+
+export async function resumeOpenApplication(
+  id: string,
+  input: { departureDate: string | null; express: boolean; optionId: string | null },
+) {
+  const app = await getApplication(id);
+  if (!app || app.paidAt || (app.status !== "draft" && app.status !== "payment_pending")) return;
+  if (input.departureDate && /^\d{4}-\d{2}-\d{2}$/.test(input.departureDate)) {
+    await sql("update applications set departure_date = $2::date, updated_at = now() where id = $1 and paid_at is null", [
+      id,
+      input.departureDate,
+    ]);
+  }
+  if (input.optionId && (input.optionId !== app.visaOptionId || input.express !== app.express)) {
+    await changeApplicationOption(id, input.optionId, input.express);
+  }
 }
 
 export async function changeApplicationOption(id: string, optionId: string, expressWanted: boolean) {
@@ -345,7 +362,7 @@ function buildApplicationWhere(filter: ApplicationListFilter) {
   } else if (filter.queue === "unassigned") {
     where.push("a.assignee_id is null", "a.status <> 'draft'", open);
   } else if (filter.queue === "late") {
-    where.push("a.guaranteed_at is not null", "a.guaranteed_at < now()", open);
+    where.push("a.guaranteed_at is not null", "a.guaranteed_at < now()", "a.status not in ('draft', 'payment_pending')", open);
   } else if (filter.queue === "documents") {
     where.push("exists (select 1 from documents doc where doc.application_id = a.id and doc.status in ('uploaded', 'rejected') and doc.kind <> 'issued_visa')");
   } else if (filter.queue === "paid_review") {
@@ -356,7 +373,7 @@ function buildApplicationWhere(filter: ApplicationListFilter) {
     where.push(
       "a.status not in ('approved', 'rejected', 'cancelled', 'refunded')",
       `(
-        (a.guaranteed_at is not null and a.guaranteed_at < now())
+        (a.guaranteed_at is not null and a.guaranteed_at < now() and a.status not in ('draft', 'payment_pending'))
         or (a.assignee_id is null and a.status <> 'draft')
         or exists (select 1 from documents doc where doc.application_id = a.id and doc.status in ('uploaded', 'rejected') and doc.kind <> 'issued_visa')
         or (a.paid_at is not null and a.status = 'submitted')
@@ -387,7 +404,7 @@ function buildApplicationWhere(filter: ApplicationListFilter) {
   }
   if (filter.paid === "paid") where.push("a.paid_at is not null");
   if (filter.paid === "unpaid") where.push("a.paid_at is null");
-  if (filter.timing === "late") where.push("a.guaranteed_at is not null", "a.guaranteed_at < now()");
+  if (filter.timing === "late") where.push("a.guaranteed_at is not null", "a.guaranteed_at < now()", "a.status not in ('draft', 'payment_pending')");
   return { where, params };
 }
 
@@ -436,6 +453,20 @@ export async function setStep(id: string, step: ApplicationStep) {
   return rows.length > 0;
 }
 
+const resetGuaranteeSql = `guaranteed_at = now() + (
+  coalesce(
+    case
+      when express is true and nullif(visa_details->>'expressHours', '') ~ '^[0-9]+(\\.[0-9]+)?$'
+        then (visa_details->>'expressHours')::numeric
+    end,
+    case
+      when nullif(visa_details->>'processingHours', '') ~ '^[0-9]+(\\.[0-9]+)?$'
+        then (visa_details->>'processingHours')::numeric
+    end,
+    72
+  ) * interval '1 hour'
+)`;
+
 const lockPaidSnapshotSql = `
   requirements_locked = coalesce(requirements_locked, (
     select case
@@ -460,11 +491,15 @@ export async function setStatus(
   if (current.paidAt && (status === "draft" || status === "payment_pending")) {
     return { ok: false as const, error: "لا يمكن إرجاع طلب مدفوع إلى المسودة." };
   }
+  if (status === "refunded") {
+    return { ok: false as const, error: "الاسترداد يتم من تبويب الدفع فقط، بعد تنفيذ المبلغ لدى مزود الدفع." };
+  }
   if (!canTransition(current.status, status)) return { ok: false as const, error: transitionError(current.status, status) };
   if (status === "filed") {
     const [travelers, documents] = await Promise.all([listTravelers(id), listDocuments(id)]);
-    if (documentGaps(current.documentsRequired, travelers, documents.filter((document) => document.kind !== "issued_visa")).length > 0) {
-      return { ok: false as const, error: "لا يمكن التقديم وفي المستندات نقص أو رفض." };
+    const customerDocs = documents.filter((document) => document.kind !== "issued_visa");
+    if (!documentsReadyToFile(current.documentsRequired, travelers, customerDocs)) {
+      return { ok: false as const, error: "لا يمكن التقديم قبل اعتماد كل المستندات المطلوبة." };
     }
   }
   const updated = await sql(
@@ -617,7 +652,7 @@ export async function queueCounts(assigneeId: string) {
     `select
        (select count(*)::int from applications where assignee_id = $1 and status not in ${closedSql}) as mine,
        (select count(*)::int from applications where assignee_id is null and status not in ('draft', 'approved', 'rejected', 'cancelled', 'refunded')) as unassigned,
-       (select count(*)::int from applications where guaranteed_at is not null and guaranteed_at < now() and status not in ${closedSql}) as late,
+       (select count(*)::int from applications where guaranteed_at is not null and guaranteed_at < now() and status not in ('draft', 'payment_pending') and status not in ${closedSql}) as late,
        (select count(distinct application_id)::int from documents where status in ('uploaded', 'rejected') and kind <> 'issued_visa') as documents,
        (select count(*)::int from applications where paid_at is not null and status = 'submitted') as paid_review,
        (select count(*)::int from applications a where ${followupSql}) as followup`,
@@ -638,6 +673,7 @@ export async function opsCounts() {
     one<{ n: number }>(
       `select count(*)::int as n from applications
        where guaranteed_at is not null and guaranteed_at < now()
+         and status not in ('draft', 'payment_pending')
          and status not in ${closedSql}`,
     ),
     one<{ n: number }>("select count(*)::int as n from documents where status = 'uploaded' and kind <> 'issued_visa'"),
@@ -645,7 +681,7 @@ export async function opsCounts() {
       `select count(*)::int as n from applications a
        where a.status not in ${closedSql}
          and (
-           (a.guaranteed_at is not null and a.guaranteed_at < now())
+           (a.guaranteed_at is not null and a.guaranteed_at < now() and a.status not in ('draft', 'payment_pending'))
            or (a.assignee_id is null and a.status <> 'draft')
            or exists (select 1 from documents d where d.application_id = a.id and d.status in ('uploaded', 'rejected') and d.kind <> 'issued_visa')
            or (a.paid_at is not null and a.status = 'submitted')
@@ -804,6 +840,43 @@ export async function addDocument(input: Omit<ApplicationDocument, "id" | "statu
     [input.applicationId, input.travelerId, input.kind, input.storagePath, input.fileName, input.mimeType, input.sizeBytes],
   );
   return toDocument(r!);
+}
+
+/** Replaces one rejected customer document after payment. The traveler and kind must stay the same. */
+export async function replaceRejectedDocument(input: {
+  documentId: string;
+  applicationId: string;
+  travelerId: string | null;
+  kind: string;
+  storagePath: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number;
+}) {
+  const doc = await getDocument(input.documentId);
+  if (!doc || doc.applicationId !== input.applicationId || doc.kind === "issued_visa" || doc.status !== "rejected") {
+    throw new Error("This document cannot be replaced.");
+  }
+  if (doc.kind !== input.kind || (doc.travelerId ?? null) !== (input.travelerId ?? null)) {
+    throw new Error("This document cannot be replaced.");
+  }
+  const row = await one(
+    `update documents set storage_path = $2, file_name = $3, mime_type = $4, size_bytes = $5, status = 'uploaded', reject_reason = null
+     where id = $1 and status = 'rejected' returning *`,
+    [doc.id, input.storagePath, input.fileName, input.mimeType, input.sizeBytes],
+  );
+  if (!row) throw new Error("This document cannot be replaced.");
+  return toDocument(row);
+}
+
+/** Marks pending checkouts failed. Stale ones are older than 30 minutes; pass false to clear every pending row. */
+export async function failPendingPayments(applicationId: string, onlyStale: boolean) {
+  await sql(
+    `update payments set status = 'failed', processed_at = now()
+     where application_id = $1 and status = 'pending'
+       and ($2::boolean = false or created_at < now() - interval '30 minutes')`,
+    [applicationId, onlyStale],
+  );
 }
 
 export async function deleteDocument(id: string, opts?: { allowIssuedVisa?: boolean }) {
@@ -971,7 +1044,7 @@ export async function markPaid(provider: string, providerRef: string, expectedAm
     if (!claimed.length) return true;
     await tx.query("update payments set status = 'paid', processed_at = now() where id = $1 and status = 'pending'", [payment.id]);
     await tx.query(
-      `update applications set status = 'submitted', step = 'done', paid_at = now(), updated_at = now(), ${lockPaidSnapshotSql}
+      `update applications set status = 'submitted', step = 'done', paid_at = now(), updated_at = now(), ${resetGuaranteeSql}, ${lockPaidSnapshotSql}
        where id = $1 and status in ('draft', 'payment_pending')`,
       [payment.applicationId],
     );
@@ -1105,7 +1178,7 @@ export async function applyPaymobCallback(input: {
     );
     if (!paidRows.length) return { ok: true as const, reason: "ignored" as const };
     await tx.query(
-      `update applications set status = 'submitted', step = 'done', paid_at = coalesce(paid_at, now()), updated_at = now(), ${lockPaidSnapshotSql}
+      `update applications set status = 'submitted', step = 'done', paid_at = coalesce(paid_at, now()), updated_at = now(), ${resetGuaranteeSql}, ${lockPaidSnapshotSql}
        where id = $1 and status in ('draft', 'payment_pending')`,
       [payment.applicationId],
     );

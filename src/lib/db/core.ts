@@ -115,19 +115,47 @@ async function createDb(): Promise<Db> {
 export async function migrate(db: Db, log: (m: string) => void = () => {}) {
   const dir = path.join(process.cwd(), "supabase", "migrations");
   const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
+  await db.exec(`create table if not exists schema_migrations (
+    filename text primary key,
+    applied_at timestamptz not null default now()
+  )`);
+  const appliedRows = await db.query<{ filename: string }>("select filename from schema_migrations");
+  const applied = new Set(appliedRows.map((row) => row.filename));
+  if (applied.size === 0) {
+    const [{ ready }] = await db.query<{ ready: boolean }>(
+      "select exists (select 1 from information_schema.tables where table_name = 'destinations') as ready",
+    );
+    if (ready) {
+      const [{ n }] = await db.query<{ n: number }>("select count(*)::int as n from destinations");
+      if (n > 0) {
+        for (const file of files) {
+          if (file >= "0032_") continue;
+          await db.query("insert into schema_migrations (filename) values ($1) on conflict (filename) do nothing", [file]);
+          applied.add(file);
+        }
+        log("baselined migrations already present in this database");
+      }
+    }
+  }
   for (const file of files) {
+    if (applied.has(file)) continue;
     const supabaseOnly = file.includes("supabase");
-    if (supabaseOnly && db.kind === "pglite") continue;
+    if (supabaseOnly && db.kind === "pglite") {
+      await db.query("insert into schema_migrations (filename) values ($1) on conflict (filename) do nothing", [file]);
+      continue;
+    }
     if (supabaseOnly) {
       const [{ exists }] = await db.query<{ exists: boolean }>(
         "select exists (select 1 from information_schema.schemata where schema_name = 'auth') as exists",
       );
       if (!exists) {
         log(`skip ${file} (no Supabase auth schema)`);
+        await db.query("insert into schema_migrations (filename) values ($1) on conflict (filename) do nothing", [file]);
         continue;
       }
     }
     await db.exec(await readFile(path.join(dir, file), "utf8"));
+    await db.query("insert into schema_migrations (filename) values ($1) on conflict (filename) do nothing", [file]);
     log(`applied ${file}`);
   }
 }

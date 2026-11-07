@@ -128,6 +128,7 @@ export function ApplyWizard({
   documents,
   profile,
   countLocked = false,
+  phone = "",
 }: {
   locale: string;
   application: Application;
@@ -135,7 +136,10 @@ export function ApplyWizard({
   documents: ApplicationDocument[];
   profile: ProfileVault | null;
   countLocked?: boolean;
+  phone?: string | null;
 }) {
+  const [mobile, setMobile] = useState(phone ?? "");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const router = useRouter();
   const [step, setStep] = useState<ApplicationStep>(application.step === "done" ? "review" : application.step);
   const backup = useSyncExternalStore(
@@ -400,6 +404,20 @@ export function ApplyWizard({
             ))}
           </ul>
           {pending && <p className="text-sm text-muted-ink">{t(locale, "apply.saving")}</p>}
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} className="mt-1" />
+            <span>{t(locale, "apply.terms")}</span>
+          </label>
+          <label className="block text-sm">
+            <span className="text-muted-ink">{t(locale, "apply.phone")}</span>
+            <input
+              value={mobile}
+              onChange={(event) => setMobile(event.target.value)}
+              inputMode="tel"
+              autoComplete="tel"
+              className="mt-1 h-11 w-full rounded-xl border border-line px-3"
+            />
+          </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button
             type="button"
@@ -408,7 +426,7 @@ export function ApplyWizard({
             onClick={() =>
               start(async () => {
                 track("add_payment_info", { item_id: application.destinationSlug, value: application.totalAmount });
-                const result = await startPaymentAction(locale, application.id);
+                const result = await startPaymentAction(locale, application.id, mobile, acceptedTerms);
                 if (result && !result.ok) setError(result.error);
               })
             }
@@ -440,7 +458,7 @@ export function ApplyWizard({
             onClick={() =>
               start(async () => {
                 track("add_payment_info", { item_id: application.destinationSlug, value: application.totalAmount });
-                const result = await startPaymentAction(locale, application.id);
+                const result = await startPaymentAction(locale, application.id, mobile, acceptedTerms);
                 if (result && !result.ok) setError(result.error);
               })
             }

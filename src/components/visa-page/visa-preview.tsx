@@ -45,6 +45,8 @@ export function VisaPreview({
   existingOptionId,
   existingExpress,
   applyOpen,
+  initialExpress,
+  initialDate,
   nowIso,
   approvalRate,
   brandName,
@@ -61,6 +63,8 @@ export function VisaPreview({
   existingOptionId?: string | null;
   existingExpress?: boolean;
   applyOpen?: boolean;
+  initialExpress?: boolean;
+  initialDate?: string | null;
   nowIso: string;
   approvalRate: number | null;
   brandName: string;
@@ -73,7 +77,9 @@ export function VisaPreview({
       : (choices.find((item) => item.isDefault)?.id ?? choices[0]?.id ?? "");
   const [optionId, setOptionId] = useState(startId);
   const option = choices.find((item) => item.id === optionId) ?? choices[0]!;
-  const [express, setExpress] = useState(Boolean(existingExpress && existingOptionId === option.id && option.expressHours != null));
+  const [express, setExpress] = useState(
+    Boolean((initialExpress || existingExpress) && (initialExpress || existingOptionId === option.id) && option.expressHours != null),
+  );
   const [dialog, setDialog] = useState(Boolean(applyOpen));
   const [bar, setBar] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
@@ -236,7 +242,7 @@ export function VisaPreview({
       </div>
 
       {required ? <StickyBar show={bar} locale={locale} option={option} fee={fee} due={due} resumeHref={resume && existingId ? `/${locale}/apply/${existingId}` : null} onStart={() => setDialog(true)} /> : null}
-      {required ? <ApplyDialog open={dialog} onOpenChange={setDialog} destination={destination} option={option} locale={locale} express={express} now={now} /> : null}
+      {required ? <ApplyDialog open={dialog} onOpenChange={setDialog} destination={destination} option={option} locale={locale} express={express} now={now} initialDate={initialDate} /> : null}
     </MotionConfig>
   );
 }

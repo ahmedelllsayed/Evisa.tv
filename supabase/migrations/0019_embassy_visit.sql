@@ -3,4 +3,6 @@ alter table destinations add column if not exists embassy_visit boolean not null
 update destinations
 set embassy_visit = true
 where visa_type = 'sticker'
-  and coalesce(method, '') ilike '%embassy%';
+  and coalesce(method, '') ilike '%embassy%'
+  and embassy_visit = false
+  and updated_at = created_at;

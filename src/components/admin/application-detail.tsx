@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { adminAddEvent, adminDeclineRefund, adminDeleteIssuedVisa, adminPartialRefund, adminPatchTraveler, adminRefund, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
+import { adminAddEvent, adminDeclineRefund, adminDeleteIssuedVisa, adminPartialRefund, adminPatchTraveler, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
 import { AdminCard, AdminEmpty, AdminPage, adminGhostClass, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
 import { StaffFollowUp } from "@/components/admin/staff-follow-up";
 import { statusLabels } from "@/components/admin/status";
@@ -23,7 +23,6 @@ const statuses: ApplicationStatus[] = [
   "approved",
   "rejected",
   "cancelled",
-  "refunded",
 ];
 
 const tabs = [
@@ -393,15 +392,26 @@ export function AdminApplicationDetail({
                 start(async () => {
                   setError(null);
                   const raw = String(fd.get("amount") || "").trim();
-                  const result = raw
-                    ? await adminPartialRefund(locale, application.id, Number(raw))
-                    : await adminRefund(locale, application.id);
+                  const amount = Number(raw);
+                  if (!raw || !Number.isFinite(amount) || amount <= 0) {
+                    setError("اكتب مبلغ الاسترداد.");
+                    return;
+                  }
+                  if (fd.get("confirm") !== "on") {
+                    setError("أكّد الاسترداد قبل المتابعة.");
+                    return;
+                  }
+                  const result = await adminPartialRefund(locale, application.id, amount);
                   if (!result.ok) setError(result.error);
                   else setNote("partial" in result && result.partial ? "سُجّل استرداد جزئي." : "تم تعليم الدفعة كمستردة.");
                 })
               }
             >
-              <input name="amount" type="number" min="1" step="0.01" placeholder="جزئي، أو فارغ للكامل" className={`${adminInputClass} max-w-48`} />
+              <input name="amount" required type="number" min="1" step="0.01" placeholder="مبلغ الاسترداد" className={`${adminInputClass} max-w-48`} />
+              <label className="flex items-center gap-2 text-sm">
+                <input name="confirm" type="checkbox" required />
+                أؤكد الاسترداد
+              </label>
               <button disabled={pending} className={adminGhostClass}>
                 استرداد
               </button>

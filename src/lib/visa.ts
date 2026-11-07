@@ -97,6 +97,13 @@ export function guaranteedDate(hours: number, from: Date = new Date()) {
   return new Date(from.getTime() + hours * 36e5);
 }
 
+/** Calendar day in the viewer's local timezone, not UTC. */
+export function calendarDate(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 const dtf = (locale: string | undefined, opts: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat(dateTag(locale), { timeZone: market.timeZone, ...opts });
 
