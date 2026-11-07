@@ -103,7 +103,7 @@ export function DocumentChecklist({
           إضافة مستند
         </button>
       </div>
-      {message && <p className="text-sm text-red-600">{message}</p>}
+      {message && <p className="text-sm text-rose-300">{message}</p>}
     </div>
   );
 }

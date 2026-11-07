@@ -90,6 +90,8 @@ export type Review = {
   bodyAr?: string | null;
   rating: number;
   isSample?: boolean;
+  verified?: boolean;
+  source?: string | null;
   product: string | null;
   url: string | null;
   publishedAt: string;

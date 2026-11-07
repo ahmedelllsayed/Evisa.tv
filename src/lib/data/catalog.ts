@@ -141,6 +141,8 @@ function toReview(r: Row): Review {
     bodyAr: (r.body_ar as string) ?? null,
     rating: num(r.rating),
     isSample: Boolean(r.is_sample),
+    verified: Boolean(r.verified),
+    source: (r.source as string) ?? null,
     product: (r.product as string) ?? null,
     url: (r.url as string) ?? null,
     publishedAt: day(r.published_at) ?? "",
@@ -417,15 +419,39 @@ export async function deleteFaq(id: string) {
   await sql("delete from faqs where id = $1", [id]);
 }
 
-export async function upsertReview(input: { id?: string; scope: string; author: string; location: string | null; title: string | null; titleAr?: string | null; body: string; bodyAr?: string | null; rating: number; product: string | null; destinationId: string | null }) {
+export type ReviewInput = {
+  id?: string;
+  scope: string;
+  author: string;
+  location: string | null;
+  title: string | null;
+  titleAr?: string | null;
+  body: string;
+  bodyAr?: string | null;
+  rating: number;
+  product: string | null;
+  destinationId: string | null;
+  isSample?: boolean;
+  verified?: boolean;
+  source?: string | null;
+};
+
+/** Omitted flags keep their stored value on update and default to false on insert. */
+export async function upsertReview(input: ReviewInput) {
+  const flags = [input.isSample ?? null, input.verified ?? null, input.source === undefined ? null : input.source?.trim() || null, input.source !== undefined];
   if (input.id) {
-    await sql("update reviews set scope=$2, author=$3, location=$4, title=$5, title_ar=$6, body=$7, body_ar=$8, rating=$9, product=$10, destination_id=$11 where id=$1", [
-      input.id, input.scope, input.author, input.location, input.title, input.titleAr ?? null, input.body, input.bodyAr ?? null, input.rating, input.product, input.destinationId,
-    ]);
+    await sql(
+      `update reviews set scope=$2, author=$3, location=$4, title=$5, title_ar=$6, body=$7, body_ar=$8, rating=$9, product=$10, destination_id=$11,
+         is_sample=coalesce($12::boolean, is_sample), verified=coalesce($13::boolean, verified), source=case when $15::boolean then $14 else source end
+       where id=$1`,
+      [input.id, input.scope, input.author, input.location, input.title, input.titleAr ?? null, input.body, input.bodyAr ?? null, input.rating, input.product, input.destinationId, ...flags],
+    );
   } else {
-    await sql("insert into reviews (scope, author, location, title, title_ar, body, body_ar, rating, product, destination_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [
-      input.scope, input.author, input.location, input.title, input.titleAr ?? null, input.body, input.bodyAr ?? null, input.rating, input.product, input.destinationId,
-    ]);
+    await sql(
+      `insert into reviews (scope, author, location, title, title_ar, body, body_ar, rating, product, destination_id, is_sample, verified, source)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,coalesce($11::boolean, false),coalesce($12::boolean, false),$13)`,
+      [input.scope, input.author, input.location, input.title, input.titleAr ?? null, input.body, input.bodyAr ?? null, input.rating, input.product, input.destinationId, ...flags.slice(0, 3)],
+    );
   }
 }
 

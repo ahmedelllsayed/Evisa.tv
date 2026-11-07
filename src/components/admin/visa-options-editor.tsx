@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronUp, Copy, Plus, Trash2 } from "lucide-react";
 import { DurationField, FeeSummary, PairedSelect, SpanField, money } from "@/components/admin/destination-fields";
-import { adminInputClass } from "@/components/admin/chrome";
+import { Pill, adminGhostClass, adminInputClass, adminSelectClass } from "@/components/admin/chrome";
+import { Badge } from "@/components/admin/content/fields";
 import { DocumentChecklist } from "@/components/admin/document-checklist";
 import { entryOptions, withCurrent } from "@/lib/destination-fields";
 import { href } from "@/lib/href";
@@ -36,6 +37,8 @@ type Draft = {
   validity: string | null;
   validityAr: string | null;
 };
+
+const kindLabels: Record<Kind, string> = { "e-visa": "إلكترونية", eta: "تصريح إلكتروني", sticker: "ملصق سفارة" };
 
 function kindOf(option: VisaOption): Kind {
   if (option.embassyVisit || option.visaType === "sticker") return "sticker";
@@ -104,25 +107,45 @@ function suggest(stay: string | null, entry: string | null, stayAr: string | nul
   };
 }
 
+function Label({ children, badge }: { children: string; badge?: string }) {
+  return (
+    <span className="flex items-center gap-2 font-medium text-foreground/90">
+      {children}
+      {badge ? <Badge>{badge}</Badge> : null}
+    </span>
+  );
+}
+
 export function VisaOptionsEditor({
   locale,
   destinationSlug,
   options,
   counts,
+  onDirty,
 }: {
   locale: string;
   destinationSlug: string;
   options: VisaOption[];
   counts: Record<string, number>;
+  onDirty?: () => void;
 }) {
-  const [drafts, setDrafts] = useState<Draft[]>(() =>
+  const [drafts, setDraftsState] = useState<Draft[]>(() =>
     options.length ? options.map((option, index) => fromOption(option, index === 0)) : [blank("new-1")],
   );
-  const [defaultKey, setDefaultKey] = useState(() => options.find((option) => option.isDefault)?.id ?? drafts[0]?.key ?? "new-1");
+  const [defaultKey, setDefaultKeyState] = useState(() => options.find((option) => option.isDefault)?.id ?? drafts[0]?.key ?? "new-1");
   const [seq, setSeq] = useState(2);
 
-  function patch(key: string, change: (draft: Draft) => Draft) {
-    setDrafts((list) => {
+  const setDrafts: typeof setDraftsState = (next) => {
+    onDirty?.();
+    setDraftsState(next);
+  };
+  const setDefaultKey = (key: string) => {
+    onDirty?.();
+    setDefaultKeyState(key);
+  };
+
+  function patch(key: string, change: (draft: Draft) => Draft, silent = false) {
+    (silent ? setDraftsState : setDrafts)((list) => {
       let changed = false;
       const next = list.map((item) => {
         if (item.key !== key) return item;
@@ -146,9 +169,14 @@ export function VisaOptionsEditor({
     });
   }
 
+  const shown = drafts.filter((draft) => draft.active).length;
+
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-ink">كل بطاقة نوع تأشيرة بسعره ومدته. النوع الافتراضي هو الذي يظهر في بطاقة الدولة على الصفحة الرئيسية.</p>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">كل بطاقة نوع تأشيرة بسعره ومدته. النوع الافتراضي يظهر في بطاقة الدولة على الصفحة الرئيسية.</p>
+        <Pill tone={shown ? "success" : "danger"}>{shown} ظاهر من {drafts.length}</Pill>
+      </div>
       {drafts.map((draft, index) => {
         const embassy = draft.kind === "sticker";
         const charged = governmentFeeCharged({
@@ -159,67 +187,68 @@ export function VisaOptionsEditor({
         const total = charged + (Number(draft.serviceFee) || 0);
         const prefix = `opt.${draft.key}`;
         return (
-          <section key={draft.key} className="rounded-2xl border border-line">
+          <section key={draft.key} className={cn("rounded-xl border bg-background/40", draft.key === defaultKey && "border-primary/40", !draft.active && "opacity-75")}>
             <input type="hidden" name="optionKey" value={draft.key} />
             <input type="hidden" name={`${prefix}.kind`} value={draft.kind} />
             <input type="hidden" name={`${prefix}.active`} value={draft.active ? "on" : ""} />
             <input type="hidden" name={`${prefix}.expressOn`} value={draft.expressOn ? "on" : ""} />
             <input type="hidden" name={`${prefix}.documentsMode`} value={draft.customDocs ? "custom" : "shared"} />
-            <div className="flex flex-wrap items-center gap-2 p-4">
-              <button type="button" onClick={() => patch(draft.key, (item) => ({ ...item, open: !item.open }))} className="min-w-0 flex-1 text-start">
-                <span className="block truncate font-semibold text-ink">{draft.label || "نوع بدون اسم"}</span>
-                <span className="mt-0.5 block text-xs text-muted-ink">
-                  {money(total)} · {processingLabel(draft.processingHours, "ar-EG")}
+            <div className="flex flex-wrap items-center gap-2 p-3 sm:p-4">
+              <button type="button" onClick={() => patch(draft.key, (item) => ({ ...item, open: !item.open }), true)} className="min-w-0 flex-1 text-start">
+                <span className="flex items-center gap-2">
+                  <span className="truncate font-semibold">{draft.labelAr || draft.label || "نوع بدون اسم"}</span>
+                  <span className="text-xs text-muted-foreground">{draft.open ? "▾" : "▸"}</span>
+                </span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  <span className="font-mono tabular-nums text-foreground/80">{money(total)}</span> · {processingLabel(draft.processingHours, "ar-EG")} · {kindLabels[draft.kind]}
                 </span>
               </button>
-              {draft.key === defaultKey ? <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand">افتراضي</span> : null}
-              {!draft.active ? <span className="rounded-full bg-surface px-2 py-0.5 text-[11px] text-muted-ink">مخفي</span> : null}
+              {draft.key === defaultKey ? <Pill tone="info">افتراضي</Pill> : null}
+              {!draft.active ? <Pill>مخفي</Pill> : null}
               {counts[draft.key] ? (
-                <Link href={href(`/admin/applications?destination=${destinationSlug}&option=${draft.key}`, locale)} className="text-xs font-medium text-brand">
+                <Link href={href(`/admin/applications?destination=${destinationSlug}&option=${draft.key}`, locale)} className="text-xs font-medium text-primary hover:underline">
                   {counts[draft.key]} طلب
                 </Link>
               ) : null}
-              <button type="button" aria-label="تحريك لأعلى" onClick={() => move(index, -1)} className="rounded-lg border border-line p-1.5">
+              <button type="button" aria-label="تحريك لأعلى" disabled={index === 0} onClick={() => move(index, -1)} className="rounded-lg border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30">
                 <ChevronUp className="size-4" />
               </button>
-              <button type="button" aria-label="تحريك لأسفل" onClick={() => move(index, 1)} className="rounded-lg border border-line p-1.5">
+              <button type="button" aria-label="تحريك لأسفل" disabled={index === drafts.length - 1} onClick={() => move(index, 1)} className="rounded-lg border p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30">
                 <ChevronDown className="size-4" />
               </button>
             </div>
-            <div className={cn("space-y-4 border-t border-line p-4", draft.open ? "" : "hidden")}>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm">
-                  الاسم بالإنجليزية
+            <div className={cn("space-y-5 border-t p-3 sm:p-4", draft.open ? "" : "hidden")}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <Label badge="EN">اسم النوع</Label>
                   <input
                     name={`${prefix}.label`}
                     value={draft.label}
+                    dir="ltr"
                     onChange={(event) => patch(draft.key, (item) => ({ ...item, label: event.target.value, touched: true }))}
                     className={adminInputClass}
                   />
                 </label>
-                <label className="text-sm">
-                  الاسم بالعربية
+                <label className="block text-sm">
+                  <Label badge="AR">اسم النوع</Label>
                   <input
                     name={`${prefix}.labelAr`}
                     value={draft.labelAr}
+                    dir="rtl"
                     onChange={(event) => patch(draft.key, (item) => ({ ...item, labelAr: event.target.value, touched: true }))}
-                    className={adminInputClass}
+                    className={`${adminInputClass} text-right`}
                   />
                 </label>
+                <label className="block text-sm sm:col-span-2">
+                  <Label>طريقة الإصدار والتحصيل</Label>
+                  <select value={draft.kind} onChange={(event) => patch(draft.key, (item) => ({ ...item, kind: event.target.value as Kind }))} className={adminSelectClass}>
+                    <option value="e-visa">إلكترونية: الرسوم الحكومية + رسوم المعالجة</option>
+                    <option value="eta">تصريح إلكتروني: الرسوم الحكومية + رسوم المعالجة</option>
+                    <option value="sticker">ملصق سفارة: رسوم المعالجة فقط</option>
+                  </select>
+                </label>
               </div>
-              <label className="block text-sm">
-                طريقة الإصدار والتحصيل
-                <select
-                  value={draft.kind}
-                  onChange={(event) => patch(draft.key, (item) => ({ ...item, kind: event.target.value as Kind }))}
-                  className={adminInputClass}
-                >
-                  <option value="e-visa">إلكترونية: الرسوم الحكومية + رسوم المعالجة</option>
-                  <option value="eta">تصريح إلكتروني: الرسوم الحكومية + رسوم المعالجة</option>
-                  <option value="sticker">ملصق سفارة: رسوم المعالجة فقط</option>
-                </select>
-              </label>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <SpanField
                   key={`${draft.key}-stay`}
                   label="مدة الإقامة"
@@ -269,42 +298,46 @@ export function VisaOptionsEditor({
                   }
                 />
               </div>
-              <FeeSummary embassy={embassy} govFee={draft.govFee} serviceFee={draft.serviceFee} expressFee={draft.expressFee} expressOn={draft.expressOn} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm">
-                  {embassy ? "رسوم الحكومة (مرجع، لا تُحصّل هنا)" : "رسوم الحكومة"}
-                  <input name={`${prefix}.govFee`} type="number" min="0" value={draft.govFee} onChange={(event) => patch(draft.key, (item) => ({ ...item, govFee: event.target.value }))} className={adminInputClass} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block text-sm">
+                  <Label>{embassy ? "رسوم الحكومة (مرجع، لا تُحصّل هنا)" : "رسوم الحكومة"}</Label>
+                  <input name={`${prefix}.govFee`} type="number" min="0" dir="ltr" value={draft.govFee} onChange={(event) => patch(draft.key, (item) => ({ ...item, govFee: event.target.value }))} className={adminInputClass} />
                 </label>
-                <label className="text-sm">
-                  رسوم المعالجة
-                  <input name={`${prefix}.serviceFee`} type="number" min="0" value={draft.serviceFee} onChange={(event) => patch(draft.key, (item) => ({ ...item, serviceFee: event.target.value }))} className={adminInputClass} />
+                <label className="block text-sm">
+                  <Label>رسوم المعالجة</Label>
+                  <input name={`${prefix}.serviceFee`} type="number" min="0" dir="ltr" value={draft.serviceFee} onChange={(event) => patch(draft.key, (item) => ({ ...item, serviceFee: event.target.value }))} className={adminInputClass} />
+                </label>
+                <div className="sm:col-span-2">
+                  <FeeSummary embassy={embassy} govFee={draft.govFee} serviceFee={draft.serviceFee} expressFee={draft.expressFee} expressOn={draft.expressOn} />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="text-sm">
+                  <Label>وقت المعالجة العادي</Label>
+                  <DurationField
+                    hours={draft.processingHours}
+                    name={`${prefix}.processingHours`}
+                    onHours={(hours) => patch(draft.key, (item) => (item.processingHours === hours ? item : { ...item, processingHours: hours }))}
+                  />
+                </div>
+                <label className="flex items-center gap-2 self-center text-sm font-medium">
+                  <input type="checkbox" className="accent-[#38bdf8]" checked={draft.expressOn} onChange={(event) => patch(draft.key, (item) => ({ ...item, expressOn: event.target.checked }))} />
+                  تفعيل المعالجة السريعة
                 </label>
               </div>
-              <div>
-                <p className="text-sm font-medium">وقت المعالجة العادي</p>
-                <DurationField
-                  hours={draft.processingHours}
-                  name={`${prefix}.processingHours`}
-                  onHours={(hours) => patch(draft.key, (item) => (item.processingHours === hours ? item : { ...item, processingHours: hours }))}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" checked={draft.expressOn} onChange={(event) => patch(draft.key, (item) => ({ ...item, expressOn: event.target.checked }))} />
-                تفعيل المعالجة السريعة
-              </label>
               {draft.expressOn ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-sm">مدة المعالجة السريعة</p>
+                <div className="grid gap-4 rounded-lg border border-dashed p-3 sm:grid-cols-2">
+                  <div className="text-sm">
+                    <Label>مدة المعالجة السريعة</Label>
                     <DurationField
                       hours={draft.expressHours}
                       name={`${prefix}.expressHours`}
                       onHours={(hours) => patch(draft.key, (item) => (item.expressHours === hours ? item : { ...item, expressHours: hours }))}
                     />
                   </div>
-                  <label className="text-sm">
-                    زيادة رسوم السرعة
-                    <input name={`${prefix}.expressFee`} type="number" min="0" value={draft.expressFee} onChange={(event) => patch(draft.key, (item) => ({ ...item, expressFee: event.target.value }))} className={adminInputClass} />
+                  <label className="block text-sm">
+                    <Label>زيادة رسوم السرعة</Label>
+                    <input name={`${prefix}.expressFee`} type="number" min="0" dir="ltr" value={draft.expressFee} onChange={(event) => patch(draft.key, (item) => ({ ...item, expressFee: event.target.value }))} className={adminInputClass} />
                   </label>
                 </div>
               ) : (
@@ -313,53 +346,59 @@ export function VisaOptionsEditor({
                   <input type="hidden" name={`${prefix}.expressFee`} value="0" />
                 </>
               )}
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={draft.customDocs} onChange={(event) => patch(draft.key, (item) => ({ ...item, customDocs: event.target.checked }))} />
-                مستندات خاصة بهذا النوع
-              </label>
-              {draft.customDocs ? (
-                <DocumentChecklist
-                  name={`${prefix}.documents`}
-                  selected={draft.documents}
-                  onChange={(documents) => patch(draft.key, (item) => ({ ...item, documents }))}
-                />
-              ) : (
-                <p className="text-xs text-muted-ink">يستخدم هذا النوع قائمة المستندات الخاصة بالدولة.</p>
-              )}
-              <div className="flex flex-wrap items-center gap-4 text-sm">
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="defaultOption" value={draft.key} checked={defaultKey === draft.key} onChange={() => setDefaultKey(draft.key)} />
-                  النوع الافتراضي
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input type="checkbox" className="accent-[#38bdf8]" checked={draft.customDocs} onChange={(event) => patch(draft.key, (item) => ({ ...item, customDocs: event.target.checked }))} />
+                  مستندات خاصة بهذا النوع
                 </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" checked={draft.active} onChange={(event) => patch(draft.key, (item) => ({ ...item, active: event.target.checked }))} />
-                  ظاهر للعملاء
-                </label>
+                {draft.customDocs ? (
+                  <DocumentChecklist
+                    name={`${prefix}.documents`}
+                    selected={draft.documents}
+                    onChange={(documents) => patch(draft.key, (item) => ({ ...item, documents }))}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground">يستخدم هذا النوع قائمة مستندات الدولة من تبويب المصادر.</p>
+                )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs"
-                  onClick={() => {
-                    const key = `new-${seq}`;
-                    setSeq((value) => value + 1);
-                    setDrafts((list) => [...list, { ...draft, key, touched: true, open: true, active: true }]);
-                  }}
-                >
-                  <Copy className="size-3.5" /> نسخ
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1.5 text-xs text-red-700"
-                  onClick={() => {
-                    if (drafts.length === 1) return;
-                    const next = drafts.filter((item) => item.key !== draft.key);
-                    setDrafts(next);
-                    if (defaultKey === draft.key) setDefaultKey(next.find((item) => item.active)?.key ?? next[0]!.key);
-                  }}
-                >
-                  <Trash2 className="size-3.5" /> حذف
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input type="radio" className="accent-[#38bdf8]" name="defaultOption" value={draft.key} checked={defaultKey === draft.key} onChange={() => setDefaultKey(draft.key)} />
+                    النوع الافتراضي
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" className="accent-[#38bdf8]" checked={draft.active} onChange={(event) => patch(draft.key, (item) => ({ ...item, active: event.target.checked }))} />
+                    ظاهر للعملاء
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={cn(adminGhostClass, "h-8 px-3 text-xs")}
+                    onClick={() => {
+                      const key = `new-${seq}`;
+                      setSeq((value) => value + 1);
+                      setDrafts((list) => [...list, { ...draft, key, touched: true, open: true, active: true }]);
+                    }}
+                  >
+                    <Copy className="size-3.5" /> نسخ
+                  </button>
+                  <button
+                    type="button"
+                    disabled={drafts.length === 1}
+                    title={drafts.length === 1 ? "يلزم نوع واحد على الأقل" : undefined}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-500/40 px-3 text-xs text-rose-300 hover:bg-rose-500/10 disabled:opacity-40"
+                    onClick={() => {
+                      if (drafts.length === 1) return;
+                      const next = drafts.filter((item) => item.key !== draft.key);
+                      setDrafts(next);
+                      if (defaultKey === draft.key) setDefaultKey(next.find((item) => item.active)?.key ?? next[0]!.key);
+                    }}
+                  >
+                    <Trash2 className="size-3.5" /> حذف النوع
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -367,7 +406,7 @@ export function VisaOptionsEditor({
       })}
       <button
         type="button"
-        className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-medium text-white"
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
         onClick={() => {
           const key = `new-${seq}`;
           setSeq((value) => value + 1);

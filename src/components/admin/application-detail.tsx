@@ -1,69 +1,53 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import Link from "next/link";
-import { adminAddEvent, adminDeclineRefund, adminDeleteIssuedVisa, adminPartialRefund, adminPatchTraveler, adminSetAssignee, adminSetDocumentStatus, adminSetStatus, adminUploadIssuedVisa } from "@/app/actions/admin";
-import { AdminCard, AdminEmpty, AdminPage, adminGhostClass, adminInputClass, adminPrimaryClass } from "@/components/admin/chrome";
+import { useState, type ReactNode } from "react";
+import { AdminPage, AdminPanel, KeyValue, adminGhostClass, type Tone } from "@/components/admin/chrome";
+import { relativeTime, shortDateTime } from "@/components/admin/format";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { ActivityPanel, type HistoryRow } from "@/components/admin/applications/activity-panel";
+import { DocumentReview } from "@/components/admin/applications/document-review";
+import { IssuedVisaPanel } from "@/components/admin/applications/issued-visa";
+import { slaFor } from "@/components/admin/applications/model";
+import { nextStep, type DetailTab, type NextStep, type StepAction } from "@/components/admin/applications/next-step";
+import { DocCounts, Flag, SlaText } from "@/components/admin/applications/parts";
+import { PaymentPanel } from "@/components/admin/applications/payment-panel";
+import { TravelerPanel } from "@/components/admin/applications/traveler-panel";
+import { AssignPanel, StatusChanger } from "@/components/admin/applications/workflow";
 import { StaffFollowUp } from "@/components/admin/staff-follow-up";
-import { statusLabels } from "@/components/admin/status";
-import { documentGaps } from "@/lib/application-rules";
+import { documentGaps, documentsReadyToFile } from "@/lib/application-rules";
 import { href } from "@/lib/href";
 import type { AccountRow } from "@/lib/data/users";
 import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Payment, Traveler } from "@/lib/types";
-import { docLabel, localizedPhrase } from "@/lib/localize";
-import { formatAt, formatMoney, processingLabel } from "@/lib/visa";
+import { localizedPhrase } from "@/lib/localize";
 import { cn } from "@/lib/utils";
+import { formatMoney, processingLabel } from "@/lib/visa";
 
-const statuses: ApplicationStatus[] = [
-  "draft",
-  "payment_pending",
-  "submitted",
-  "in_review",
-  "filed",
-  "approved",
-  "rejected",
-  "cancelled",
-];
+export type DetailCustomer = { id: string; email: string; fullName: string | null; phone: string | null; banned: boolean; createdAt: string; applications: number };
 
-const tabs = [
-  ["travelers", "المسافرون"],
-  ["documents", "المستندات"],
-  ["payment", "الدفع"],
-  ["activity", "النشاط"],
-] as const;
+const stepAccent: Record<Tone, string> = {
+  neutral: "border-s-muted-foreground/40",
+  info: "border-s-sky-400",
+  success: "border-s-emerald-500",
+  warning: "border-s-amber-400",
+  danger: "border-s-rose-500",
+};
 
-type Tab = (typeof tabs)[number][0];
+const stepText: Record<Tone, string> = {
+  neutral: "text-foreground",
+  info: "text-sky-200",
+  success: "text-emerald-200",
+  warning: "text-amber-100",
+  danger: "text-rose-200",
+};
 
-function VisaTypeCard({ application }: { application: Application }) {
-  const details = application.visaDetails;
-  const hours = application.express ? details?.expressHours ?? null : details?.processingHours ?? null;
-  const rows = [
-    ["الاسم", application.visaLabelAr || application.visaLabel],
-    ["الإقامة", details ? localizedPhrase(details.stay, "ar-EG", details.stayAr) : ""],
-    ["الصلاحية", details ? localizedPhrase(details.validity, "ar-EG", details.validityAr) : ""],
-    ["الدخول", details ? localizedPhrase(details.entry, "ar-EG", details.entryAr) : ""],
-    ["الطريقة", details ? localizedPhrase(details.method, "ar-EG", details.methodAr) : ""],
-    ["المدة", `${processingLabel(hours, "ar-EG")}${application.express ? " · سريع" : ""}`],
-    ["الموعد المستهدف", application.guaranteedAt ? formatAt(application.guaranteedAt) : "—"],
-  ];
-  return (
-    <AdminCard className="mb-4">
-      <h2 className="font-semibold">نوع التأشيرة</h2>
-      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-        {rows.map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-xs text-muted-ink">{label}</dt>
-            <dd>{value || "—"}</dd>
-          </div>
-        ))}
-      </dl>
-    </AdminCard>
-  );
-}
-
-function fileHref(storagePath: string) {
-  return `/api/files/${storagePath.split("/").map((part) => encodeURIComponent(part)).join("/")}`;
-}
+const stepDot: Record<Tone, string> = {
+  neutral: "bg-muted-foreground",
+  info: "bg-sky-400",
+  success: "bg-emerald-400",
+  warning: "bg-amber-400",
+  danger: "bg-rose-500",
+};
 
 export function AdminApplicationDetail({
   locale,
@@ -75,6 +59,9 @@ export function AdminApplicationDetail({
   assignees,
   refundRequest = null,
   history = [],
+  customer = null,
+  now,
+  currentUserId = "",
 }: {
   locale: string;
   application: Application;
@@ -84,385 +71,322 @@ export function AdminApplicationDetail({
   payments: Payment[];
   assignees: AccountRow[];
   refundRequest?: { status: "open" | "approved" | "declined"; reason: string } | null;
-  history?: { id: string; fromStatus: string | null; toStatus: string; actorEmail: string | null; reason: string | null; createdAt: string }[];
+  history?: HistoryRow[];
+  customer?: DetailCustomer | null;
+  now: string;
+  currentUserId?: string;
 }) {
-  const [pending, start] = useTransition();
-  const [tab, setTab] = useState<Tab>("travelers");
-  const [note, setNote] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [tab, setTab] = useState<DetailTab>("documents");
+  const [target, setTarget] = useState<ApplicationStatus | null>(null);
+
   const reviewDocs = documents.filter((document) => document.kind !== "issued_visa");
   const issued = documents.filter((document) => document.kind === "issued_visa");
   const gaps = documentGaps(application.documentsRequired, travelers, reviewDocs);
-  const waitingReview = reviewDocs.some((document) => document.status === "uploaded");
-  const paid = payments.some((payment) => payment.status === "paid");
-  const next = !application.assigneeId
-    ? "عيّن مسؤولًا عن هذا الطلب."
-    : gaps.length || waitingReview
-      ? "راجع المستندات المطلوبة."
-      : application.status === "approved" && issued.length === 0
-        ? "ارفع ملف التأشيرة الصادرة."
-        : application.status === "submitted" || application.status === "payment_pending"
-          ? "حدّث الحالة بعد المراجعة."
-          : "لا يوجد إجراء عاجل.";
+  const waitingReview = reviewDocs.filter((document) => document.status === "uploaded").length;
+  const readyToFile = documentsReadyToFile(application.documentsRequired, travelers, reviewDocs);
+  const sla = slaFor(application, now);
+  const reviews = events.filter((event) => event.internal && event.title === "Payment needs review");
+  const paid = Boolean(application.paidAt) || payments.some((payment) => payment.status === "paid");
+  const refunded = payments.some((payment) => payment.refundedAmount > 0);
+  const staff = assignees.map((person) => ({ id: person.id, label: person.fullName || person.email }));
+  const assigneeName = staff.find((person) => person.id === application.assigneeId)?.label ?? application.assigneeEmail ?? null;
+  const step = nextStep({ app: application, sla, waitingReview, gaps, readyToFile, issuedCount: issued.length, paymentReview: reviews.length > 0, refund: refundRequest });
+  const kinds = application.documentsRequired.length ? application.documentsRequired : ["passport"];
+  const requiredTotal = travelers.length * kinds.length;
+  const requiredVerified = travelers.reduce(
+    (sum, traveler) => sum + kinds.filter((kind) => reviewDocs.some((doc) => doc.travelerId === traveler.id && doc.kind === kind && doc.status === "verified")).length,
+    0,
+  );
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now));
+
+  const act = (action: StepAction) => {
+    if (action.kind === "tab") {
+      setTab(action.tab);
+      requestAnimationFrame(() => document.getElementById("detail-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    } else if (action.kind === "status") {
+      setTarget(action.status);
+      requestAnimationFrame(() => document.getElementById("status-panel")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    } else {
+      document.getElementById(`${action.target}-panel`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  const tabs: { id: DetailTab; label: string; badge?: { value: string; tone: Tone } }[] = [
+    { id: "documents", label: "المستندات", badge: waitingReview ? { value: String(waitingReview), tone: "warning" } : { value: String(reviewDocs.length), tone: "neutral" } },
+    { id: "travelers", label: "المسافرون", badge: { value: String(travelers.length), tone: "neutral" } },
+    {
+      id: "payment",
+      label: "الدفع",
+      badge: reviews.length ? { value: "!", tone: "danger" } : refundRequest?.status === "open" ? { value: "!", tone: "warning" } : undefined,
+    },
+    { id: "issued", label: "التأشيرة الصادرة", badge: issued.length ? { value: String(issued.length), tone: "success" } : application.status === "approved" ? { value: "!", tone: "warning" } : undefined },
+    { id: "activity", label: "السجل", badge: { value: String(events.length + history.length), tone: "neutral" } },
+  ];
+
+  const details = application.visaDetails;
+  const hours = application.express ? details?.expressHours ?? null : details?.processingHours ?? null;
+  const optional = [
+    { label: "المدة", value: hours === null ? "" : `${processingLabel(hours, "ar-EG")}${application.express ? " · سريع" : ""}` },
+    { label: "الإقامة", value: details ? localizedPhrase(details.stay, "ar-EG", details.stayAr) : "" },
+    { label: "الصلاحية", value: details ? localizedPhrase(details.validity, "ar-EG", details.validityAr) : "" },
+    { label: "الدخول", value: details ? localizedPhrase(details.entry, "ar-EG", details.entryAr) : "" },
+    { label: "الطريقة", value: details ? localizedPhrase(details.method, "ar-EG", details.methodAr) : "" },
+  ].filter((row) => row.value);
+  const visaRows: { label: string; value: ReactNode }[] = [
+    { label: "النوع", value: application.visaLabelAr || application.visaLabel || <span className="text-muted-foreground">غير محدد</span> },
+    ...optional,
+    { label: "تاريخ السفر", value: application.departureDate ? <span className="font-mono tabular-nums">{application.departureDate}</span> : <span className="text-muted-foreground">غير محدد</span> },
+    { label: "لغة رسائل العميل", value: application.locale?.startsWith("ar") ? "العربية" : "English" },
+  ];
 
   return (
-    <AdminPage title={application.reference} description={`${application.destinationName} · ${application.userEmail} · ${formatMoney(application.totalAmount, application.currency)}`}>
-      <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="lg:sticky lg:top-4">
-          <AdminCard>
-            <p className="text-sm text-muted-ink">الخطوة التالية</p>
-            <p className="mt-1 font-medium">{next}</p>
-            <p className="mt-3 text-xs text-muted-ink">
-              {statusLabels[application.status]} · الاستحقاق {application.guaranteedAt ? formatAt(application.guaranteedAt) : "—"}
+    <AdminPage
+      title={application.reference}
+      description={`أُنشئ \u2068${shortDateTime(application.createdAt)}\u2069 · \u2068${application.destinationName}\u2069${application.visaLabelAr || application.visaLabel ? ` · \u2068${application.visaLabelAr || application.visaLabel}\u2069` : ""}`}
+      action={
+        <>
+          <Link href={href("/admin/queue", locale)} className={adminGhostClass}>
+            الطابور
+          </Link>
+          <Link href={href("/admin/applications", locale)} className={adminGhostClass}>
+            كل الطلبات
+          </Link>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-3 xl:grid-cols-5">
+        <SummaryCell label="الحالة">
+          <StatusBadge status={application.status} />
+          <p className="mt-1.5 text-[11px] text-muted-foreground">آخر تحديث {relativeTime(application.updatedAt, new Date(now))}</p>
+        </SummaryCell>
+        <SummaryCell label="الموعد المضمون">
+          <SlaText sla={sla} className="text-sm" />
+          <p className="mt-1.5 font-mono text-[11px] text-muted-foreground tabular-nums">{application.guaranteedAt ? shortDateTime(application.guaranteedAt) : "—"}</p>
+        </SummaryCell>
+        <SummaryCell label="الإجمالي">
+          <p className="whitespace-nowrap font-mono text-lg font-semibold leading-tight tabular-nums">{formatMoney(application.totalAmount, application.currency)}</p>
+          <p className={cn("mt-1 text-[11px]", application.status === "refunded" ? "text-amber-200" : paid ? "text-emerald-300" : "text-muted-foreground")}>
+            {application.status === "refunded" ? "مسترد" : paid ? `مدفوع${refunded ? " · استرداد جزئي" : ""}` : "غير مدفوع"}
+          </p>
+          {application.paidAt ? <p className="mt-0.5 font-mono text-[11px] text-muted-foreground tabular-nums">{shortDateTime(application.paidAt)}</p> : null}
+        </SummaryCell>
+        <SummaryCell label="المسؤول">
+          {assigneeName ? (
+            <p className="truncate text-sm font-medium">
+              {assigneeName}
+              {application.assigneeId === currentUserId ? <span className="text-xs font-normal text-primary"> (أنت)</span> : null}
             </p>
-            {(gaps.length || waitingReview) && (
-              <button type="button" className={`${adminGhostClass} mt-3`} onClick={() => setTab("documents")}>
-                فتح المستندات
-              </button>
-            )}
-            <form
-              className="mt-4 grid gap-2"
-              action={(fd) => {
-                const value = String(fd.get("assignee") || "");
-                start(() => adminSetAssignee(locale, application.id, value || null));
+          ) : (
+            <p className="text-sm font-medium text-amber-200">غير معيّن</p>
+          )}
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            {application.travelerCount} {application.travelerCount === 1 ? "مسافر" : "مسافرين"}
+            {application.express ? " · سريع" : ""}
+          </p>
+        </SummaryCell>
+        <SummaryCell label="المستندات المطلوبة" className="col-span-2 sm:col-span-1">
+          <p className="font-mono text-lg font-semibold leading-tight tabular-nums">
+            {requiredVerified}
+            <span className="text-sm text-muted-foreground">/{requiredTotal}</span>
+          </p>
+          <div className="mt-1.5">
+            <DocCounts
+              signals={{
+                verified: reviewDocs.filter((doc) => doc.status === "verified").length,
+                uploaded: waitingReview,
+                rejected: reviewDocs.filter((doc) => doc.status === "rejected").length,
+                missing: gaps.filter((gap) => gap.reason === "missing").length,
+                paymentReview: false,
+                refundOpen: false,
               }}
-            >
-              <label className="text-sm">
-                المسؤول
-                <select name="assignee" defaultValue={application.assigneeId ?? ""} className={`${adminInputClass} mt-1 block`}>
-                  <option value="">بدون تعيين</option>
-                  {assignees.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.fullName || person.email}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button disabled={pending} className={adminGhostClass}>
-                حفظ التعيين
-              </button>
-            </form>
-            <form
-              className="mt-4 grid gap-2"
-              action={(fd) =>
-                start(async () => {
-                  setError(null);
-                  const result = await adminSetStatus(
-                    locale,
-                    application.id,
-                    fd.get("status") as ApplicationStatus,
-                    String(fd.get("title") || `تحديث الحالة: ${fd.get("status")}`),
-                    String(fd.get("description") || ""),
-                  );
-                  if (!result.ok) setError(result.error);
-                })
+            />
+          </div>
+        </SummaryCell>
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-4">
+          <NextStepCard step={step.primary} also={step.also} onAction={act} />
+          <StatusChanger locale={locale} application={application} readyToFile={readyToFile} target={target} onTarget={setTarget} />
+          <AssignPanel key={application.assigneeId ?? "none"} locale={locale} application={application} assignees={staff} currentUserId={currentUserId} />
+          <StaffFollowUp locale={locale} application={application} gaps={gaps.length} docsReady={readyToFile} />
+        </aside>
+
+        <div className="min-w-0 space-y-4">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <CustomerCard locale={locale} application={application} customer={customer} now={now} />
+            <AdminPanel
+              title="التأشيرة"
+              action={
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Flag src={application.destinationFlag} className="size-4" />
+                  {application.destinationName}
+                </span>
               }
             >
-              <label className="text-sm">
-                الحالة
-                <select name="status" defaultValue={application.status} className={`${adminInputClass} mt-1 block`}>
-                  {statuses.map((status) => (
-                    <option key={status} value={status}>
-                      {statusLabels[status]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <input name="title" placeholder="عنوان التحديث للعميل" className={adminInputClass} />
-              <input name="description" placeholder="ملاحظة تصل للعميل بالبريد" className={adminInputClass} />
-              <button disabled={pending} className={adminPrimaryClass}>
-                تحديث الحالة
-              </button>
-            </form>
-            <StaffFollowUp locale={locale} application={application} />
-            {application.status === "approved" && (
-              <>
-              <form
-                className="mt-4 grid gap-2"
-                action={(fd) =>
-                  start(async () => {
-                    setError(null);
-                    const result = await adminUploadIssuedVisa(locale, application.id, fd);
-                    if (!result.ok) setError(result.error);
-                    else setNote("تم رفع الملفات وإرسالها مرفقة في البريد.");
-                  })
-                }
-              >
-                <label className="text-sm">
-                  ملفات التأشيرة الصادرة
-                  <input name="file" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block text-sm" />
-                </label>
-                <p className="text-xs text-muted-ink">يمكن اختيار أكثر من صورة أو PDF. تُرفق الملفات في بريد العميل.</p>
-                <button disabled={pending} className={adminPrimaryClass}>
-                  رفع التأشيرة
-                </button>
-              </form>
-              {issued.length > 0 && (
-                <ul className="mt-3 space-y-2">
-                  {issued.map((document) => (
-                    <li key={document.id} className="flex items-center justify-between gap-2 text-sm">
-                      <a href={fileHref(document.storagePath)} target="_blank" rel="noreferrer" className="min-w-0 truncate text-brand">
-                        {document.fileName}
-                      </a>
-                      <button
-                        type="button"
-                        disabled={pending}
-                        className="shrink-0 text-xs text-red-600"
-                        onClick={() =>
-                          start(async () => {
-                            setError(null);
-                            const result = await adminDeleteIssuedVisa(locale, application.id, document.id);
-                            if (!result.ok) setError(result.error);
-                          })
-                        }
-                      >
-                        حذف
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              </>
-            )}
-            {note && <p className="mt-3 text-sm text-muted-ink">{note}</p>}
-            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-          </AdminCard>
-        </aside>
-        <div className="min-w-0">
-          {application.visaLabel ? <VisaTypeCard application={application} /> : null}
-          <div className="mb-4 flex gap-2 overflow-x-auto">
-            {tabs.map(([id, label]) => (
+              <KeyValue items={visaRows} />
+            </AdminPanel>
+          </div>
+
+          <div id="detail-tabs" className="scroll-mt-4 flex max-w-full gap-1 overflow-x-auto rounded-lg border bg-card p-1" role="tablist">
+            {tabs.map((item) => (
               <button
-                key={id}
+                key={item.id}
                 type="button"
-                onClick={() => setTab(id)}
-                className={cn("shrink-0 rounded-full px-3 py-1 text-sm", tab === id ? "bg-brand text-white" : "border border-line bg-white text-ink")}
+                role="tab"
+                aria-selected={tab === item.id}
+                onClick={() => setTab(item.id)}
+                className={cn(
+                  "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors",
+                  tab === item.id ? "bg-primary font-medium text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
               >
-                {label}
+                {item.label}
+                {item.badge ? (
+                  <span
+                    className={cn(
+                      "rounded px-1.5 font-mono text-[11px] tabular-nums",
+                      tab === item.id
+                        ? "bg-primary-foreground/15"
+                        : item.badge.tone === "danger"
+                          ? "bg-rose-500/20 text-rose-200"
+                          : item.badge.tone === "warning"
+                            ? "bg-amber-400/20 text-amber-100"
+                            : item.badge.tone === "success"
+                              ? "bg-emerald-500/15 text-emerald-200"
+                              : "bg-muted text-foreground/80",
+                    )}
+                  >
+                    {item.badge.value}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
 
-      {tab === "travelers" && (
-        <AdminCard>
-          <h2 className="font-semibold">المسافرون</h2>
-          {travelers.length === 0 ? (
-            <AdminEmpty>لا يوجد مسافرون بعد.</AdminEmpty>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {travelers.map((traveler) => (
-                <li key={traveler.id} className="rounded-xl border border-line px-4 py-3">
-                  <form
-                    className="grid gap-2 sm:grid-cols-2"
-                    action={(fd) =>
-                      start(async () => {
-                        const result = await adminPatchTraveler(locale, traveler.id, {
-                          firstName: String(fd.get("firstName") ?? ""),
-                          lastName: String(fd.get("lastName") ?? ""),
-                          passportNumber: String(fd.get("passportNumber") ?? ""),
-                          nationality: String(fd.get("nationality") ?? ""),
-                        });
-                        if (result && !result.ok) setError(result.error);
-                      })
-                    }
-                  >
-                    <input name="firstName" defaultValue={traveler.firstName} className="h-10 rounded-xl border border-line px-3 text-sm" />
-                    <input name="lastName" defaultValue={traveler.lastName} className="h-10 rounded-xl border border-line px-3 text-sm" />
-                    <input name="passportNumber" defaultValue={traveler.passportNumber ?? ""} placeholder="رقم الجواز" className="h-10 rounded-xl border border-line px-3 text-sm" />
-                    <input name="nationality" defaultValue={traveler.nationality ?? ""} placeholder="الجنسية" className="h-10 rounded-xl border border-line px-3 text-sm" />
-                    <button className="rounded-full bg-brand px-4 py-2 text-sm text-white sm:col-span-2">حفظ المسافر</button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          )}
-        </AdminCard>
-      )}
-
-      {tab === "documents" && (
-        <AdminCard>
-          <h2 className="font-semibold">المستندات</h2>
-          {reviewDocs.length === 0 ? (
-            <AdminEmpty>لا توجد مستندات مرفوعة.</AdminEmpty>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {reviewDocs.map((document) => (
-                <li key={document.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-4 py-3">
-                  <span>
-                    {docLabel(document.kind, "ar-EG")} · {document.fileName}
-                    <span className="mt-1 block text-xs text-muted-ink">
-                      {document.status}
-                      {document.rejectReason ? ` · ${document.rejectReason}` : ""}
-                    </span>
-                  </span>
-                  {document.mimeType?.startsWith("image/") ? (
-                    <img src={fileHref(document.storagePath)} alt="" className="mt-2 max-h-56 w-full rounded-lg object-contain" />
-                  ) : document.mimeType === "application/pdf" || document.fileName.toLowerCase().endsWith(".pdf") ? (
-                    <iframe title={document.fileName} src={fileHref(document.storagePath)} className="mt-2 h-72 w-full rounded-lg bg-white" />
-                  ) : null}
-                  <span className="flex flex-wrap items-center gap-2">
-                    <a href={fileHref(document.storagePath)} target="_blank" rel="noreferrer" className="text-xs text-brand underline">
-                      عرض
-                    </a>
-                    <button
-                      type="button"
-                      className="rounded-full bg-black px-3 py-1 text-xs text-white"
-                      onClick={() =>
-                        start(async () => {
-                          setError(null);
-                          const result = await adminSetDocumentStatus(locale, application.id, document.id, "verified");
-                          if (!result.ok) setError(result.error);
-                        })
-                      }
-                    >
-                      قبول
-                    </button>
-                    <input
-                      value={reasons[document.id] ?? ""}
-                      onChange={(event) => setReasons((current) => ({ ...current, [document.id]: event.target.value }))}
-                      placeholder="سبب الرفض"
-                      className={`${adminInputClass} w-40`}
-                    />
-                    <button
-                      type="button"
-                      className="rounded-full border px-3 py-1 text-xs"
-                      onClick={() =>
-                        start(async () => {
-                          setError(null);
-                          const result = await adminSetDocumentStatus(locale, application.id, document.id, "rejected", reasons[document.id]);
-                          if (!result.ok) setError(result.error);
-                        })
-                      }
-                    >
-                      رفض
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {gaps.length > 0 && <p className="mt-3 text-sm text-red-600">لا يمكن نقل الطلب إلى «مُرسل للجهة» قبل اكتمال المستندات المطلوبة.</p>}
-        </AdminCard>
-      )}
-
-      {tab === "payment" && (
-        <AdminCard>
-          <h2 className="font-semibold">المدفوعات</h2>
-          {payments.length === 0 ? (
-            <AdminEmpty>لا توجد عمليات دفع.</AdminEmpty>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {payments.map((payment) => (
-                <li key={payment.id} className="rounded-xl border border-line px-4 py-3">
-                  {payment.provider} · {payment.status} · {formatMoney(payment.amount, payment.currency)}
-                  {payment.refundedAmount > 0 && payment.status !== "refunded" ? ` · مسترد جزئياً ${formatMoney(payment.refundedAmount, payment.currency)}` : ""}
-                  {payment.receiptNo ? <span className="mt-1 block text-xs text-muted-ink">إيصال {payment.receiptNo}</span> : null}
-                  <span className="mt-1 block text-xs text-muted-ink">{payment.providerRef}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {refundRequest && (
-            <div className="mt-4 rounded-xl border border-line px-4 py-3 text-sm">
-              <p className="font-medium">طلب استرداد · {refundRequest.status}</p>
-              <p className="mt-1 text-body">{refundRequest.reason}</p>
-              {refundRequest.status === "open" && (
-                <button
-                  type="button"
-                  disabled={pending}
-                  className={`${adminGhostClass} mt-3`}
-                  onClick={() =>
-                    start(async () => {
-                      setError(null);
-                      await adminDeclineRefund(locale, application.id);
-                      setNote("رُفض طلب الاسترداد.");
-                    })
-                  }
-                >
-                  رفض طلب الاسترداد
-                </button>
-              )}
-            </div>
-          )}
-          {paid && application.status !== "refunded" && (
-            <form
-              className="mt-4 flex flex-wrap items-center gap-3"
-              action={(fd) =>
-                start(async () => {
-                  setError(null);
-                  const raw = String(fd.get("amount") || "").trim();
-                  const amount = Number(raw);
-                  if (!raw || !Number.isFinite(amount) || amount <= 0) {
-                    setError("اكتب مبلغ الاسترداد.");
-                    return;
-                  }
-                  if (fd.get("confirm") !== "on") {
-                    setError("أكّد الاسترداد قبل المتابعة.");
-                    return;
-                  }
-                  const result = await adminPartialRefund(locale, application.id, amount);
-                  if (!result.ok) setError(result.error);
-                  else setNote("partial" in result && result.partial ? "سُجّل استرداد جزئي." : "تم تعليم الدفعة كمستردة.");
-                })
-              }
-            >
-              <input name="amount" required type="number" min="1" step="0.01" placeholder="مبلغ الاسترداد" className={`${adminInputClass} max-w-48`} />
-              <label className="flex items-center gap-2 text-sm">
-                <input name="confirm" type="checkbox" required />
-                أؤكد الاسترداد
-              </label>
-              <button disabled={pending} className={adminGhostClass}>
-                استرداد
-              </button>
-              <Link href={href("/transparency/refunds-policy", locale)} className="text-sm text-brand">
-                سياسة الاسترداد
-              </Link>
-            </form>
-          )}
-        </AdminCard>
-      )}
-
-      {tab === "activity" && (
-        <AdminCard>
-          <form
-            className="flex flex-wrap gap-2"
-            action={(fd) => {
-              setNote("حُفظت الملاحظة الداخلية.");
-              start(() => adminAddEvent(locale, application.id, String(fd.get("title")), String(fd.get("description"))));
-            }}
-          >
-            <input required name="title" placeholder="ملاحظة داخلية" className={`${adminInputClass} min-w-40 flex-1`} />
-            <input name="description" placeholder="لا تُرسل للعميل" className={`${adminInputClass} min-w-40 flex-1`} />
-            <button className={adminGhostClass}>حفظ الملاحظة</button>
-          </form>
-          {note && <p className="mt-2 text-sm text-muted-ink">{note}</p>}
-          {history.length > 0 && (
-            <ol className="mt-6 space-y-2 text-sm">
-              {history.map((row) => (
-                <li key={row.id}>
-                  <p className="font-medium">{row.fromStatus ?? "—"} → {row.toStatus}</p>
-                  <p className="text-xs text-muted-ink">{row.actorEmail || "النظام"} · {formatAt(row.createdAt)}{row.reason ? ` · ${row.reason}` : ""}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-          <ol className="mt-6 space-y-3 text-sm">
-            {events.map((event) => (
-              <li key={event.id}>
-                <p className="font-medium">
-                  {event.title}{" "}
-                  <span className="text-xs font-normal text-muted-ink">{event.internal ? "داخلية" : "للعميل"}</span>
-                </p>
-                <p className="text-body">{event.description}</p>
-                <p className="text-xs text-muted-ink">{formatAt(event.createdAt)}</p>
-              </li>
-            ))}
-          </ol>
-        </AdminCard>
-      )}
+          {tab === "documents" ? (
+            <DocumentReview locale={locale} applicationId={application.id} documents={reviewDocs} travelers={travelers} required={application.documentsRequired} now={now} />
+          ) : null}
+          {tab === "travelers" ? <TravelerPanel locale={locale} travelers={travelers} today={today} departureDate={application.departureDate} /> : null}
+          {tab === "payment" ? <PaymentPanel locale={locale} application={application} payments={payments} refundRequest={refundRequest} reviews={reviews} /> : null}
+          {tab === "issued" ? <IssuedVisaPanel locale={locale} application={application} issued={issued} /> : null}
+          {tab === "activity" ? <ActivityPanel locale={locale} applicationId={application.id} events={events} history={history} now={now} /> : null}
         </div>
       </div>
     </AdminPage>
+  );
+}
+
+function SummaryCell({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return (
+    <div className={cn("min-w-0 bg-card px-4 py-3", className)}>
+      <p className="mb-1.5 text-[11px] text-muted-foreground">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function NextStepCard({ step, also, onAction }: { step: NextStep; also: NextStep[]; onAction: (action: StepAction) => void }) {
+  return (
+    <section className={cn("overflow-hidden rounded-xl border border-s-2 bg-card", stepAccent[step.tone])}>
+      <div className="p-5">
+        <p className="text-[11px] font-medium text-muted-foreground">الخطوة التالية</p>
+        <h2 className={cn("mt-1.5 text-base font-semibold", stepText[step.tone])}>{step.title}</h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.detail}</p>
+        {step.action ? (
+          <button
+            type="button"
+            onClick={() => onAction(step.action!)}
+            className={cn(
+              "mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg text-sm font-semibold transition-opacity hover:opacity-90",
+              step.tone === "danger" ? "bg-rose-500 text-white" : "bg-primary text-primary-foreground",
+            )}
+          >
+            {step.action.label}
+          </button>
+        ) : null}
+      </div>
+      {also.length ? (
+        <ul className="divide-y divide-border/70 border-t bg-background/30">
+          {also.map((item) => (
+            <li key={item.title} className="flex items-start gap-2.5 px-5 py-2.5">
+              <span className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", stepDot[item.tone])} />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium">{item.title}</p>
+                <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{item.detail}</p>
+              </div>
+              {item.action ? (
+                <button type="button" onClick={() => onAction(item.action!)} className="shrink-0 text-[11px] text-primary hover:underline">
+                  {item.action.label}
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function CustomerCard({ locale, application, customer, now }: { locale: string; application: Application; customer: DetailCustomer | null; now: string }) {
+  const email = customer?.email ?? application.userEmail ?? "";
+  const phoneDigits = customer?.phone?.replace(/\D/g, "") ?? "";
+  const whatsapp = phoneDigits.length >= 8 ? `https://wa.me/${phoneDigits.startsWith("0") ? `20${phoneDigits.slice(1)}` : phoneDigits}` : null;
+  const name = customer?.fullName?.trim();
+  return (
+    <AdminPanel
+      title="العميل"
+      action={
+        <Link href={href(`/admin/users/${application.userId}`, locale)} className="text-xs text-primary hover:underline">
+          ملف العميل
+        </Link>
+      }
+    >
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
+          {(name || email || "?").trim().charAt(0).toUpperCase()}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{name || "بدون اسم"}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {customer ? `${customer.applications} ${customer.applications === 1 ? "طلب" : "طلبات"} · انضم ${relativeTime(customer.createdAt, new Date(now))}` : "—"}
+          </p>
+        </div>
+        {customer?.banned ? <span className="ms-auto rounded border border-rose-500/40 px-1.5 text-[11px] text-rose-300">محظور</span> : null}
+      </div>
+      <dl className="mt-4 space-y-2 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">البريد</dt>
+          <dd className="min-w-0 truncate">
+            {email ? (
+              <a href={`mailto:${email}`} className="hover:text-primary" dir="ltr">
+                {email}
+              </a>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-xs text-muted-foreground">الهاتف</dt>
+          <dd className="flex min-w-0 items-center gap-2">
+            {customer?.phone ? (
+              <>
+                <a href={`tel:${customer.phone}`} className="truncate font-mono text-[13px] hover:text-primary" dir="ltr">
+                  {customer.phone}
+                </a>
+                {whatsapp ? (
+                  <a href={whatsapp} target="_blank" rel="noreferrer" className="rounded border border-emerald-500/40 px-1.5 text-[11px] text-emerald-300 hover:bg-emerald-500/10">
+                    واتساب
+                  </a>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-muted-foreground">غير مسجّل</span>
+            )}
+          </dd>
+        </div>
+      </dl>
+    </AdminPanel>
   );
 }

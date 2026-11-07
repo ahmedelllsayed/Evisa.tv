@@ -13,6 +13,8 @@
     "db:migrate": "node --env-file-if-exists=.env.local scripts/db.mts migrate",
     "db:reseed": "node --env-file-if-exists=.env.local scripts/db.mts reseed",
     "db:seed-sql": "node --env-file-if-exists=.env.local scripts/db.mts sql",
+    "db:demo": "node scripts/demo-data.mts",
+    "admin:shots": "node scripts/admin-shots.mjs",
     "ref:capture": "node scripts/capture-reference.mjs",
     "ref:compare": "node scripts/compare.mjs"
   },

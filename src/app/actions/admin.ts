@@ -585,10 +585,25 @@ export async function adminDeleteFaq(locale: string, id: string) {
 
 export async function adminSaveReview(
   locale: string,
-  input: { id?: string; scope: string; author: string; location: string | null; title: string | null; titleAr?: string | null; body: string; bodyAr?: string | null; rating: number; product: string | null; destinationId: string | null },
+  input: {
+    id?: string;
+    scope: string;
+    author: string;
+    location: string | null;
+    title: string | null;
+    titleAr?: string | null;
+    body: string;
+    bodyAr?: string | null;
+    rating: number;
+    product: string | null;
+    destinationId: string | null;
+    isSample?: boolean;
+    verified?: boolean;
+    source?: string | null;
+  },
 ) {
   await guard(locale, "content", "edit");
-  await upsertReview(input);
+  await upsertReview({ ...input, rating: Math.min(5, Math.max(1, Math.round(Number(input.rating) || 5))) });
   refresh(locale, "/admin/reviews");
 }
 

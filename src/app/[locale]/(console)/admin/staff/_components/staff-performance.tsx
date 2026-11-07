@@ -1,8 +1,8 @@
-"use client";
+import { AdminPanel, Bar, adminTdClass, adminThClass, adminTrClass } from "@/components/admin/chrome";
+import { RoleBadge } from "@/components/admin/people/ui";
 import type { AdminRole } from "@/lib/types";
-import { ROLE_LABELS } from "@/lib/rbac-constants";
-import { Trophy, TrendingUp, Clock } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { hours } from "./staff-shared";
 
 type StaffPerformanceData = {
   userId: string;
@@ -14,62 +14,58 @@ type StaffPerformanceData = {
   avgProcessingHours: number;
 };
 
-export function StaffPerformance({ performance }: { performance: StaffPerformanceData[] }) {
-  const topPerformers = performance.slice(0, 5);
-
+export function StaffPerformance({ performance, names }: { performance: StaffPerformanceData[]; names: Record<string, string> }) {
+  const ranked = performance.filter((row) => row.processed > 0);
+  const top = Math.max(1, ...ranked.map((row) => row.processed));
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Trophy className="h-5 w-5 text-yellow-500" />
-          أداء الموظفين (آخر 30 يوم)
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {topPerformers.map((staff, index) => {
-            const approvalRate = staff.processed > 0 ? Math.round((staff.approved / staff.processed) * 100) : 0;
-
-            return (
-              <div key={staff.userId} className="flex items-center gap-4 rounded-lg border p-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
-                  {index + 1}
-                </div>
-
-                <div className="flex-1">
-                  <div className="font-medium">{staff.fullName || "—"}</div>
-                  <div className="text-xs text-muted-foreground">{ROLE_LABELS[staff.role]}</div>
-                </div>
-
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="font-bold">{staff.processed}</div>
-                    <div className="text-xs text-muted-foreground">معالج</div>
-                  </div>
-
-                  <div className="text-center">
-                    <div className="flex items-center gap-1 font-bold text-green-600">
-                      <TrendingUp className="h-3 w-3" />
-                      {approvalRate}%
-                    </div>
-                    <div className="text-xs text-muted-foreground">قبول</div>
-                  </div>
-
-                  <div className="text-center">
-                    <div className="flex items-center gap-1 font-bold">
-                      <Clock className="h-3 w-3" />
-                      {staff.avgProcessingHours.toFixed(1)}س
-                    </div>
-                    <div className="text-xs text-muted-foreground">متوسط</div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {topPerformers.length === 0 && <div className="py-8 text-center text-sm text-muted-foreground">لا توجد بيانات أداء حتى الآن</div>}
+    <AdminPanel title="ترتيب الأداء" hint="الملفات المُغلقة خلال آخر 30 يوماً لكل موظف، من الأعلى إلى الأقل." flush>
+      {ranked.length === 0 ? (
+        <p className="px-5 py-10 text-center text-sm text-muted-foreground">لم يُغلق أي ملف مُسند خلال آخر 30 يوماً.</p>
+      ) : (
+        <div className="overflow-x-auto [color-scheme:dark]">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="border-b bg-background/40 whitespace-nowrap">
+              <tr>
+                <th className={cn(adminThClass, "w-12")}>#</th>
+                <th className={adminThClass}>الموظف</th>
+                <th className={cn(adminThClass, "w-[28%]")}>معالَج</th>
+                <th className={cn(adminThClass, "text-end")}>قبول</th>
+                <th className={cn(adminThClass, "text-end")}>رفض</th>
+                <th className={cn(adminThClass, "text-end")}>نسبة القبول</th>
+                <th className={cn(adminThClass, "text-end")}>متوسط المعالجة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ranked.map((row, index) => {
+                const rate = Math.round((row.approved / row.processed) * 100);
+                return (
+                  <tr key={row.userId} className={adminTrClass}>
+                    <td className={cn(adminTdClass, "font-mono text-xs tabular-nums", index === 0 ? "text-amber-300" : "text-muted-foreground")}>{String(index + 1).padStart(2, "0")}</td>
+                    <td className={cn(adminTdClass, "whitespace-nowrap")}>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium">{row.fullName || names[row.userId] || "—"}</span>
+                        <RoleBadge role={row.role} />
+                      </div>
+                    </td>
+                    <td className={adminTdClass}>
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 font-mono tabular-nums">{row.processed}</span>
+                        <span className="flex-1">
+                          <Bar value={row.processed} max={top} />
+                        </span>
+                      </div>
+                    </td>
+                    <td className={cn(adminTdClass, "text-end font-mono tabular-nums text-emerald-300")}>{row.approved}</td>
+                    <td className={cn(adminTdClass, "text-end font-mono tabular-nums", row.rejected ? "text-rose-300" : "text-muted-foreground")}>{row.rejected}</td>
+                    <td className={cn(adminTdClass, "text-end font-mono tabular-nums")}>{rate}%</td>
+                    <td className={cn(adminTdClass, "text-end font-mono tabular-nums text-muted-foreground")}>{hours(row.avgProcessingHours)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </AdminPanel>
   );
 }
