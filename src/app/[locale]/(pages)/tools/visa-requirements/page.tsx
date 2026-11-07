@@ -1,14 +1,16 @@
 import { localizedMetadata } from "@/lib/seo";
 import type { Page } from "@/lib/page";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { RequirementsChecker } from "@/components/tools/requirements-checker";
+import { RequirementsChecker, type CheckerDestination, type CheckerPassport } from "@/components/tools/requirements-checker";
 import { listDestinations } from "@/lib/data/catalog";
+import { countries, countryName } from "@/lib/countries";
 import { requirePageContent } from "@/lib/data/pages";
+import { docLabel, localizedDestinationName } from "@/lib/localize";
 import { getCitizenship } from "@/lib/preferences";
 import type { Destination } from "@/lib/types";
+import { visaHref } from "@/lib/href";
 import { isArabicLocale } from "@/lib/i18n";
-import { localizedDestinationName } from "@/lib/localize";
-import { visaTypeLabel } from "@/lib/visa";
+import { formatMoney, processingLabel, totalFee, visaTypeLabel } from "@/lib/visa";
 
 function copy(ar: boolean) {
   if (!ar) {
@@ -133,14 +135,34 @@ export async function generateMetadata({ params }: Page) {
   return localizedMetadata(locale, "/tools/visa-requirements", { en: "Visa Requirements Checker", ar: "فحص متطلبات التأشيرة" });
 }
 
-export default async function VisaRequirementsPage({ params }: Page) {
+export default async function VisaRequirementsPage({ params, searchParams }: Page) {
   const { locale } = await params;
+  const query = await searchParams;
+  const initialSlug = typeof query.to === "string" ? query.to : "";
   const c = copy(isArabicLocale(locale));
   const [destinations, content, passport] = await Promise.all([
     listDestinations(),
     requirePageContent("tools/visa-requirements"),
     getCitizenship(),
   ]);
+  const passports: CheckerPassport[] = [...countries]
+    .map((country) => ({ code: country.code, name: countryName(country.code, locale) }))
+    .sort((a, b) => (a.code === "EG" ? -1 : b.code === "EG" ? 1 : a.name.localeCompare(b.name)));
+  const checkerDestinations: CheckerDestination[] = destinations.map((destination) => {
+    const name = localizedDestinationName(destination, locale);
+    return {
+      slug: destination.slug,
+      name,
+      search: `${name} ${destination.name} ${destination.code}`.toLowerCase(),
+      visaRequired: destination.visaRequired,
+      typeLabel: visaTypeLabel(destination.visaType, locale),
+      processing: processingLabel(destination.processingHours, locale),
+      fee: formatMoney(totalFee(destination), destination.currency, locale),
+      documents: destination.documents.map((kind) => docLabel(kind, locale)),
+      sources: destination.sources.filter((source) => /^https?:\/\//.test(source.url)).slice(0, 2),
+      href: visaHref(destination.slug, locale),
+    };
+  });
   return (
     <div className="bg-[#f6f7fb]">
       <section className="mx-auto max-w-4xl px-4 pt-16 pb-8 text-center">
@@ -161,7 +183,7 @@ export default async function VisaRequirementsPage({ params }: Page) {
           ))}
         </dl>
         <p className="mt-6 text-xs text-muted-ink">{c.steps}</p>
-        <RequirementsChecker destinations={destinations} locale={locale} passport={passport} />
+        <RequirementsChecker destinations={checkerDestinations} passports={passports} locale={locale} passport={passport} initialSlug={initialSlug} />
       </section>
 
       <section className="mx-auto max-w-5xl px-4 py-14">
@@ -187,10 +209,10 @@ export default async function VisaRequirementsPage({ params }: Page) {
         <h2 className="font-serif mt-2 text-3xl leading-tight md:text-[40px]">{c.trendTitle}</h2>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {destinations.slice(0, 12).map((destination) => (
-            <div key={destination.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white px-4 py-3">
+            <a key={destination.id} href={`?to=${destination.slug}#checker`} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white px-4 py-3 hover:bg-brand-50">
               <span className="min-w-0 font-medium">{localizedDestinationName(destination, locale)}</span>
               <span className="text-xs tracking-wide text-muted-ink uppercase">{visaTypeLabel(destination.visaType, locale)}</span>
-            </div>
+            </a>
           ))}
         </div>
       </section>
