@@ -58,12 +58,21 @@ export async function setRefundRequestStatus(applicationId: string, status: Refu
   await sql("update refund_requests set status = $2 where application_id = $1 and status = 'open'", [applicationId, status]);
 }
 
-export async function createContactMessage(input: { name: string; email: string; topic: string; body: string }) {
-  await sql("insert into contact_messages (name, email, topic, body) values ($1,$2,$3,$4)", [
+export async function createContactMessage(input: {
+  name: string;
+  email: string;
+  topic: string;
+  body: string;
+  userId?: string | null;
+  applicationId?: string | null;
+}) {
+  await sql("insert into contact_messages (name, email, topic, body, user_id, application_id) values ($1,$2,$3,$4,$5,$6)", [
     input.name.trim(),
     input.email.trim().toLowerCase(),
     input.topic.trim() || null,
     input.body.trim(),
+    input.userId ?? null,
+    input.applicationId ?? null,
   ]);
 }
 

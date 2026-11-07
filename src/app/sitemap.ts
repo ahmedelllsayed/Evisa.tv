@@ -23,6 +23,8 @@ const paths = [
   "/terms",
   "/editorial-policy",
   "/emergency-care",
+  "/security",
+  "/events",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

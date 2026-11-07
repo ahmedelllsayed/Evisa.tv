@@ -86,9 +86,8 @@ function decodeSession(token: string | undefined) {
 }
 
 async function otpLimited(email: string) {
-  const { headers } = await import("next/headers");
-  const headerStore = await headers();
-  const ip = (headerStore.get("x-forwarded-for") ?? "").split(",")[0]?.trim() || "unknown";
+  const { clientIp } = await import("@/lib/client-ip");
+  const ip = await clientIp();
   const [byIp, byEmail] = await Promise.all([
     one<{ n: number }>("select count(*)::int as n from auth_attempts where ip = $1 and created_at > now() - interval '1 hour'", [ip]),
     one<{ n: number }>("select count(*)::int as n from auth_attempts where email = $1 and created_at > now() - interval '1 day'", [email]),

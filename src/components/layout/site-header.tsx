@@ -26,6 +26,7 @@ const menuGroups = [
       ["/passport-index", "footer.passport"],
       ["/emergency-care", "footer.emergency"],
       ["/rejection-recovery", "footer.rejection"],
+      ["/events", "footer.events"],
     ],
   },
   {
@@ -34,6 +35,7 @@ const menuGroups = [
       ["/newsroom", "footer.newsroom"],
       ["/contact", "footer.contact"],
       ["/partners", "footer.partners"],
+      ["/security", "footer.security"],
       ["/editorial-policy", "footer.editorial"],
     ],
   },

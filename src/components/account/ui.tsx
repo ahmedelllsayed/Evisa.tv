@@ -4,12 +4,11 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { stageIndex, stages, statusTone, type Stage, type Tone } from "@/lib/account-insights";
 import { isArabicLocale, t, type MessageKey } from "@/lib/i18n";
+import { say } from "@/lib/say";
 import type { ApplicationStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function say(locale: string, en: string, ar: string) {
-  return isArabicLocale(locale) ? ar : en;
-}
+export { say };
 
 export function fileHref(storagePath: string) {
   return `/api/files/${storagePath.split("/").map((part) => encodeURIComponent(part)).join("/")}`;

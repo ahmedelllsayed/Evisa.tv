@@ -232,7 +232,7 @@ export async function seed(db: Db, { force = false, log = (_: string) => {} } = 
     await tx.query("delete from reviews where destination_id is null");
     for (const [i, r] of content.reviews.entries()) {
       await tx.query(
-        "insert into reviews (scope, author, location, title, body, rating, product, published_at, sort_order) values ($1,$2,$3,$4,$5,$6,$7,coalesce($8::date, current_date),$9)",
+        "insert into reviews (scope, author, location, title, body, rating, product, published_at, sort_order, is_sample, source) values ($1,$2,$3,$4,$5,$6,$7,coalesce($8::date, current_date),$9,true,'seed')",
         [r.scope, r.author, r.location ?? null, r.title ?? null, r.body, r.rating ?? 5, r.product ?? null, r.publishedAt ?? null, i],
       );
     }

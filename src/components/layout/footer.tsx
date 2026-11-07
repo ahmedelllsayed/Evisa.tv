@@ -19,12 +19,13 @@ export async function Footer({ locale }: { locale: string }) {
     { href: "/passport-index", label: t(locale, "footer.passport") },
     { href: "/emergency-care", label: t(locale, "footer.emergency") },
     { href: "/rejection-recovery", label: t(locale, "footer.rejection") },
+    { href: "/events", label: t(locale, "footer.events") },
   ];
   const companyLinks = [
     { href: "/newsroom", label: t(locale, "footer.newsroom") },
     { href: "/contact", label: t(locale, "footer.contact") },
     { href: "/partners", label: t(locale, "footer.partners") },
-    { href: "/transparency/status", label: t(locale, "footer.security") },
+    { href: "/security", label: t(locale, "footer.security") },
     { href: "/editorial-policy", label: t(locale, "footer.editorial") },
   ];
   const trustLinks = [
