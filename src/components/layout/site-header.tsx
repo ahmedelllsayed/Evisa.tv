@@ -77,7 +77,7 @@ export function SiteHeader({
   const [prompt, setPrompt] = useState(0);
   const path = usePathname();
   const full = /\/(visa|account|apply|payment|admin)(\/|$)/.test(path);
-  const dark = /\/(passport-index|wall-of-love|tools\/visa-photo-maker)(\/|$)/.test(path);
+  const dark = /\/(wall-of-love)(\/|$)/.test(path);
   const prompts = [t(locale, "nav.search"), t(locale, "nav.search"), t(locale, "nav.search")];
   useEffect(() => {
     const id = setInterval(() => setPrompt((n) => (n + 1) % prompts.length), 2800);

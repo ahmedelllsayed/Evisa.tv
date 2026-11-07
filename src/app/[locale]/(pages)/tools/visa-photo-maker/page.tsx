@@ -99,34 +99,34 @@ export default async function VisaPhotoPage({ params }: Page) {
     )
   ).flat();
   return (
-    <div className="bg-black text-white">
+    <div className="bg-[#f6f7fb] text-[#16182b]">
       <section className="mx-auto max-w-3xl px-4 pt-20 pb-12 text-center">
         <h1 className="mx-auto max-w-[558px] font-sans text-3xl leading-tight font-medium md:text-[40px]">{content.title}</h1>
-        <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-white/65">{content.intro}</p>
-        <a href="#photo-tool" className="mt-8 inline-flex rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black">
+        <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-body">{content.intro}</p>
+        <a href="#photo-tool" className="mt-8 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-white">
           {c.cta}
         </a>
       </section>
 
       <section className="mx-auto grid max-w-5xl gap-4 px-4 pb-16 md:grid-cols-3">
         {c.steps.map(([title, body], i) => (
-          <article key={title} className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <p className="text-xs tracking-[0.16em] text-white/40">0{i + 1}</p>
+          <article key={title} className="rounded-3xl border border-[#e3e5f2] bg-white p-6">
+            <p className="text-xs tracking-[0.16em] text-brand">0{i + 1}</p>
             <h2 className="mt-3 font-display text-xl font-semibold">{title}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-white/65">{body}</p>
+            <p className="mt-2 text-sm leading-relaxed text-body">{body}</p>
           </article>
         ))}
       </section>
 
-      <section className="mx-auto max-w-3xl space-y-4 px-4 pb-10 text-sm leading-relaxed text-white/70">
-        <h2 className="font-serif text-3xl text-white">{c.how}</h2>
+      <section className="mx-auto max-w-3xl space-y-4 px-4 pb-10 text-sm leading-relaxed text-body">
+        <h2 className="font-serif text-3xl text-[#16182b]">{c.how}</h2>
         <p>{c.howBody}</p>
-        <h2 className="font-serif pt-4 text-3xl text-white">{c.what}</h2>
+        <h2 className="font-serif pt-4 text-3xl text-[#16182b]">{c.what}</h2>
         <p>{c.whatBody}</p>
       </section>
 
       <section id="photo-tool" className="mx-auto max-w-xl px-4 pb-16">
-        <div className="rounded-3xl bg-white px-2 py-8 text-ink">
+        <div className="rounded-3xl border border-[#e3e5f2] bg-white px-2 py-8 text-ink">
           <PhotoMaker locale={locale} targets={targets} />
         </div>
       </section>
@@ -135,9 +135,9 @@ export default async function VisaPhotoPage({ params }: Page) {
         <h2 className="font-serif text-3xl">{c.reqs}</h2>
         <ul className="mt-6 space-y-4">
           {c.rules.map(([title, body]) => (
-            <li key={title}>
+            <li key={title} className="rounded-2xl border border-[#e3e5f2] bg-white px-4 py-3">
               <p className="font-medium">{title}</p>
-              <p className="text-sm text-white/65">{body}</p>
+              <p className="text-sm text-body">{body}</p>
             </li>
           ))}
         </ul>
@@ -145,11 +145,11 @@ export default async function VisaPhotoPage({ params }: Page) {
 
       <section className="mx-auto max-w-3xl px-4 pb-20">
         <h2 className="font-serif text-3xl">{c.questions}</h2>
-        <Accordion className="mt-4">
+        <Accordion className="mt-4 rounded-3xl border border-[#e3e5f2] bg-white px-5">
           {c.faqs.map(([q, a]) => (
-            <AccordionItem key={q} value={q} className="border-white/10">
-              <AccordionTrigger className="text-white">{q}</AccordionTrigger>
-              <AccordionContent className="text-white/65">{a}</AccordionContent>
+            <AccordionItem key={q} value={q} className="border-[#e3e5f2]">
+              <AccordionTrigger>{q}</AccordionTrigger>
+              <AccordionContent className="text-body">{a}</AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>

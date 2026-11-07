@@ -74,14 +74,14 @@ export function PassportBoard({
   const top = passportRanks.slice(0, 3);
 
   return (
-    <div className="bg-black text-white">
+    <div className="bg-[#f6f7fb] text-[#16182b]">
       <section className="mx-auto max-w-5xl px-4 pt-16 pb-10 text-center">
-        <p className="text-[11px] font-semibold tracking-[0.22em] text-white/50 uppercase">{kicker}</p>
+        <p className="text-[11px] font-semibold tracking-[0.22em] text-brand uppercase">{kicker}</p>
         <h1 className="mx-auto mt-4 max-w-[768px] font-sans text-4xl leading-tight font-semibold md:text-6xl lg:text-[72px]">{title}</h1>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/60">{intro}</p>
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-body">{intro}</p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <a href="#ranking" className="rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black">{t(locale, "tool.rank")}</a>
-          <a href="#ranking" className="rounded-full border border-white/20 px-5 py-2.5 text-sm">{t(locale, "tool.visaFree")}</a>
+          <a href="#ranking" className="rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-white">{t(locale, "tool.rank")}</a>
+          <a href="#ranking" className="rounded-full border border-[#e3e5f2] bg-white px-5 py-2.5 text-sm">{t(locale, "tool.visaFree")}</a>
         </div>
         <div className="mt-10 grid gap-3 sm:grid-cols-3">
           {top.map((p) => (
@@ -89,36 +89,36 @@ export function PassportBoard({
               key={p.name}
               type="button"
               onClick={() => setActive(p)}
-              className={cn("rounded-2xl border p-4 text-start", active.name === p.name ? "border-white bg-white/10" : "border-white/10 bg-white/5")}
+              className={cn("rounded-2xl border p-4 text-start", active.name === p.name ? "border-brand bg-brand-50" : "border-[#e3e5f2] bg-white")}
             >
-              <p className="text-[11px] tracking-[0.16em] text-white/50">{t(locale, "tool.rank")} #{p.rank}</p>
+              <p className="text-[11px] tracking-[0.16em] text-muted-ink">{t(locale, "tool.rank")} #{p.rank}</p>
               <p className="mt-2 font-medium">{label(p.name)}</p>
-              <p className="mt-1 text-xs text-white/50">{t(locale, "tool.score")} {p.score} · {p.visaFree} {t(locale, "tool.visaFree")}</p>
+              <p className="mt-1 text-xs text-muted-ink">{t(locale, "tool.score")} {p.score} · {p.visaFree} {t(locale, "tool.visaFree")}</p>
             </button>
           ))}
         </div>
       </section>
 
       <section className="mx-auto max-w-3xl px-4 pb-12 text-center">
-        <div className="mx-auto h-36 w-24 rounded-lg bg-linear-to-b from-amber-200 to-amber-700 shadow-[0_20px_50px_rgba(0,0,0,0.45)]" />
+        <div className="mx-auto h-36 w-24 rounded-lg bg-linear-to-b from-amber-200 to-amber-700 shadow-[0_20px_50px_rgba(22,24,43,0.12)]" />
         <p className="mt-6 text-xl font-medium">{label(active.name)}</p>
         <dl className="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
-          <div><dt className="text-[11px] tracking-widest text-white/40">{t(locale, "tool.rank")}</dt><dd className="mt-1 text-2xl font-semibold">#{active.rank}</dd></div>
-          <div><dt className="text-[11px] tracking-widest text-white/40">{t(locale, "tool.score")}</dt><dd className="mt-1 text-2xl font-semibold">{active.score}</dd></div>
-          <div><dt className="text-[11px] tracking-widest text-white/40">{t(locale, "tool.visaFree")}</dt><dd className="mt-1 text-2xl font-semibold">{active.visaFree}</dd></div>
+          <div><dt className="text-[11px] tracking-widest text-muted-ink">{t(locale, "tool.rank")}</dt><dd className="mt-1 text-2xl font-semibold">#{active.rank}</dd></div>
+          <div><dt className="text-[11px] tracking-widest text-muted-ink">{t(locale, "tool.score")}</dt><dd className="mt-1 text-2xl font-semibold">{active.score}</dd></div>
+          <div><dt className="text-[11px] tracking-widest text-muted-ink">{t(locale, "tool.visaFree")}</dt><dd className="mt-1 text-2xl font-semibold">{active.visaFree}</dd></div>
         </dl>
         {compare && compare.name !== active.name ? (
-          <p className="mt-4 text-sm text-white/70">
+          <p className="mt-4 text-sm text-body">
             {label(active.name)} #{active.rank} · {active.visaFree} {t(locale, "tool.visaFree")}
             {" · "}
             {label(compare.name)} #{compare.rank} · {compare.visaFree} {t(locale, "tool.visaFree")}
           </p>
         ) : (
-          <p className="mt-4 text-xs text-white/40">{isArabicLocale(locale) ? "اضغط جوازًا آخر للمقارنة." : "Pick another passport to compare."}</p>
+          <p className="mt-4 text-xs text-muted-ink">{isArabicLocale(locale) ? "اضغط جوازًا آخر للمقارنة." : "Pick another passport to compare."}</p>
         )}
       </section>
 
-      <section className="mx-auto grid max-w-5xl gap-px border-y border-white/10 px-4 py-8 sm:grid-cols-3">
+      <section className="mx-auto grid max-w-5xl gap-px border-y border-[#e3e5f2] bg-white px-4 py-8 sm:grid-cols-3">
         <Stat k={t(locale, "tool.tracked")} v={String(passportRanks.length)} />
         <Stat k={t(locale, "tool.mostFree")} v={tf(locale, "tool.countries", { n: passportRanks[0].visaFree })} d={tf(locale, "tool.heldBy", { name: label(passportRanks[0].name) })} />
         <Stat k={t(locale, "tool.top10")} v={t(locale, "tool.topMix")} d={t(locale, "tool.topNote")} />
@@ -126,15 +126,15 @@ export function PassportBoard({
 
       <section id="ranking" className="mx-auto max-w-5xl px-4 py-14">
         <h2 className="font-serif text-3xl">{t(locale, "tool.complete")}</h2>
-        <p className="mt-2 max-w-xl text-sm text-white/55">{t(locale, "tool.rankedBy")}</p>
+        <p className="mt-2 max-w-xl text-sm text-muted-ink">{t(locale, "tool.rankedBy")}</p>
         <div className="mt-6 flex flex-wrap gap-2">
           {passportRegions.map((r) => (
-            <button key={r} type="button" onClick={() => setRegion(r)} className={cn("rounded-full px-3 py-1 text-xs", region === r ? "bg-white text-black" : "bg-white/10 text-white/70")}>
+            <button key={r} type="button" onClick={() => setRegion(r)} className={cn("rounded-full px-3 py-1 text-xs", region === r ? "bg-[#16182b] text-white" : "border border-[#e3e5f2] bg-white text-[#4b5068]")}>
               {regionLabel(locale, r)}
             </button>
           ))}
           {(["rank", "visa", "name"] as const).map((s) => (
-            <button key={s} type="button" onClick={() => setSort(s)} className={cn("rounded-full border px-3 py-1 text-xs", sort === s ? "border-white" : "border-white/15 text-white/60")}>
+            <button key={s} type="button" onClick={() => setSort(s)} className={cn("rounded-full border px-3 py-1 text-xs", sort === s ? "border-[#16182b] bg-white" : "border-[#e3e5f2] bg-white text-muted-ink")}>
               {s === "rank" ? t(locale, "tool.rank") : s === "visa" ? t(locale, "tool.visaFree") : t(locale, "tool.name")}
             </button>
           ))}
@@ -143,9 +143,9 @@ export function PassportBoard({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t(locale, "citizen.search")}
-          className="mt-4 h-11 w-full rounded-full border border-white/15 bg-white/5 px-4 text-sm"
+          className="mt-4 h-11 w-full rounded-full border border-[#e3e5f2] bg-white px-4 text-sm text-[#16182b]"
         />
-        <p className="mt-4 text-xs text-white/40">{tf(locale, "tool.showing", { shown: rows.length, total: passportRanks.length })}</p>
+        <p className="mt-4 text-xs text-muted-ink">{tf(locale, "tool.showing", { shown: rows.length, total: passportRanks.length })}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((p) => (
             <button
@@ -155,12 +155,12 @@ export function PassportBoard({
                 if (p.name !== active.name) setCompare(active);
                 setActive(p);
               }}
-              className="rounded-2xl border border-white/10 bg-white/5 p-4 text-start hover:border-white/30"
+              className="rounded-2xl border border-[#e3e5f2] bg-white p-4 text-start hover:border-brand-200"
             >
-              <p className="text-[11px] tracking-[0.14em] text-amber-200/80">#{p.rank} · {t(locale, "tool.elite")}</p>
+              <p className="text-[11px] tracking-[0.14em] text-brand">#{p.rank} · {t(locale, "tool.elite")}</p>
               <p className="mt-1 font-medium">{label(p.name)}</p>
-              <p className="text-xs text-white/45">{tf(locale, "tool.regionScore", { region: regionLabel(locale, p.region), score: p.score })}</p>
-              <p className="mt-3 text-[11px] tracking-widest text-white/40">{t(locale, "tool.visaFree")}</p>
+              <p className="text-xs text-muted-ink">{tf(locale, "tool.regionScore", { region: regionLabel(locale, p.region), score: p.score })}</p>
+              <p className="mt-3 text-[11px] tracking-widest text-muted-ink">{t(locale, "tool.visaFree")}</p>
               <p className="text-lg font-semibold">{p.visaFree}</p>
             </button>
           ))}
@@ -169,21 +169,23 @@ export function PassportBoard({
 
       <section className="mx-auto max-w-3xl px-4 pb-16">
         <h2 className="font-serif text-3xl">{t(locale, "visa.faq")}</h2>
-        <Accordion className="mt-4">
+        <Accordion className="mt-4 rounded-3xl border border-[#e3e5f2] bg-white px-5">
           {faqs.map(([q, a]) => (
-            <AccordionItem key={q} value={q} className="border-white/10">
-              <AccordionTrigger className="text-white">{q}</AccordionTrigger>
-              <AccordionContent className="text-white/60">{a}</AccordionContent>
+            <AccordionItem key={q} value={q} className="border-[#e3e5f2]">
+              <AccordionTrigger>{q}</AccordionTrigger>
+              <AccordionContent className="text-body">{a}</AccordionContent>
             </AccordionItem>
           ))}
         </Accordion>
       </section>
 
-      <section className="bg-brand px-4 py-14 text-center text-white">
-        <h2 className="font-serif text-3xl">{t(locale, "tool.needVisa")}</h2>
-        <Link href={href("/tools/visa-requirements", locale)} className="mt-6 inline-flex rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black">
-          {t(locale, "home.explore")}
-        </Link>
+      <section className="px-4 pb-16">
+        <div className="mx-auto max-w-3xl rounded-[22px] border border-[#e3e5f2] bg-white px-6 py-10 text-center">
+          <h2 className="font-serif text-3xl">{t(locale, "tool.needVisa")}</h2>
+          <Link href={href("/tools/visa-requirements", locale)} className="mt-6 inline-flex rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-white">
+            {t(locale, "home.explore")}
+          </Link>
+        </div>
       </section>
     </div>
   );
@@ -192,9 +194,9 @@ export function PassportBoard({
 function Stat({ k, v, d }: { k: string; v: string; d?: string }) {
   return (
     <div className="px-4 py-2">
-      <p className="text-[11px] tracking-[0.16em] text-white/40 uppercase">{k}</p>
+      <p className="text-[11px] tracking-[0.16em] text-muted-ink uppercase">{k}</p>
       <p className="mt-2 text-2xl font-semibold">{v}</p>
-      {d && <p className="text-sm text-white/50">{d}</p>}
+      {d && <p className="text-sm text-body">{d}</p>}
     </div>
   );
 }
