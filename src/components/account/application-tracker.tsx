@@ -1,254 +1,379 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useState, type ReactNode } from "react";
 import { useLiveApplication } from "@/components/account/live-application";
-import { uploadDocumentAction } from "@/app/actions/apply";
-import { requestRefundAction } from "@/app/actions/inbox";
-import { documentGaps, isPastGuarantee } from "@/lib/application-rules";
+import {
+  BackLink,
+  Card,
+  CopyText,
+  Flag,
+  Pill,
+  SectionTitle,
+  StageTrack,
+  StatusPill,
+  bytes,
+  fileHref,
+  relativeDays,
+  relativeTime,
+  say,
+  secondaryButton,
+} from "@/components/account/ui";
+import { DocumentsCard } from "@/components/account/tracker/documents";
+import { localizeEvent } from "@/components/account/tracker/events";
+import { PaymentCard, RefundCard, refundEligible, type RefundStatus } from "@/components/account/tracker/payment";
+import { Timeline } from "@/components/account/tracker/timeline";
+import { daysUntil, isClosedStatus, targetCountdown } from "@/lib/account-insights";
+import { documentGaps } from "@/lib/application-rules";
 import { href, visaHref } from "@/lib/href";
-import { isArabicLocale, t, type MessageKey } from "@/lib/i18n";
+import { isArabicLocale, t } from "@/lib/i18n";
+import { localizedVisaLabel } from "@/lib/localize";
 import { nextStepText } from "@/lib/next-step";
-import { docLabel, localizedVisaLabel } from "@/lib/localize";
-import type { Application, ApplicationDocument, ApplicationEvent, ApplicationStatus, Traveler } from "@/lib/types";
-import { Heading, surfaceClass } from "@/components/motion/frame";
-import { formatAt, formatMoney } from "@/lib/visa";
+import type { Application, ApplicationDocument, ApplicationEvent, Payment, Traveler } from "@/lib/types";
+import { surfaceClass } from "@/components/motion/frame";
+import { formatDate, formatMoney, processingLabel } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
-const statusKeys: Record<ApplicationStatus, MessageKey> = {
-  draft: "status.draft",
-  payment_pending: "status.payment_pending",
-  submitted: "status.submitted",
-  in_review: "status.in_review",
-  filed: "status.filed",
-  approved: "status.approved",
-  rejected: "status.rejected",
-  cancelled: "status.cancelled",
-  refunded: "status.refunded",
-};
+type Cta = { label: string; to: string; anchor?: boolean; onClick?: () => void };
 
-function statusLabel(locale: string, status: string) {
-  const key = statusKeys[status as ApplicationStatus];
-  return key ? t(locale, key) : status;
-}
-
-export function ApplicationCard({ app, locale }: { app: Application; locale: string }) {
-  const late = isPastGuarantee(app.status, app.guaranteedAt);
+function Fact({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: ReactNode; tone?: "red" | "amber" | "green" }) {
   return (
-    <Link
-      href={href(`/account/applications/${app.id}`, locale)}
+    <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4 hover:bg-surface",
-        late ? "border-red-300 bg-red-50" : "border-line",
+        "min-w-0 rounded-2xl px-3.5 py-3",
+        tone === "red" ? "bg-rose-50 ring-1 ring-rose-200 ring-inset" : tone === "amber" ? "bg-amber-50 ring-1 ring-amber-200 ring-inset" : "bg-surface",
       )}
     >
-      <div>
-        <p className="font-medium">{app.destinationName}</p>
-        {app.visaLabel ? <p className="text-xs text-muted-ink">{localizedVisaLabel(app, locale)}</p> : null}
-        <p className="text-xs text-muted-ink">{app.reference}</p>
-        {late && <p className="mt-1 text-xs font-medium text-red-700">{t(locale, "account.late")}</p>}
+      <dt className="truncate text-xs text-muted-ink">{label}</dt>
+      <dd className={cn("mt-1 truncate text-sm font-semibold tabular-nums", tone === "red" ? "text-rose-800" : "text-[#16182b]")}>{value}</dd>
+      {sub ? (
+        <dd
+          className={cn(
+            "mt-0.5 truncate text-xs",
+            tone === "red" ? "font-medium text-rose-700" : tone === "amber" ? "font-medium text-amber-800" : tone === "green" ? "font-medium text-emerald-700" : "text-muted-ink",
+          )}
+        >
+          {sub}
+        </dd>
+      ) : null}
+    </div>
+  );
+}
+
+function VisaCard({ locale, application, files, readOnly }: { locale: string; application: Application; files: ApplicationDocument[]; readOnly: boolean }) {
+  const issuedAt = application.deliveredAt ?? files[0]?.createdAt ?? null;
+  return (
+    <section id="visa" className="min-w-0 scroll-mt-24 rounded-[22px] border border-emerald-200 bg-linear-to-br from-emerald-50 via-white to-white p-5 sm:p-6">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+          <svg viewBox="0 0 20 20" fill="none" className="size-5" aria-hidden>
+            <path d="m5 10.5 3.2 3.2L15 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold text-[#16182b]">{say(locale, "Your visa is ready", "تأشيرتك جاهزة")}</h2>
+          <p className="mt-0.5 text-sm leading-relaxed text-body">
+            {issuedAt ? `${say(locale, "Issued", "صدرت في")} ${formatDate(issuedAt, locale)} · ` : ""}
+            {say(locale, "Print a copy and keep it with your passport.", "اطبع نسخة واحتفظ بها مع جوازك.")}
+          </p>
+        </div>
       </div>
-      <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
-        {statusLabel(locale, app.status)}
-      </span>
-    </Link>
+      <ul className="mt-4 space-y-2">
+        {files.map((file) => (
+          <li key={file.id} className="flex min-w-0 items-center gap-3 rounded-2xl border border-emerald-100 bg-white p-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-[10px] font-semibold tracking-wide text-emerald-700">
+              {(file.mimeType ?? "").includes("pdf") ? "PDF" : say(locale, "FILE", "ملف")}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-[#16182b]" dir="auto">
+                {file.fileName}
+              </p>
+              <p className="text-xs text-muted-ink">
+                {[bytes(file.sizeBytes), formatDate(file.createdAt, locale)].filter(Boolean).join(" · ")}
+              </p>
+            </div>
+            <a
+              href={fileHref(file.storagePath)}
+              download={file.fileName}
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+            >
+              <svg viewBox="0 0 20 20" fill="none" className="size-3.5" aria-hidden>
+                <path d="M10 3.5v9m0 0 3.5-3.5M10 12.5 6.5 9M4 14v1.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {t(locale, "account.download")}
+            </a>
+          </li>
+        ))}
+      </ul>
+      {!readOnly ? (
+        <a href={`/api/account/visas/${application.id}/zip`} className={cn(secondaryButton, "mt-3 h-9 text-xs")}>
+          {say(locale, "Download all (ZIP)", "تحميل الكل (ZIP)")}
+        </a>
+      ) : null}
+    </section>
+  );
+}
+
+function SupportCard({ locale, reference, email, phone }: { locale: string; reference: string; email: string; phone: string }) {
+  return (
+    <Card>
+      <SectionTitle
+        title={say(locale, "Need help?", "تحتاج مساعدة؟")}
+        hint={say(locale, `Mention ${reference} so we find your file fast.`, `اذكر رقم الطلب ${reference} لنصل لملفك بسرعة.`)}
+      />
+      <div className="mt-4 grid gap-2">
+        <Link href={href("/contact", locale)} className={cn(secondaryButton, "w-full")}>
+          {say(locale, "Contact support", "تواصل مع الدعم")}
+        </Link>
+        <div className="flex min-w-0 flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+          {email ? (
+            <a href={`mailto:${email}?subject=${encodeURIComponent(reference)}`} className="truncate font-medium text-brand-700 hover:underline" dir="ltr">
+              {email}
+            </a>
+          ) : null}
+          {phone ? (
+            <a href={`tel:${phone.replace(/\s/g, "")}`} className="font-medium text-brand-700 hover:underline" dir="ltr">
+              {phone}
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </Card>
   );
 }
 
 export function ApplicationTracker({
   locale,
   application,
+  destinationName: destination,
   events,
   documents,
   travelers,
+  payments,
   refundStatus = null,
+  now,
+  readOnly = false,
+  support,
+  offer,
 }: {
   locale: string;
   application: Application;
+  destinationName: string;
   events: ApplicationEvent[];
   documents: ApplicationDocument[];
   travelers: Traveler[];
-  refundStatus?: "open" | "approved" | "declined" | null;
+  payments: Payment[];
+  refundStatus?: RefundStatus;
+  now: number;
+  readOnly?: boolean;
+  support: { email: string; phone: string };
+  offer?: ReactNode;
 }) {
-  useLiveApplication(application.id);
-  const [, start] = useTransition();
-  const late = isPastGuarantee(application.status, application.guaranteedAt);
-  const gaps = documentGaps(application.documentsRequired, travelers, documents);
-  return (
-    <div className={cn("mx-auto max-w-2xl px-4 py-10", surfaceClass(locale))}>
-      <Link href={href("/account", locale)} className="text-sm font-medium text-brand">
-        {t(locale, "account.back")}
-      </Link>
-      <div className="mt-4">
-        <Heading title={application.destinationName} eyebrow={application.reference} />
-      </div>
-      {application.visaLabel ? <p className="mt-3 text-sm text-muted-ink">{t(locale, "account.visaType")}: {localizedVisaLabel(application, locale)}</p> : null}
-      <p className="mt-3 inline-flex rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-700">
-        {statusLabel(locale, application.status)}
-      </p>
-      <p className="mt-3 rounded-2xl bg-[#f6f7fb] px-4 py-3 text-sm leading-relaxed text-[#16182b]">
-        {nextStepText(application.status, isArabicLocale(locale))}
-      </p>
-      {application.guaranteedAt && (
-        <p className={cn("mt-1 text-sm", late ? "font-medium text-red-700" : "text-body")}>
-          {t(locale, "account.guaranteed")} {formatAt(application.guaranteedAt)}
-          {late ? ` · ${t(locale, "account.late")}` : ""}
-        </p>
-      )}
-      <p className="mt-1 text-sm text-body">
-        {t(locale, "account.total")} {formatMoney(application.totalAmount, application.currency)}
-      </p>
-      {application.status === "draft" || application.status === "payment_pending" ? (
-        <Link
-          href={href(`/apply/${application.id}`, locale)}
-          className="mt-4 inline-flex rounded-full bg-brand px-4 py-2 text-sm text-white"
-        >
-          {t(locale, "account.continue")}
-        </Link>
-      ) : null}
-      {(application.status === "approved" || application.status === "rejected" || application.status === "cancelled" || application.status === "refunded") && (
-        <Link href={visaHref(application.destinationSlug, locale)} className="mt-4 ms-2 inline-flex rounded-full border border-line px-4 py-2 text-sm">
-          {t(locale, "account.reapply")}
-        </Link>
-      )}
-      <RefundRequestBox locale={locale} application={application} refundStatus={refundStatus} />
-      {documents.some((document) => document.kind === "issued_visa") && (
-        <div className="mt-6 rounded-xl border border-line px-3 py-3 text-sm">
-          <p className="font-medium">{t(locale, "account.issued")}</p>
-          <a href={`/api/account/visas/${application.id}/zip`} className="mt-1 inline-block text-xs text-brand">
-            {t(locale, "account.downloadAll")}
-          </a>
-          {documents
-            .filter((document) => document.kind === "issued_visa")
-            .map((document) => (
-              <a
-                key={document.id}
-                href={`/api/files/${document.storagePath.split("/").map((part) => encodeURIComponent(part)).join("/")}`}
-                className="mt-1 block text-brand"
-                target="_blank"
-                rel="noreferrer"
-              >
-                {document.fileName}
-              </a>
-            ))}
-        </div>
-      )}
-      {documents.filter((document) => document.kind !== "issued_visa").length > 0 && (
-        <ul className="mt-6 space-y-2 text-sm">
-          {documents
-            .filter((document) => document.kind !== "issued_visa")
-            .map((document) => (
-            <li key={document.id} className="rounded-xl border border-line px-3 py-2">
-              {docLabel(document.kind, locale)} · {document.fileName}
-              {document.status === "rejected" && (
-                <span className="mt-1 block text-xs text-red-600">
-                  {t(locale, "account.docRejected")}{document.rejectReason ? `: ${document.rejectReason}` : ""}
-                  <label className="mt-2 block">
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,application/pdf,.heic"
-                      className="text-xs"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
-                        const body = new FormData();
-                        body.set("locale", locale);
-                        body.set("applicationId", document.applicationId);
-                        body.set("travelerId", document.travelerId ?? "");
-                        body.set("kind", document.kind);
-                        body.set("file", file);
-                        start(async () => {
-                          await uploadDocumentAction(body);
-                        });
-                      }}
-                    />
-                  </label>
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {gaps.length > 0 && (
-        <ul className="mt-4 space-y-1 text-sm text-red-700">
-          {gaps.map((gap) => (
-            <li key={`${gap.travelerId}-${gap.kind}`}>
-              {gap.travelerName}: {docLabel(gap.kind, locale)}{" "}
-              {gap.reason === "rejected"
-                ? `${t(locale, "account.docRejected")}${gap.rejectReason ? ` — ${gap.rejectReason}` : ""}`
-                : t(locale, "account.docMissing")}
-            </li>
-          ))}
-        </ul>
-      )}
-      <ol className="relative mt-8 space-y-4">
-        <span className="absolute top-2 bottom-2 start-[7px] w-[2px] rounded-full bg-[#e6e7f2]" />
-        {events.map((e) => (
-          <li key={e.id} className="relative flex gap-4">
-            <span className={cn("relative z-10 mt-1.5 size-4 shrink-0 rounded-full border-2 border-white", e.onTime ? "bg-success" : "bg-[#ffd873]")} />
-            <div className="min-w-0 flex-1 rounded-2xl border border-line bg-white px-4 py-3">
-              <p className="font-medium">{e.title}</p>
-              {e.description && <p className="text-sm text-body">{e.description}</p>}
-              <p className="text-xs text-muted-ink">
-                {formatAt(e.createdAt, locale)}
-                {e.onTime ? ` · ${t(locale, "account.onTime")}` : ""}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}
+  const app = application;
+  const arabic = isArabicLocale(locale);
+  const issued = documents.filter((document) => document.kind === "issued_visa");
+  const closed = isClosedStatus(app.status);
+  const live = !closed || (app.status === "approved" && !issued.length);
+  useLiveApplication(app.id, live);
+  const [refundOpen, setRefundOpen] = useState(false);
 
-function RefundRequestBox({
-  locale,
-  application,
-  refundStatus,
-}: {
-  locale: string;
-  application: Application;
-  refundStatus: "open" | "approved" | "declined" | null;
-}) {
-  const [reason, setReason] = useState("");
-  const [status, setStatus] = useState(refundStatus);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const eligible = Boolean(application.paidAt) && application.status !== "refunded" && application.status !== "cancelled" && application.status !== "draft";
-  if (status === "open" || status === "approved") {
-    return <p className="mt-6 rounded-xl bg-surface px-3 py-3 text-sm">{t(locale, "account.refundSent")}</p>;
+  const visaLabel = app.visaLabel ? localizedVisaLabel(app, locale) : "";
+  const countdown = targetCountdown(app.status, app.guaranteedAt, new Date(now));
+  const gaps = documentGaps(
+    app.documentsRequired,
+    travelers,
+    documents.filter((document) => document.kind !== "issued_visa"),
+  );
+  const rejectedCount = gaps.filter((gap) => gap.reason === "rejected").length;
+  const missingCount = gaps.length - rejectedCount;
+  const canRefund = !readOnly && refundEligible(app) && !refundStatus;
+  const money = (amount: number) => formatMoney(amount, app.currency, locale);
+  const entries = [...events].reverse().map((event) => localizeEvent(event, app, locale, destination));
+
+  const openRefund = () => setRefundOpen(true);
+  let nextText = nextStepText(app.status, arabic);
+  let cta: Cta | null = null;
+  if (app.status === "draft") cta = { label: t(locale, "account.continue"), to: href(`/apply/${app.id}`, locale) };
+  else if (app.status === "payment_pending") cta = { label: say(locale, "Complete payment", "أكمل الدفع"), to: href(`/apply/${app.id}`, locale) };
+  else if (!closed && rejectedCount) {
+    nextText = say(
+      locale,
+      rejectedCount === 1 ? "One document needs a new copy. Upload it below and we continue right away." : `${rejectedCount} documents need a new copy. Upload them below and we continue right away.`,
+      rejectedCount === 1 ? "مستند واحد يحتاج نسخة جديدة. ارفعه بالأسفل لنكمل فوراً." : `${rejectedCount} مستندات تحتاج نسخاً جديدة. ارفعها بالأسفل لنكمل فوراً.`,
+    );
+    cta = { label: say(locale, "Fix documents", "أصلح المستندات"), to: "#documents", anchor: true };
+  } else if (!closed && missingCount) {
+    nextText = say(locale, "A required document is missing from the file.", "ينقص الملف مستند مطلوب.");
+    cta = { label: say(locale, "See documents", "عرض المستندات"), to: "#documents", anchor: true };
+  } else if (app.status === "approved" && issued.length) {
+    nextText = say(locale, "Your visa is ready. Download it and keep a printed copy with your passport.", "تأشيرتك جاهزة. حمّلها واحتفظ بنسخة مطبوعة مع جوازك.");
+    cta = { label: say(locale, "Download visa", "تحميل التأشيرة"), to: "#visa", anchor: true };
+  } else if (app.status === "rejected" || app.status === "refunded" || app.status === "cancelled") {
+    cta = { label: t(locale, "account.reapply"), to: visaHref(app.destinationSlug, locale) };
+  } else if (countdown?.late && canRefund) {
+    nextText = say(
+      locale,
+      "We passed the target date. The team is still on it, and you can ask for a refund.",
+      "تجاوزنا الموعد المستهدف. الفريق ما زال يتابع الطلب، ويمكنك طلب استرداد.",
+    );
+    cta = { label: t(locale, "account.refund"), to: "#refund", anchor: true, onClick: openRefund };
   }
-  if (status === "declined") {
-    return <p className="mt-6 text-sm text-body">{t(locale, "account.refundDeclined")}</p>;
+  if (readOnly) cta = null;
+
+  const hours = app.express ? (app.visaDetails?.expressHours ?? app.visaDetails?.processingHours ?? null) : (app.visaDetails?.processingHours ?? null);
+  const departureDays = daysUntil(app.departureDate, new Date(now));
+  const targetAfterTrip =
+    !closed && app.departureDate && app.guaranteedAt && new Date(app.guaranteedAt).getTime() > new Date(`${app.departureDate}T23:59:59`).getTime();
+  const onTimeDelivery = app.deliveredAt && app.guaranteedAt ? new Date(app.deliveredAt).getTime() <= new Date(app.guaranteedAt).getTime() : null;
+  const names = travelers.map((traveler) => traveler.firstName).filter(Boolean).join(arabic ? "، " : ", ");
+  const travellerCount = travelers.length || app.travelerCount;
+
+  let target: ReactNode;
+  if (app.status === "draft" || app.status === "payment_pending") {
+    target = (
+      <Fact
+        label={t(locale, "account.guaranteed")}
+        value={say(locale, "Set at payment", "يُحدد عند الدفع")}
+        sub={hours !== null ? say(locale, `About ${processingLabel(hours, locale)} after paying`, `حوالي ${processingLabel(hours, locale)} بعد الدفع`) : undefined}
+      />
+    );
+  } else if (countdown) {
+    target = (
+      <Fact
+        label={t(locale, "account.guaranteed")}
+        value={formatDate(app.guaranteedAt!, locale)}
+        sub={countdown.late ? `${say(locale, "Late", "متأخر")} · ${relativeTime(locale, app.guaranteedAt!, now)}` : relativeDays(locale, countdown.days)}
+        tone={countdown.late ? "red" : countdown.days <= 1 ? "amber" : undefined}
+      />
+    );
+  } else if (app.status === "approved" && app.deliveredAt) {
+    target = (
+      <Fact
+        label={say(locale, "Delivered", "تاريخ التسليم")}
+        value={formatDate(app.deliveredAt, locale)}
+        sub={onTimeDelivery === null ? undefined : onTimeDelivery ? t(locale, "account.onTime") : say(locale, "After the target date", "بعد الموعد المستهدف")}
+        tone={onTimeDelivery ? "green" : undefined}
+      />
+    );
+  } else {
+    target = <Fact label={t(locale, "account.guaranteed")} value={app.guaranteedAt ? formatDate(app.guaranteedAt, locale) : "—"} />;
   }
-  if (!eligible) return null;
+
   return (
-    <form
-      className="mt-6 grid gap-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        setError(null);
-        start(async () => {
-          const result = await requestRefundAction(locale, application.id, reason);
-          if (!result.ok) setError(result.error);
-          else setStatus(result.status);
-        });
-      }}
-    >
-      <label className="text-sm font-medium">
-        {t(locale, "account.refundReason")}
-        <textarea
-          required
-          minLength={8}
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          className="mt-1 w-full rounded-xl border border-line px-3 py-2"
-        />
-      </label>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button disabled={pending} className="h-10 w-fit rounded-full bg-brand px-4 text-sm text-white disabled:opacity-60">
-        {t(locale, "account.refund")}
-      </button>
-    </form>
+    <div className={cn("mx-auto w-full min-w-0 max-w-6xl px-4 py-8 sm:py-10", surfaceClass(locale))}>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <BackLink locale={locale} to={href("/account", locale)}>
+          {t(locale, "account.back")}
+        </BackLink>
+        {live ? (
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-ink">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+            </span>
+            {say(locale, "Updates live", "يتحدّث تلقائياً")}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-5 grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <div className="min-w-0 space-y-5">
+          <Card className="sm:p-6">
+            <div className="flex min-w-0 items-start gap-4">
+              <Flag src={app.destinationFlag} className="size-12 sm:size-14" />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+                  <h1 className="min-w-0 text-2xl font-semibold tracking-tight text-[#16182b] sm:text-[28px]">{destination}</h1>
+                  <StatusPill status={app.status} locale={locale} />
+                </div>
+                <p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-body">
+                  {visaLabel ? <span className="min-w-0">{visaLabel}</span> : null}
+                  {app.express ? <Pill tone="amber">{say(locale, "Express", "سريع")}</Pill> : null}
+                </p>
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-ink">
+                  {say(locale, "Reference", "رقم الطلب")}
+                  <CopyText value={app.reference} locale={locale} />
+                </p>
+              </div>
+            </div>
+            <StageTrack status={app.status} locale={locale} className="mt-6" />
+            <dl className="mt-6 grid grid-cols-2 gap-2.5 xl:grid-cols-4">
+              {target}
+              <Fact
+                label={say(locale, "Departure", "موعد السفر")}
+                value={app.departureDate ? formatDate(app.departureDate, locale) : "—"}
+                sub={
+                  !app.departureDate
+                    ? say(locale, "Not set", "غير محدد")
+                    : targetAfterTrip
+                      ? say(locale, "Target is after your trip", "الموعد بعد سفرك")
+                      : !closed && departureDays !== null && departureDays >= 0
+                        ? relativeDays(locale, departureDays)
+                        : undefined
+                }
+                tone={targetAfterTrip ? "amber" : undefined}
+              />
+              <Fact label={t(locale, "account.travelers")} value={travellerCount} sub={names || undefined} />
+              <Fact
+                label={t(locale, "account.total")}
+                value={money(app.totalAmount)}
+                sub={app.paidAt ? t(locale, "account.payPaid") : say(locale, "Not paid yet", "لم يُدفع بعد")}
+                tone={app.paidAt ? "green" : undefined}
+              />
+            </dl>
+            {countdown?.late ? (
+              <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl bg-rose-50 px-4 py-3 ring-1 ring-rose-200 ring-inset">
+                <p className="min-w-0 text-sm leading-relaxed text-rose-800">
+                  <span className="font-semibold">{t(locale, "account.late")}.</span>{" "}
+                  {refundStatus === "open"
+                    ? say(locale, "Your refund request is under review.", "طلب الاسترداد قيد المراجعة.")
+                    : canRefund
+                      ? say(locale, "You can ask for a refund.", "يمكنك طلب استرداد.")
+                      : say(locale, "The team is working on it now.", "الفريق يتابع الطلب الآن.")}
+                </p>
+                {canRefund ? (
+                  <a href="#refund" onClick={openRefund} className="shrink-0 text-sm font-semibold text-rose-700 underline-offset-4 hover:underline">
+                    {t(locale, "account.refund")}
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+          </Card>
+
+          <section className="min-w-0 rounded-[22px] bg-[#16182b] p-5 text-white sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-[#ffd873]">{t(locale, "account.next")}</p>
+              <p className="mt-1.5 text-[15px] leading-relaxed text-white/90">{nextText}</p>
+            </div>
+            {cta ? (
+              cta.anchor ? (
+                <a href={cta.to} onClick={cta.onClick} className="mt-4 inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[#ffd873] px-5 text-sm font-semibold text-black transition-opacity hover:opacity-90 sm:mt-0">
+                  {cta.label}
+                </a>
+              ) : (
+                <Link href={cta.to} className="mt-4 inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[#ffd873] px-5 text-sm font-semibold text-black transition-opacity hover:opacity-90 sm:mt-0">
+                  {cta.label}
+                </Link>
+              )
+            ) : null}
+          </section>
+
+          {issued.length ? <VisaCard locale={locale} application={app} files={issued} readOnly={readOnly} /> : null}
+
+          <DocumentsCard locale={locale} application={app} travelers={travelers} documents={documents} readOnly={readOnly} />
+        </div>
+
+        <aside className="min-w-0 space-y-5 lg:row-span-2">
+          <PaymentCard locale={locale} application={app} payments={payments} readOnly={readOnly} />
+          <RefundCard locale={locale} application={app} refundStatus={refundStatus} open={refundOpen} onToggle={setRefundOpen} readOnly={readOnly} />
+          <SupportCard locale={locale} reference={app.reference} email={support.email} phone={support.phone} />
+          {offer}
+        </aside>
+
+        <div className="min-w-0 lg:col-start-1">
+          <Timeline locale={locale} entries={entries} now={now} />
+        </div>
+      </div>
+    </div>
   );
 }

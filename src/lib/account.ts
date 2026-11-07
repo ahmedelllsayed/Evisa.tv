@@ -18,6 +18,14 @@ export type UserPaymentRow = {
   status: "pending" | "paid" | "failed" | "refunded";
   createdAt: string;
   merchantOrderId: string | null;
+  refundedAmount: number;
+  receiptNo: string | null;
+};
+
+export type ApplicationGapCount = {
+  applicationId: string;
+  missing: number;
+  rejected: number;
 };
 
 export type IssuedVisaRow = {
@@ -62,6 +70,7 @@ export type AccountNotification = {
 export type AccountProfileSummary = {
   firstName: string;
   lastName: string;
+  dateOfBirth: string;
   phone: string;
   nationality: string;
   passportNumber: string;

@@ -10,7 +10,7 @@ import type {
   Traveler,
   VisaDetails,
 } from "@/lib/types";
-import type { AccountStats, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
+import type { AccountStats, ApplicationGapCount, IssuedVisaRow, UserFileRow, UserPaymentRow } from "@/lib/account";
 import { canTransition, transitionError } from "@/lib/application-status";
 import { documentsReadyToFile } from "@/lib/application-rules";
 import { statusUpdateMail } from "@/lib/email-template";
@@ -36,7 +36,7 @@ const requiredDocsSql = `
   end`;
 
 const APP_SELECT = `
-  select a.*, d.name as destination_name, d.name_ar as destination_name_ar, d.slug as destination_slug, d.flag as destination_flag,
+  select a.*, d.name as destination_name, d.name_ar as destination_name_ar, d.code as destination_code, d.slug as destination_slug, d.flag as destination_flag,
          d.image as destination_image, ${requiredDocsSql} as destination_documents, p.email as user_email,
          assignee.email as assignee_email
   from applications a
@@ -69,6 +69,7 @@ function toApplication(r: Row): Application {
     destinationId: String(r.destination_id),
     destinationName: String(r.destination_name),
     destinationNameAr: (r.destination_name_ar as string) ?? null,
+    destinationCode: r.destination_code ? String(r.destination_code).trim() : null,
     destinationSlug: String(r.destination_slug),
     destinationFlag: (r.destination_flag as string) ?? null,
     destinationImage: (r.destination_image as string) ?? null,
@@ -236,10 +237,42 @@ export async function accountStats(userId: string): Promise<AccountStats> {
   };
 }
 
+/** Missing and rejected required documents per open application of one customer. */
+export async function listApplicationGapsForUser(userId: string): Promise<ApplicationGapCount[]> {
+  const rows = await sql<{ id: string; missing: number; rejected: number }>(
+    `select a.id,
+       (select count(*)::int from documents doc
+        where doc.application_id = a.id and doc.status = 'rejected' and doc.kind <> 'issued_visa') as rejected,
+       (select count(*)::int
+        from travelers t
+        cross join lateral jsonb_array_elements_text(
+          case
+            when vo.documents is not null and jsonb_typeof(vo.documents) = 'array' and jsonb_array_length(vo.documents) > 0 then vo.documents
+            when jsonb_typeof(d.documents) = 'array' and jsonb_array_length(d.documents) > 0 then d.documents
+            else '["passport"]'::jsonb
+          end
+        ) as req(kind)
+        where t.application_id = a.id
+          and not exists (
+            select 1 from documents doc
+            where doc.application_id = a.id and doc.traveler_id = t.id and doc.kind = req.kind
+          )) as missing
+     from applications a
+     join destinations d on d.id = a.destination_id
+     left join visa_options vo on vo.id = a.visa_option_id
+     where a.user_id = $1 and a.status not in ('approved', 'rejected', 'cancelled', 'refunded')`,
+    [userId],
+  );
+  return rows
+    .map((row) => ({ applicationId: String(row.id), missing: Number(row.missing) || 0, rejected: Number(row.rejected) || 0 }))
+    .filter((row) => row.missing > 0 || row.rejected > 0);
+}
+
 export async function listPaymentsForUser(userId: string): Promise<UserPaymentRow[]> {
   const rows = await sql(
     `select p.id, p.application_id, p.provider, p.provider_ref, p.amount, p.currency, p.status, p.created_at,
-            p.merchant_order_id, a.reference, d.name as destination_name, d.slug as destination_slug
+            p.merchant_order_id, p.refunded_amount, a.reference, d.name as destination_name, d.slug as destination_slug,
+            (select receipt_no from payment_receipts r where r.payment_id = p.id) as receipt_no
      from payments p
      join applications a on a.id = p.application_id
      join destinations d on d.id = a.destination_id
@@ -260,6 +293,8 @@ export async function listPaymentsForUser(userId: string): Promise<UserPaymentRo
     status: row.status as UserPaymentRow["status"],
     createdAt: iso(row.created_at),
     merchantOrderId: (row.merchant_order_id as string) ?? null,
+    refundedAmount: num(row.refunded_amount),
+    receiptNo: (row.receipt_no as string) ?? null,
   }));
 }
 
@@ -483,18 +518,19 @@ export async function setStatus(
   id: string,
   status: ApplicationStatus,
   event?: { title: string; description?: string; onTime?: boolean },
-  options?: { actorId?: string | null; actorEmail?: string | null; notify?: boolean },
+  options?: { actorId?: string | null; actorEmail?: string | null; notify?: boolean; source?: "admin" | "payment" },
 ) {
+  const source = options?.source ?? "admin";
   const current = await getApplication(id);
   if (!current) return { ok: false as const, error: "الطلب غير موجود." };
   if (current.status === status) return { ok: true as const };
   if (current.paidAt && (status === "draft" || status === "payment_pending")) {
     return { ok: false as const, error: "لا يمكن إرجاع طلب مدفوع إلى المسودة." };
   }
-  if (status === "refunded") {
+  if (status === "refunded" && source !== "payment") {
     return { ok: false as const, error: "الاسترداد يتم من تبويب الدفع فقط، بعد تنفيذ المبلغ لدى مزود الدفع." };
   }
-  if (!canTransition(current.status, status)) return { ok: false as const, error: transitionError(current.status, status) };
+  if (!canTransition(current.status, status, source)) return { ok: false as const, error: transitionError(current.status, status) };
   if (status === "filed") {
     const [travelers, documents] = await Promise.all([listTravelers(id), listDocuments(id)]);
     const customerDocs = documents.filter((document) => document.kind !== "issued_visa");
@@ -1207,9 +1243,14 @@ async function finishPaidApplication(applicationId: string) {
 export async function markRefunded(applicationId: string, paymentId: string) {
   const updated = await sql("update payments set status = 'refunded', refunded_amount = amount where id = $1 and status = 'paid' returning id", [paymentId]);
   if (!updated.length) return { ok: false as const, error: "لا توجد دفعة مكتملة للاسترداد." };
-  return setStatus(applicationId, "refunded", {
-    title: "Refunded",
-    description: "The payment was marked refunded under the refunds policy.",
-    onTime: true,
-  });
+  return setStatus(
+    applicationId,
+    "refunded",
+    {
+      title: "Refunded",
+      description: "The payment was marked refunded under the refunds policy.",
+      onTime: true,
+    },
+    { source: "payment" },
+  );
 }

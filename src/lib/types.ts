@@ -210,6 +210,7 @@ export type Application = {
   destinationId: string;
   destinationName: string;
   destinationNameAr?: string | null;
+  destinationCode?: string | null;
   destinationSlug: string;
   destinationFlag: string | null;
   destinationImage: string | null;

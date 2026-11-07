@@ -2,7 +2,15 @@ import { localizedMetadata } from "@/lib/seo";
 import type { Page } from "@/lib/page";
 import { AccountDashboard } from "@/components/account/account-dashboard";
 import { requireUser } from "@/lib/auth";
-import { accountStats, listApplicationsForUser, listDocumentsForUser, listIssuedVisasForUser, listPaymentsForUser } from "@/lib/data/applications";
+import {
+  accountStats,
+  listApplicationGapsForUser,
+  listApplicationsForUser,
+  listDocumentsForUser,
+  listIssuedVisasForUser,
+  listPaymentsForUser,
+} from "@/lib/data/applications";
+import { databaseNow } from "@/lib/data/admin-applications";
 import { listRefundsForUser } from "@/lib/data/inbox";
 import { listNotifications } from "@/lib/data/notifications";
 import { ensureReferralCode, referralLink } from "@/lib/data/growth";
@@ -17,7 +25,7 @@ export default async function AccountPage({ params, searchParams }: Page) {
   const { locale } = await params;
   const query = await searchParams;
   const user = await requireUser(locale, `/${locale}/account`);
-  const [apps, visas, documents, payments, notifications, stats, vault, refunds] = await Promise.all([
+  const [apps, visas, documents, payments, notifications, stats, vault, refunds, gaps, now] = await Promise.all([
     listApplicationsForUser(user.id),
     listIssuedVisasForUser(user.id),
     listDocumentsForUser(user.id),
@@ -26,6 +34,8 @@ export default async function AccountPage({ params, searchParams }: Page) {
     accountStats(user.id),
     getProfileVault(user.id),
     listRefundsForUser(user.id),
+    listApplicationGapsForUser(user.id),
+    databaseNow(),
   ]);
   const referral = referralLink(await ensureReferralCode(user.id));
   const tab = typeof query.tab === "string" ? query.tab : "overview";
@@ -34,9 +44,11 @@ export default async function AccountPage({ params, searchParams }: Page) {
       locale={locale}
       email={user.email}
       initialTab={tab}
+      now={new Date(now).getTime()}
       apps={apps}
       visas={visas}
       documents={documents}
+      gaps={gaps}
       profileDocuments={vault?.documents ?? []}
       payments={payments}
       refunds={refunds.map((refund) => ({ applicationId: refund.applicationId, status: refund.status }))}
@@ -45,6 +57,7 @@ export default async function AccountPage({ params, searchParams }: Page) {
       profile={{
         firstName: vault?.firstName ?? "",
         lastName: vault?.lastName ?? "",
+        dateOfBirth: vault?.dateOfBirth ?? "",
         phone: vault?.phone ?? user.phone ?? "",
         nationality: vault?.nationality ?? "",
         passportNumber: vault?.passportNumber ?? "",

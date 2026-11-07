@@ -3,49 +3,74 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { deleteProfileDocument, saveProfileDocument, saveProfileIdentity } from "@/lib/data/profile-vault";
-import { ALLOWED_TYPES, MAX_UPLOAD_BYTES, storeFile } from "@/lib/storage";
+import { isArabicLocale, t } from "@/lib/i18n";
+import { storeFile } from "@/lib/storage";
+import { acceptedUpload } from "@/lib/uploads";
+import { marketToday, normalizeProfile, profileErrors, readProfileForm, type ProfileErrors, type ProfileValues } from "@/components/account/profile/rules";
 
-export async function updateProfileAction(locale: string, formData: FormData) {
-  const user = await requireUser(locale);
-  const nationality = String(formData.get("nationality") ?? "").trim().toUpperCase();
-  if (nationality && !/^[A-Z]{2}$/.test(nationality)) return { ok: false as const, error: "Choose a nationality." };
-  await saveProfileIdentity(user.id, {
-    firstName: String(formData.get("firstName") ?? ""),
-    lastName: String(formData.get("lastName") ?? ""),
-    sex: String(formData.get("sex") ?? ""),
-    dateOfBirth: String(formData.get("dateOfBirth") ?? ""),
-    nationality,
-    passportNumber: String(formData.get("passportNumber") ?? ""),
-    passportExpiry: String(formData.get("passportExpiry") ?? ""),
-    phone: String(formData.get("phone") ?? ""),
-  });
-  revalidatePath(`/${locale}/account/profile`);
-  return { ok: true as const };
+export type ProfileSaveResult = { ok: true; values: ProfileValues } | { ok: false; error: string; fields?: ProfileErrors };
+export type ProfileFileResult = { ok: true } | { ok: false; error: string };
+
+function pick(locale: string, en: string, ar: string) {
+  return isArabicLocale(locale) ? ar : en;
 }
 
-export async function uploadProfileDocumentAction(formData: FormData) {
+function refresh(locale: string) {
+  revalidatePath(`/${locale}/account/profile`);
+  revalidatePath(`/${locale}/account`);
+}
+
+export async function updateProfileAction(locale: string, formData: FormData): Promise<ProfileSaveResult> {
+  const user = await requireUser(locale, `/${locale}/account/profile`);
+  const raw = readProfileForm(formData);
+  const fields = profileErrors(raw, marketToday(), locale);
+  if (Object.keys(fields).length) {
+    return { ok: false, error: pick(locale, "Check the highlighted fields.", "راجع الحقول المحددة."), fields };
+  }
+  const values = normalizeProfile(raw);
+  try {
+    await saveProfileIdentity(user.id, values);
+  } catch {
+    return { ok: false, error: pick(locale, "We couldn't save your profile. Try again.", "تعذّر حفظ الملف. حاول مرة أخرى.") };
+  }
+  refresh(locale);
+  return { ok: true, values };
+}
+
+export async function uploadProfileDocumentAction(formData: FormData): Promise<ProfileFileResult> {
   const locale = String(formData.get("locale") ?? "");
-  const kind = String(formData.get("kind") ?? "");
+  const kind = String(formData.get("kind") ?? "").trim();
   const file = formData.get("file");
   const user = await requireUser(locale, `/${locale}/account/profile`);
-  if (!kind || kind === "issued_visa") return { ok: false as const, error: "Choose a document type." };
-  if (!(file instanceof File) || !file.size) return { ok: false as const, error: "Choose a file." };
-  if (file.size > MAX_UPLOAD_BYTES) return { ok: false as const, error: "File must be under 10MB." };
-  if (!ALLOWED_TYPES.includes(file.type)) return { ok: false as const, error: "Use a JPG, PNG, WebP or PDF." };
-  const storagePath = await storeFile(user.id, "profile", file);
-  await saveProfileDocument(user.id, {
-    kind,
-    storagePath,
-    fileName: file.name,
-    mimeType: file.type,
-    sizeBytes: file.size,
-  });
-  revalidatePath(`/${locale}/account/profile`);
-  return { ok: true as const };
+  if (!kind || kind.length > 200 || kind === "issued_visa") {
+    return { ok: false, error: pick(locale, "This document type can't be saved to your profile.", "لا يمكن حفظ هذا النوع من المستندات في ملفك.") };
+  }
+  if (!(file instanceof File) || !file.size) return { ok: false, error: pick(locale, "Choose a file to upload.", "اختر ملفاً لرفعه.") };
+  const checked = await acceptedUpload(file);
+  if (!checked.ok) return { ok: false, error: t(locale, checked.error) };
+  try {
+    const storagePath = await storeFile(user.id, "profile", checked.file);
+    await saveProfileDocument(user.id, {
+      kind,
+      storagePath,
+      fileName: checked.file.name,
+      mimeType: checked.file.type,
+      sizeBytes: checked.file.size,
+    });
+  } catch {
+    return { ok: false, error: pick(locale, "Upload failed. Try again.", "تعذّر الرفع. حاول مرة أخرى.") };
+  }
+  refresh(locale);
+  return { ok: true };
 }
 
-export async function deleteProfileDocumentAction(locale: string, kind: string) {
+export async function deleteProfileDocumentAction(locale: string, kind: string): Promise<ProfileFileResult> {
   const user = await requireUser(locale, `/${locale}/account/profile`);
-  await deleteProfileDocument(user.id, kind);
-  revalidatePath(`/${locale}/account/profile`);
+  try {
+    await deleteProfileDocument(user.id, kind);
+  } catch {
+    return { ok: false, error: pick(locale, "We couldn't remove the file. Try again.", "تعذّر حذف الملف. حاول مرة أخرى.") };
+  }
+  refresh(locale);
+  return { ok: true };
 }

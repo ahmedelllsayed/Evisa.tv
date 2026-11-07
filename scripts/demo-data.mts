@@ -12,16 +12,65 @@ const db = await getDb();
 await migrate(db);
 await seed(db);
 
-const [{ n }] = await db.query<{ n: number }>("select count(*)::int as n from applications where reference like 'DEMO-%'");
-if (n > 0) {
-  console.log(`demo data already present (${n} applications). Delete rows with reference DEMO-* to rebuild.`);
-  process.exit(0);
-}
-
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
   "base64",
 );
+const pdf = Buffer.from(
+  "%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF",
+);
+
+/** Issued visas, notifications and saved passport details for the customer account pages. Safe to re-run. */
+async function accountExtras() {
+  const approved = await db.query<{ id: string; user_id: string; reference: string }>(
+    `select a.id, a.user_id, a.reference from applications a
+     where a.reference like 'DEMO-%' and a.status = 'approved'
+       and not exists (select 1 from documents doc where doc.application_id = a.id and doc.kind = 'issued_visa')`,
+  );
+  for (const app of approved) {
+    const storagePath = `${app.user_id}/${app.id}/evisa-${app.reference}.pdf`;
+    await db.query("insert into stored_files (path, bytes, mime) values ($1,$2,'application/pdf') on conflict (path) do nothing", [storagePath, pdf]);
+    await db.query(
+      `insert into documents (application_id, traveler_id, kind, storage_path, file_name, mime_type, size_bytes, status, created_at)
+       select $1, null, 'issued_visa', $2, $3, 'application/pdf', $4, 'verified', coalesce(delivered_at, now()) from applications where id = $1`,
+      [app.id, storagePath, `evisa-${app.reference}.pdf`, pdf.length],
+    );
+  }
+  const [{ notes }] = await db.query<{ notes: number }>(
+    "select count(*)::int as notes from user_notifications un join applications a on a.id = un.application_id where a.reference like 'DEMO-%'",
+  );
+  if (!notes) {
+    await db.query(
+      `insert into user_notifications (user_id, application_id, title, body, read_at, created_at)
+       select a.user_id, a.id,
+              a.reference || ': ' || case a.status when 'approved' then 'تمت الموافقة' when 'submitted' then 'تم الاستلام' when 'in_review' then 'قيد المراجعة'
+                                                   when 'filed' then 'جاهز للتقديم اليدوي' when 'rejected' then 'مرفوض' else a.status end,
+              'آخر تحديث على طلبك ' || a.reference || '.',
+              case when a.status in ('approved', 'rejected') then null else a.updated_at + interval '2 hours' end,
+              a.updated_at
+       from applications a where a.reference like 'DEMO-%' and a.status not in ('draft', 'payment_pending', 'cancelled')`,
+    );
+    await db.query(
+      `insert into user_notifications (user_id, application_id, title, body, created_at)
+       select a.user_id, a.id, a.reference || ': مستند مرفوض', 'رُفض مستند في الطلب ' || a.reference || '. الصورة غير واضحة والخلفية ليست بيضاء.', now() - interval '3 hours'
+       from applications a where a.reference like 'DEMO-%'
+         and exists (select 1 from documents doc where doc.application_id = a.id and doc.status = 'rejected')`,
+    );
+  }
+  await db.query(
+    `update profiles set first_name = split_part(full_name, ' ', 1), last_name = split_part(full_name, ' ', 2), sex = 'male',
+       date_of_birth = date '1991-05-14', nationality = 'EG', passport_number = 'A' || (10000000 + length(email) * 7919)::text,
+       passport_expiry = current_date + 120
+     where email in ('omar.khaled@example.com', 'ahmed.samir@example.com') and passport_number is null`,
+  );
+}
+
+const [{ n }] = await db.query<{ n: number }>("select count(*)::int as n from applications where reference like 'DEMO-%'");
+if (n > 0) {
+  await accountExtras();
+  console.log(`demo data already present (${n} applications); account extras refreshed. Delete rows with reference DEMO-* to rebuild.`);
+  process.exit(0);
+}
 
 async function profile(email: string, fullName: string, role: string, phone: string | null = null) {
   const [row] = await db.query<{ id: string }>(
@@ -264,5 +313,6 @@ await db.query(
   [first!.id, 2500, 2721, "Government fee increased", 2690, "Service fee adjusted"],
 );
 
+await accountExtras();
 console.log(`demo data: ${plans.length} applications, ${customers.length} customers, ${staff.length} staff, ${messages.length} messages`);
 process.exit(0);

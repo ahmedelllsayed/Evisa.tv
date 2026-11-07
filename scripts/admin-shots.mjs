@@ -34,19 +34,18 @@ for (const route of routes) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   console.log(`${name}: ${page.url()} overflow=${overflow}`);
 }
-const detail = await page.$('a[href*="/admin/applications/"]');
 if (!only || only.includes("application-detail")) {
   await page.goto(`${base}/en-EG/admin/applications`, { waitUntil: "networkidle" });
-  const link = await page.$('a[href*="/admin/applications/"]');
+  const link = await page.evaluate(() =>
+    [...document.querySelectorAll("a")].map((a) => a.getAttribute("href") || "").find((h) => /\/admin\/applications\/[0-9a-f-]{36}/.test(h)),
+  );
   if (link) {
-    await link.click();
-    await page.waitForLoadState("networkidle");
+    await page.goto(`${base}${link}`, { waitUntil: "networkidle" });
     await page.waitForTimeout(700);
     await page.screenshot({ path: path.join(outDir, "application-detail.png") });
     console.log(`application-detail: ${page.url()}`);
   }
 }
-void detail;
 await page.setViewportSize({ width: 390, height: 844 });
 await page.goto(`${base}/en-EG/admin`, { waitUntil: "networkidle" });
 await page.screenshot({ path: path.join(outDir, "overview-mobile.png") });
