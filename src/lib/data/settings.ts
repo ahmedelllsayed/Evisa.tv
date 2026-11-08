@@ -1,6 +1,6 @@
 import "server-only";
 import { siteConfig } from "@/config/site.config";
-import { countries } from "@/lib/countries";
+import { normalizeCitizenshipCodes } from "@/lib/citizenship-codes";
 import { safePublicUrl } from "@/lib/safe-path";
 import { json, one, sql } from "./db";
 
@@ -160,13 +160,6 @@ export async function getSiteSettings(): Promise<SiteSettings> {
   };
 }
 
-const knownCountries = new Set(countries.map((country) => country.code));
-
-export function normalizeCitizenshipCodes(value: unknown): string[] {
-  const list = Array.isArray(value) ? value : [];
-  return [...new Set(list.map((code) => String(code).toUpperCase()).filter((code) => knownCountries.has(code)))];
-}
-
 /** Empty means every country stays visible in the citizenship picker. */
 export async function getCitizenshipCodes(): Promise<string[]> {
   const row = await one("select citizenship_codes from site_settings where id = 1");
@@ -176,7 +169,16 @@ export async function getCitizenshipCodes(): Promise<string[]> {
 
 export async function saveCitizenshipCodes(codes: string[]) {
   const clean = normalizeCitizenshipCodes(codes);
-  await sql(`update site_settings set citizenship_codes = $1::jsonb, updated_at = now() where id = 1`, [JSON.stringify(clean)]);
+  const rows = await sql<{ citizenship_codes: unknown }>(
+    `update site_settings set citizenship_codes = $1::jsonb, updated_at = now() where id = 1 returning citizenship_codes`,
+    [JSON.stringify(clean)],
+  );
+  const stored = normalizeCitizenshipCodes(rows[0]?.citizenship_codes);
+  const same = stored.length === clean.length && clean.every((code) => stored.includes(code));
+  if (!rows.length || !same) {
+    throw new Error("citizenship list was not stored");
+  }
+  return stored;
 }
 
 export async function saveSiteSettings(input: SiteSettings) {

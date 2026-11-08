@@ -789,11 +789,15 @@ export async function adminSetUserBanned(locale: string, id: string, banned: boo
 
 export async function adminSaveCitizenships(locale: string, codes: string[]) {
   await guard(locale, "settings", "edit");
-  await saveCitizenshipCodes(codes);
-  revalidatePath("/en-EG", "layout");
-  revalidatePath("/ar-EG", "layout");
-  refresh(locale, "/admin/citizenships");
-  return { ok: true as const };
+  try {
+    const saved = await saveCitizenshipCodes(Array.isArray(codes) ? codes : []);
+    revalidatePath("/en-EG", "layout");
+    revalidatePath("/ar-EG", "layout");
+    refresh(locale, "/admin/citizenships");
+    return { ok: true as const, saved };
+  } catch {
+    return { ok: false as const, error: "تعذر حفظ القائمة. حاول مرة أخرى." };
+  }
 }
 
 export async function adminSetUserRole(locale: string, id: string, role: AdminRole) {

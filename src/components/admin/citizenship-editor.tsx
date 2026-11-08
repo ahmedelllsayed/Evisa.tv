@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { adminSaveCitizenships } from "@/app/actions/admin";
 import { AdminError, AdminNotice, AdminPage, FilterChip, Pill, adminGhostClass, adminPrimaryClass } from "@/components/admin/chrome";
@@ -25,6 +26,7 @@ function fold(value: string) {
 const key = (codes: string[]) => [...codes].sort().join(",");
 
 export function CitizenshipEditor({ locale, countries, selected, canEdit }: { locale: string; countries: Country[]; selected: string[]; canEdit: boolean }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [baseline, setBaseline] = useState(selected);
   const [picked, setPicked] = useState<string[]>(selected);
@@ -49,15 +51,15 @@ export function CitizenshipEditor({ locale, countries, selected, canEdit }: { lo
     return [...scoped.filter((country) => chosen.has(country.code)), ...scoped.filter((country) => !chosen.has(country.code))];
   }, [searched, filter, chosen, selectedFirst]);
 
-  const change = (next: string[]) => {
+  const change = (next: string[] | ((current: string[]) => string[])) => {
     setNotice(null);
     setPicked(next);
   };
-  const toggle = (code: string) => change(chosen.has(code) ? picked.filter((item) => item !== code) : [...picked, code]);
-  const selectShown = () => change([...picked, ...list.map((country) => country.code).filter((code) => !chosen.has(code))]);
+  const toggle = (code: string) => change((current) => (current.includes(code) ? current.filter((item) => item !== code) : [...current, code]));
+  const selectShown = () => change((current) => [...current, ...list.map((country) => country.code).filter((code) => !current.includes(code))]);
   const clearShown = () => {
     const shown = new Set(list.map((country) => country.code));
-    change(picked.filter((code) => !shown.has(code)));
+    change((current) => current.filter((code) => !shown.has(code)));
   };
   const shownSelected = list.filter((country) => chosen.has(country.code)).length;
 
@@ -68,12 +70,14 @@ export function CitizenshipEditor({ locale, countries, selected, canEdit }: { lo
       setNotice(null);
       try {
         const result = await adminSaveCitizenships(locale, snapshot);
-        if (result && !result.ok) {
-          setNotice({ tone: "danger", text: "تعذر حفظ القائمة." });
+        if (!result?.ok) {
+          setNotice({ tone: "danger", text: result?.error || "تعذر حفظ القائمة." });
           return;
         }
-        setBaseline(snapshot);
-        setNotice({ tone: "success", text: snapshot.length ? `حُفظت القائمة: ${snapshot.length} جنسية ظاهرة.` : "حُفظت القائمة: كل الدول ظاهرة." });
+        setBaseline(result.saved);
+        setPicked(result.saved);
+        setNotice({ tone: "success", text: result.saved.length ? `حُفظت القائمة: ${result.saved.length} جنسية ظاهرة.` : "حُفظت القائمة: كل الدول ظاهرة." });
+        router.refresh();
       } catch {
         setNotice({ tone: "danger", text: "تعذر الاتصال بالخادم. حاول مرة أخرى." });
       }
@@ -167,14 +171,20 @@ export function CitizenshipEditor({ locale, countries, selected, canEdit }: { lo
               const changed = on !== baseline.includes(country.code);
               return (
                 <li key={country.code}>
-                  <label
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    aria-pressed={on}
+                    onClick={() => toggle(country.code)}
                     className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors",
+                      "flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-start text-sm transition-colors",
                       on ? "border-primary/40 bg-primary/[0.07]" : "border-border hover:bg-accent/40",
                       !canEdit && "cursor-not-allowed",
                     )}
                   >
-                    <input type="checkbox" checked={on} disabled={!canEdit} onChange={() => toggle(country.code)} className="accent-[#38bdf8]" />
+                    <span aria-hidden className={cn("flex size-4 shrink-0 items-center justify-center rounded-[4px] border text-[10px]", on ? "border-primary bg-primary text-white" : "border-input")}>
+                      {on ? "✓" : ""}
+                    </span>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={flagUrl(country.code, 40)} alt="" width={20} height={20} loading="lazy" className="size-5 shrink-0 rounded-full bg-[#ffffff] object-cover" />
                     <span className="min-w-0 flex-1">
@@ -185,7 +195,7 @@ export function CitizenshipEditor({ locale, countries, selected, canEdit }: { lo
                     </span>
                     <span className="font-mono text-[10px] text-muted-foreground">{country.code}</span>
                     {changed ? <span className={cn("size-1.5 shrink-0 rounded-full", on ? "bg-emerald-400" : "bg-rose-400")} title="تغيير غير محفوظ" /> : null}
-                  </label>
+                  </button>
                 </li>
               );
             })}
