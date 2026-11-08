@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { startApplicationAction } from "@/app/actions/application";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +10,7 @@ import { isArabicLocale, t, tf } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { localizedDestinationName } from "@/lib/localize";
 import type { Destination, VisaOption } from "@/lib/types";
-import { calendarDate, formatAt, formatMoney, guaranteedDate, optionHours, optionTotal, processingLabel } from "@/lib/visa";
+import { calendarDate, earliestDepartureDay, formatAt, formatMoney, guaranteedDate, optionHours, optionTotal, processingLabel } from "@/lib/visa";
 
 function parseCalendarDate(value: string | null | undefined) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
@@ -38,23 +38,33 @@ export function ApplyDialog({
   now: Date;
   initialDate?: string | null;
 }) {
-  const [date, setDate] = useState<Date | undefined>(() => parseCalendarDate(initialDate));
-  const [pending, start] = useTransition();
   const hours = optionHours(option, express);
   const fee = optionTotal(option, express);
   const name = localizedDestinationName(destination, locale);
+  const due = guaranteedDate(hours, now);
+  const earliestIso = earliestDepartureDay(hours, now);
+  const earliest = parseCalendarDate(earliestIso);
+  const [date, setDate] = useState<Date | undefined>(() => {
+    const initial = parseCalendarDate(initialDate);
+    return initial && earliest && initial >= earliest ? initial : undefined;
+  });
+  const [pending, start] = useTransition();
+  useEffect(() => {
+    const start = parseCalendarDate(earliestIso);
+    setDate((current) => (current && start && current < start ? undefined : current));
+  }, [earliestIso]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn("max-w-md rounded-2xl p-5 sm:max-w-md", isArabicLocale(locale) && "vp-ar")} showCloseButton>
         <DialogTitle className="font-display text-xl">{t(locale, "visa.departure")}</DialogTitle>
-        <DialogDescription>{tf(locale, "visa.byDate", { name, date: formatAt(guaranteedDate(hours, now), locale) })}</DialogDescription>
+        <DialogDescription>{tf(locale, "visa.byDate", { name, date: formatAt(due, locale) })}</DialogDescription>
         <Tabs defaultValue="fixed">
           <TabsList className="w-full">
             <TabsTrigger value="fixed">{t(locale, "visa.fixed")}</TabsTrigger>
             <TabsTrigger value="flexible">{t(locale, "visa.flexible")}</TabsTrigger>
           </TabsList>
           <TabsContent value="fixed" className="pt-3">
-            <Calendar mode="single" selected={date} onSelect={setDate} disabled={{ before: new Date() }} />
+            <Calendar mode="single" selected={date} onSelect={setDate} defaultMonth={earliest} disabled={earliest ? { before: earliest } : undefined} />
           </TabsContent>
           <TabsContent value="flexible" className="pt-3 text-sm text-slate-ink">
             {tf(locale, "visa.flexibleBody", { time: processingLabel(hours, locale) })}
@@ -66,11 +76,12 @@ export function ApplyDialog({
           aria-busy={pending}
           onClick={() =>
             start(() => {
+              const departure = date && earliest && date >= earliest ? calendarDate(date) : null;
               track("begin_checkout", { item_id: destination.slug, item_variant: option.label, value: fee });
               return startApplicationAction({
                 locale,
                 destinationId: destination.id,
-                departureDate: date ? calendarDate(date) : null,
+                departureDate: departure,
                 express,
                 visaOptionId: option.id || null,
               });

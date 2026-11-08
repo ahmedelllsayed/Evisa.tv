@@ -97,6 +97,31 @@ export function guaranteedDate(hours: number, from: Date = new Date()) {
   return new Date(from.getTime() + hours * 36e5);
 }
 
+/** Calendar day in the market timezone, as YYYY-MM-DD. */
+export function marketDay(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: market.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function shiftIsoDay(iso: string, days: number) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/** First departure day after the target date. Travel before the visa is due is not offered. */
+export function earliestDepartureDay(hours: number, from: Date = new Date()) {
+  return shiftIsoDay(marketDay(guaranteedDate(hours, from)), 1);
+}
+
+export function acceptedDeparture(date: string | null, hours: number, from: Date = new Date()) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return date >= earliestDepartureDay(hours, from) ? date : null;
+}
+
 /** Calendar day in the viewer's local timezone, not UTC. */
 export function calendarDate(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");

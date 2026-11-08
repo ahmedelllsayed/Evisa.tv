@@ -22,7 +22,7 @@ import { enqueueMail } from "./outbox";
 import { notifyUser } from "./notifications";
 import { recordFunnel } from "./growth";
 import { getLeastBusyStaff } from "./staff";
-import { formatAt, formatMoney, governmentFeeCharged, guaranteedDate, optionHours, optionServiceFee } from "@/lib/visa";
+import { formatAt, formatMoney, governmentFeeCharged, acceptedDeparture, guaranteedDate, optionHours, optionServiceFee } from "@/lib/visa";
 import { getDestinationById } from "./catalog";
 import { getActiveVisaOption, getDefaultVisaOption, snapshotVisaOption } from "./visa-options";
 import { day, getDb, iso, isoOrNull, json, num, numOrNull, one, sql } from "./db";
@@ -120,6 +120,7 @@ export async function createApplication(input: {
   if (!option) throw new Error("This visa type is not available");
   const express = input.express && option.expressHours !== null;
   const hours = optionHours(option, express);
+  const openedAt = new Date();
   const govFee = governmentFeeCharged(option);
   const serviceFee = optionServiceFee(option, express);
   const row = await one<{ id: string }>(
@@ -127,7 +128,7 @@ export async function createApplication(input: {
        gov_fee, service_fee, total_amount, currency, locale, visa_option_id, visa_label, visa_label_ar, visa_details)
      values ($1,$2,$3,$4::date,$5,$6::timestamptz,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb) returning id`,
     [
-      newReference(), input.userId, d.id, input.departureDate, express, guaranteedDate(hours).toISOString(),
+      newReference(), input.userId, d.id, acceptedDeparture(input.departureDate, hours, openedAt), express, guaranteedDate(hours, openedAt).toISOString(),
       govFee, serviceFee, govFee + serviceFee, d.currency, input.locale || "en-EG",
       option.id, option.label, option.labelAr, JSON.stringify(snapshotVisaOption(option)),
     ],
@@ -143,10 +144,16 @@ export async function resumeOpenApplication(
   const app = await getApplication(id);
   if (!app || app.paidAt || (app.status !== "draft" && app.status !== "payment_pending")) return;
   if (input.departureDate && /^\d{4}-\d{2}-\d{2}$/.test(input.departureDate)) {
-    await sql("update applications set departure_date = $2::date, updated_at = now() where id = $1 and paid_at is null", [
-      id,
-      input.departureDate,
-    ]);
+    const chosen = input.optionId ? await getActiveVisaOption(app.destinationId, input.optionId) : null;
+    const source = chosen ?? app.visaDetails ?? { processingHours: null, expressHours: null };
+    const express = input.express && source.expressHours !== null;
+    const departure = acceptedDeparture(input.departureDate, optionHours(source, express));
+    if (departure) {
+      await sql("update applications set departure_date = $2::date, updated_at = now() where id = $1 and paid_at is null", [
+        id,
+        departure,
+      ]);
+    }
   }
   if (input.optionId && (input.optionId !== app.visaOptionId || input.express !== app.express)) {
     await changeApplicationOption(id, input.optionId, input.express);
