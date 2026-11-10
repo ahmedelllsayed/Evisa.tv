@@ -39,6 +39,7 @@ export default async function HomePage({ params }: Page) {
         hits={destinations.map(toSearchHit)}
         brandName={settings.name}
         logoUrl={settings.logoUrl}
+        tagline={settings.tagline}
         citizenshipCodes={citizenshipCodes}
         showMap={settings.extras.showMap}
         showEvents={settings.extras.showEvents}

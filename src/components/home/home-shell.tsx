@@ -5,6 +5,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "@/components/brand/logo";
+import { BrandTagline } from "@/components/brand/tagline";
 import { PassportIcon, SearchIcon, ShieldCheckIcon, TicketsIcon } from "@/components/brand/icons";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { EventsPanel } from "@/components/home/events-panel";
@@ -40,6 +41,7 @@ export function HomeShell({
   hits,
   brandName,
   logoUrl,
+  tagline,
   citizenshipCodes = [],
   showMap = siteConfig.features.mapView,
   showEvents = siteConfig.features.events,
@@ -54,6 +56,7 @@ export function HomeShell({
   hits: SearchHit[];
   brandName: string;
   logoUrl: string;
+  tagline: string;
   citizenshipCodes?: string[];
   showMap?: boolean;
   showEvents?: boolean;
@@ -145,10 +148,7 @@ export function HomeShell({
               <span className="flex size-9 items-center justify-center rounded-full border border-dashed border-[#d5d8de]">
                 <ShieldCheckIcon className="text-brand" />
               </span>
-              <span className="text-[11px] leading-[1.15] font-semibold">
-                {t(locale, "home.visasOnTime")}
-                <span className="block font-medium text-[#3c4048]">{t(locale, "home.guaranteed")}</span>
-              </span>
+              <BrandTagline tagline={tagline} className="max-w-44 text-[11px] leading-[1.15] font-semibold text-pretty" lineClassName="text-[#3c4048]" />
             </Link>
           </div>
           <div className="flex justify-center">
@@ -206,7 +206,7 @@ export function HomeShell({
                 <Link href={href("/", locale)} aria-label={brandName}>
                   <Logo name={brandName} src={logoUrl} />
                 </Link>
-                <span className="text-[11px] font-semibold tracking-[0.08em]">{t(locale, "home.visasOnTime")}</span>
+                <BrandTagline tagline={tagline} className="max-w-28 text-[11px] font-semibold tracking-[0.08em] text-pretty" />
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -230,7 +230,7 @@ export function HomeShell({
                       <Link href={href("/", locale)} aria-label={brandName}>
                         <Logo name={brandName} src={logoUrl} />
                       </Link>
-                      <span className="text-[11px] font-semibold tracking-[0.08em]">{t(locale, "home.visasOnTime")}</span>
+                      <BrandTagline tagline={tagline} className="max-w-28 text-[11px] font-semibold tracking-[0.08em] text-pretty" />
                     </div>
                     <div className="flex items-center gap-3">
                       <LocaleSwitch locale={locale} />

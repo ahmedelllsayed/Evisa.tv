@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/brand/logo";
+import { BrandTagline } from "@/components/brand/tagline";
 import { SearchIcon, ShieldCheckIcon, WhatsAppIcon } from "@/components/brand/icons";
 import { CitizenshipButton } from "@/components/layout/citizenship-picker";
 import { LocaleSwitch } from "@/components/layout/locale-switch";
@@ -57,6 +58,7 @@ export function SiteHeader({
   hits,
   brandName,
   logoUrl,
+  tagline,
   whatsapp,
   citizenshipCodes = [],
   unread = 0,
@@ -67,6 +69,7 @@ export function SiteHeader({
   hits: SearchHit[];
   brandName: string;
   logoUrl: string;
+  tagline: string;
   whatsapp: string;
   citizenshipCodes?: string[];
   unread?: number;
@@ -130,10 +133,11 @@ export function SiteHeader({
             )}
             <Link href={href("/on-time-guaranteed", locale)} className="hidden items-center gap-1.5 text-[11px] leading-tight font-semibold lg:flex">
               <ShieldCheckIcon className={dark ? "text-white" : "text-brand"} />
-              <span>
-                {t(locale, "nav.onTime")}
-                <span className={cn("block font-medium", dark ? "text-white/60" : "text-muted-ink")}>{t(locale, "nav.guaranteed")}</span>
-              </span>
+              <BrandTagline
+                tagline={tagline}
+                className="max-w-44 text-pretty"
+                lineClassName={dark ? "text-white/60" : "text-muted-ink"}
+              />
             </Link>
             {full && (
               <button

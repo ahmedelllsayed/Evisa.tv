@@ -79,6 +79,7 @@ export function TextField({
   required,
   disabled,
   multiline,
+  rows,
 }: {
   name: string;
   label: string;
@@ -96,6 +97,7 @@ export function TextField({
   required?: boolean;
   disabled?: boolean;
   multiline?: boolean;
+  rows?: number;
 }) {
   const shared = {
     id: `f-${name}`,
@@ -106,12 +108,12 @@ export function TextField({
     required,
     disabled,
     "aria-invalid": issue?.level === "error" || undefined,
-    className: cn(inputBase, issueTone(issue), multiline ? "min-h-24 py-2 leading-relaxed" : "h-10", dir === "rtl" && "text-right"),
+    className: cn(inputBase, issueTone(issue), multiline ? cn("py-2 leading-relaxed", rows ? "min-h-0" : "min-h-24") : "h-10", dir === "rtl" && "text-right"),
   };
   return (
     <FieldShell label={label} hint={hint} issue={issue} counter={counter ? { ...counter, length: value.length } : undefined} span={span} badge={badge}>
       {multiline ? (
-        <textarea {...shared} onChange={(event) => onChange(event.target.value)} />
+        <textarea {...shared} rows={rows} onChange={(event) => onChange(event.target.value)} />
       ) : (
         <input {...shared} type={type} inputMode={inputMode} onChange={(event) => onChange(event.target.value)} />
       )}

@@ -414,7 +414,7 @@ export function SettingsForm({ locale, settings, canEdit = true }: { locale: str
             >
               <TextField name="name" label="اسم البراند" value={values.name} onChange={set("name")} issue={issues.name} required disabled={disabled} counter={{ max: 40 }} />
               <TextField name="legalName" label="الاسم القانوني" value={values.legalName} onChange={set("legalName")} hint="يظهر في الشروط والإيصالات." disabled={disabled} />
-              <TextField name="tagline" label="الشعار النصي" value={values.tagline} onChange={set("tagline")} span hint="جملة قصيرة بجوار الاسم وفي رسائل البريد." counter={{ max: 60 }} disabled={disabled} />
+              <TextField name="tagline" label="الشعار النصي" value={values.tagline} onChange={set("tagline")} span hint="يظهر بجوار الشعار في أعلى الموقع وفي رسائل البريد. السطر الثاني يظهر بلون أفتح." counter={{ max: 60 }} disabled={disabled} multiline rows={2} />
               <TextField
                 name="description"
                 label="وصف الموقع"

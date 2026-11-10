@@ -30,6 +30,7 @@ export default async function PagesLayout({ children, params }: Layout) {
         hits={destinations.map(toSearchHit)}
         brandName={settings.name}
         logoUrl={settings.logoUrl}
+        tagline={settings.tagline}
         whatsapp={settings.whatsapp}
         citizenshipCodes={citizenshipCodes}
       />
