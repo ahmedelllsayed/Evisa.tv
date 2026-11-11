@@ -5,6 +5,7 @@ import { siteConfig } from "@/config/site.config";
 import { requireUser } from "@/lib/auth";
 import { countries, countryName } from "@/lib/countries";
 import { getApplication, listDocuments, listPayments, listTravelers } from "@/lib/data/applications";
+import { listAnswers, listActiveQuestions } from "@/lib/data/questions";
 import { attachProfileDocuments, getProfileVault } from "@/lib/data/profile-vault";
 import { isArabicLocale } from "@/lib/i18n";
 import { localizedDestinationName } from "@/lib/localize";
@@ -33,11 +34,13 @@ export default async function ApplyPage({ params }: Page<{ locale: string; id: s
   if (!application || application.userId !== user.id) notFound();
   const reusable = application.userId === user.id && (application.status === "draft" || application.status === "payment_pending");
   if (reusable) await attachProfileDocuments(user.id, id);
-  const [travelers, documents, profile, payments] = await Promise.all([
+  const [travelers, documents, profile, payments, questions, savedAnswers] = await Promise.all([
     listTravelers(id),
     listDocuments(id),
     reusable ? getProfileVault(user.id) : Promise.resolve(null),
     listPayments(id),
+    listActiveQuestions(application.visaOptionId),
+    listAnswers(id),
   ]);
   const countLocked = payments.some((payment) => payment.status === "pending" || payment.status === "paid");
   return (
@@ -51,6 +54,8 @@ export default async function ApplyPage({ params }: Page<{ locale: string; id: s
       phone={user.phone}
       today={marketToday()}
       nationalities={nationalityOptions(locale)}
+      questions={questions}
+      savedAnswers={savedAnswers}
       destinationLabel={localizedDestinationName(
         { name: application.destinationName, nameAr: application.destinationNameAr, code: application.destinationCode },
         locale,

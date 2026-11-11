@@ -4,6 +4,7 @@ import {
   BarChart3,
   CreditCard,
   PieChart,
+  Ticket,
   CalendarDays,
   CalendarOff,
   CircleHelp,
@@ -43,6 +44,10 @@ const groups: { label: string; links: { href: string; label: string; icon: Lucid
       { href: "/admin/applications", label: "الطلبات", icon: FileText },
       { href: "/admin/messages", label: "الرسائل", icon: Mail },
     ],
+  },
+  {
+    label: "التسويق",
+    links: [{ href: "/admin/coupons", label: "الكوبونات", icon: Ticket }],
   },
   {
     label: "الإدارة",

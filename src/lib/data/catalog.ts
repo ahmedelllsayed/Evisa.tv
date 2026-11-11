@@ -4,6 +4,7 @@ import type { Destination, Faq, FeeChange, Holiday, Review, TravelEvent, VisaOpt
 import { getDb, day, iso, json, num, numOrNull, one, sql } from "./db";
 import type { Db } from "@/lib/db/core";
 import { clearDestinationMedia } from "@/lib/destination-media";
+import { replaceOptionQuestions } from "./questions";
 import { saveVisaOptions } from "./visa-options";
 
 type Row = Record<string, unknown>;
@@ -379,7 +380,11 @@ export async function saveDestinationWithOptions(id: string | null, input: Desti
     }
     if (!destinationId) throw new Error("تعذر إنشاء الوجهة.");
     await writeDestination(tx, destinationId, input);
-    await saveVisaOptions(tx, destinationId, options);
+    const optionIds = await saveVisaOptions(tx, destinationId, options);
+    for (const [index, option] of options.entries()) {
+      const optionId = optionIds[index];
+      if (option.questions && optionId) await replaceOptionQuestions(tx, optionId, option.questions);
+    }
     return destinationId;
   });
 }

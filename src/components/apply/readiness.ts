@@ -9,7 +9,7 @@ export type TravelerDraft = {
   passportExpiry: string;
 };
 
-export type ApplyStepId = "travelers" | "documents" | "review" | "payment";
+export type ApplyStepId = "travelers" | "documents" | "answers" | "review" | "payment";
 
 const isoDay = /^\d{4}-\d{2}-\d{2}$/;
 const latinName = /^[A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F' .-]*$/u;
@@ -101,10 +101,11 @@ export function phoneOk(value: string) {
   return digits >= 8 && digits <= 15;
 }
 
-export function forwardUnlocked(target: ApplyStepId, ready: { travelers: boolean; documents: boolean }) {
+export function forwardUnlocked(target: ApplyStepId, ready: { travelers: boolean; documents: boolean; answers?: boolean }) {
   if (target === "travelers") return true;
   if (target === "documents") return ready.travelers;
-  return ready.travelers && ready.documents;
+  if (target === "answers") return ready.travelers && ready.documents;
+  return ready.travelers && ready.documents && ready.answers !== false;
 }
 
 /** Scales the stored fees when the traveller count changes before a payment exists. */

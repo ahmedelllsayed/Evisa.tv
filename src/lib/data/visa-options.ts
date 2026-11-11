@@ -93,6 +93,7 @@ export async function saveVisaOptions(tx: Pick<Db, "query">, destinationId: stri
   const byId = new Map(existing.map((row) => [String(row.id), row]));
   await tx.query("update visa_options set is_default = false where destination_id = $1", [destinationId]);
   const kept = new Set<string>();
+  const ids: string[] = [];
 
   for (const input of inputs) {
     const id = input.id?.trim() || null;
@@ -122,6 +123,7 @@ export async function saveVisaOptions(tx: Pick<Db, "query">, destinationId: stri
     ];
     if (id) {
       kept.add(id);
+      ids.push(id);
       const before = byId.get(id)!;
       const oldTotal = chargedTotal({
         govFee: num(before.gov_fee),
@@ -145,14 +147,16 @@ export async function saveVisaOptions(tx: Pick<Db, "query">, destinationId: stri
         );
       }
     } else {
-      await tx.query(
+      const inserted = await tx.query<{ id: string }>(
         `insert into visa_options (
            destination_id, label, label_ar, visa_type, embassy_visit, method, method_ar,
            validity, validity_ar, stay, stay_ar, entry, entry_ar, gov_fee, service_fee,
            processing_hours, express_hours, express_fee, documents, is_default, is_active, sort_order
-         ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21,$22)`,
+         ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21,$22)
+         returning id`,
         [destinationId, ...params],
       );
+      ids.push(String(inserted[0].id));
     }
   }
 
@@ -166,6 +170,7 @@ export async function saveVisaOptions(tx: Pick<Db, "query">, destinationId: stri
       await tx.query("delete from visa_options where id = $1", [id]);
     }
   }
+  return ids;
 }
 
 export type VisaOptionStat = {

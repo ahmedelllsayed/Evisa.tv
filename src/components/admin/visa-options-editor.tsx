@@ -10,10 +10,21 @@ import { DocumentChecklist } from "@/components/admin/document-checklist";
 import { entryOptions, withCurrent } from "@/lib/destination-fields";
 import { href } from "@/lib/href";
 import type { VisaOption, VisaType } from "@/lib/types";
+import type { QuestionChoice, QuestionKind } from "@/lib/visa-answers";
 import { governmentFeeCharged, processingLabel } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
 type Kind = "e-visa" | "eta" | "sticker";
+
+type QuestionDraft = {
+  id?: string;
+  prompt: string;
+  promptAr: string;
+  kind: QuestionKind;
+  choices: QuestionChoice[];
+  required: boolean;
+  active: boolean;
+};
 
 type Draft = {
   key: string;
@@ -36,6 +47,7 @@ type Draft = {
   stayAr: string | null;
   validity: string | null;
   validityAr: string | null;
+  questions: QuestionDraft[];
 };
 
 const kindLabels: Record<Kind, string> = { "e-visa": "إلكترونية", eta: "تصريح إلكتروني", sticker: "ملصق سفارة" };
@@ -46,7 +58,11 @@ function kindOf(option: VisaOption): Kind {
   return "e-visa";
 }
 
-function fromOption(option: VisaOption, open: boolean): Draft {
+function blankQuestion(): QuestionDraft {
+  return { prompt: "", promptAr: "", kind: "yes_no", choices: [{ en: "", ar: "" }, { en: "", ar: "" }], required: true, active: true };
+}
+
+function fromOption(option: VisaOption, open: boolean, questions: QuestionDraft[]): Draft {
   return {
     key: option.id,
     label: option.label,
@@ -68,6 +84,7 @@ function fromOption(option: VisaOption, open: boolean): Draft {
     stayAr: option.stayAr,
     validity: option.validity,
     validityAr: option.validityAr,
+    questions,
   };
 }
 
@@ -93,6 +110,7 @@ function blank(key: string): Draft {
     stayAr: null,
     validity: null,
     validityAr: null,
+    questions: [],
   };
 }
 
@@ -121,16 +139,18 @@ export function VisaOptionsEditor({
   destinationSlug,
   options,
   counts,
+  questionsByOption = {},
   onDirty,
 }: {
   locale: string;
   destinationSlug: string;
   options: VisaOption[];
   counts: Record<string, number>;
+  questionsByOption?: Record<string, QuestionDraft[]>;
   onDirty?: () => void;
 }) {
   const [drafts, setDraftsState] = useState<Draft[]>(() =>
-    options.length ? options.map((option, index) => fromOption(option, index === 0)) : [blank("new-1")],
+    options.length ? options.map((option, index) => fromOption(option, index === 0, questionsByOption[option.id] ?? [])) : [blank("new-1")],
   );
   const [defaultKey, setDefaultKeyState] = useState(() => options.find((option) => option.isDefault)?.id ?? drafts[0]?.key ?? "new-1");
   const [seq, setSeq] = useState(2);
@@ -361,6 +381,11 @@ export function VisaOptionsEditor({
                   <p className="text-xs text-muted-foreground">يستخدم هذا النوع قائمة مستندات الدولة من تبويب المصادر.</p>
                 )}
               </div>
+              <QuestionList
+                questions={draft.questions}
+                onChange={(questions) => patch(draft.key, (item) => ({ ...item, questions }))}
+              />
+              <input type="hidden" name={`${prefix}.questions`} value={JSON.stringify(draft.questions)} />
               <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
                 <div className="flex flex-wrap items-center gap-4 text-sm">
                   <label className="flex items-center gap-2">
@@ -379,7 +404,7 @@ export function VisaOptionsEditor({
                     onClick={() => {
                       const key = `new-${seq}`;
                       setSeq((value) => value + 1);
-                      setDrafts((list) => [...list, { ...draft, key, touched: true, open: true, active: true }]);
+                      setDrafts((list) => [...list, { ...draft, key, touched: true, open: true, active: true, questions: draft.questions.map((question) => ({ ...question, id: undefined, choices: question.choices.map((choice) => ({ ...choice })) })) }]);
                     }}
                   >
                     <Copy className="size-3.5" /> نسخ
@@ -415,6 +440,68 @@ export function VisaOptionsEditor({
       >
         <Plus className="size-4" /> إضافة نوع تأشيرة
       </button>
+    </div>
+  );
+}
+
+function QuestionList({ questions, onChange }: { questions: QuestionDraft[]; onChange: (questions: QuestionDraft[]) => void }) {
+  function patch(index: number, change: (question: QuestionDraft) => QuestionDraft) {
+    onChange(questions.map((question, at) => (at === index ? change(question) : question)));
+  }
+  return (
+    <div className="space-y-3 rounded-lg border border-dashed p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">أسئلة العميل قبل الدفع</p>
+        <button type="button" className={cn(adminGhostClass, "h-8 px-3 text-xs")} onClick={() => onChange([...questions, blankQuestion()])}>
+          <Plus className="size-3.5" /> سؤال
+        </button>
+      </div>
+      {questions.length === 0 ? <p className="text-xs text-muted-foreground">لا أسئلة. العميل ينتقل من المستندات إلى المراجعة مباشرة.</p> : null}
+      {questions.map((question, index) => (
+        <div key={question.id ?? index} className="space-y-2 rounded-lg border bg-card/40 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={question.kind} onChange={(event) => patch(index, (item) => ({ ...item, kind: event.target.value as QuestionKind }))} className={cn(adminSelectClass, "h-9 w-auto")}>
+              <option value="yes_no">نعم أو لا</option>
+              <option value="single">اختيار واحد</option>
+              <option value="text">نص قصير</option>
+              <option value="date">تاريخ</option>
+            </select>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" className="accent-[#38bdf8]" checked={question.required} onChange={(event) => patch(index, (item) => ({ ...item, required: event.target.checked }))} />
+              إلزامي
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" className="accent-[#38bdf8]" checked={question.active} onChange={(event) => patch(index, (item) => ({ ...item, active: event.target.checked }))} />
+              ظاهر
+            </label>
+            <button type="button" className="ms-auto text-xs text-rose-300" onClick={() => onChange(questions.filter((_, at) => at !== index))}>
+              حذف
+            </button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input dir="ltr" value={question.prompt} placeholder="Question" onChange={(event) => patch(index, (item) => ({ ...item, prompt: event.target.value }))} className={adminInputClass} />
+            <input dir="rtl" value={question.promptAr} placeholder="السؤال" onChange={(event) => patch(index, (item) => ({ ...item, promptAr: event.target.value }))} className={`${adminInputClass} text-right`} />
+          </div>
+          {question.kind === "single" ? (
+            <div className="space-y-2">
+              {question.choices.map((choice, choiceIndex) => (
+                <div key={choiceIndex} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                  <input dir="ltr" value={choice.en} placeholder="Choice" onChange={(event) => patch(index, (item) => ({ ...item, choices: item.choices.map((row, at) => (at === choiceIndex ? { ...row, en: event.target.value } : row)) }))} className={adminInputClass} />
+                  <input dir="rtl" value={choice.ar} placeholder="الاختيار" onChange={(event) => patch(index, (item) => ({ ...item, choices: item.choices.map((row, at) => (at === choiceIndex ? { ...row, ar: event.target.value } : row)) }))} className={`${adminInputClass} text-right`} />
+                  <button type="button" className="text-xs text-muted-foreground" disabled={question.choices.length <= 2} onClick={() => patch(index, (item) => ({ ...item, choices: item.choices.filter((_, at) => at !== choiceIndex) }))}>
+                    حذف
+                  </button>
+                </div>
+              ))}
+              {question.choices.length < 8 ? (
+                <button type="button" className="text-xs text-primary" onClick={() => patch(index, (item) => ({ ...item, choices: [...item.choices, { en: "", ar: "" }] }))}>
+                  + اختيار
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ))}
     </div>
   );
 }

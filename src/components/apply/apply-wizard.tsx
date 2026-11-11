@@ -5,8 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, useTransition, type ReactNode } from "react";
 import {
+  applyCouponAction,
+  clearCouponAction,
   deleteDocumentAction,
   goToStepAction,
+  saveAnswersAction,
   saveTravelersAction,
   startPaymentAction,
   uploadDocumentAction,
@@ -34,6 +37,8 @@ import { t, tf } from "@/lib/i18n";
 import { docHint, docLabel, localizedVisaLabel } from "@/lib/localize";
 import type { ProfileVault } from "@/lib/profile";
 import type { Application, ApplicationDocument, Traveler } from "@/lib/types";
+import { discountAmount, type CouponRule } from "@/lib/coupon-math";
+import { answerLabel, choiceLabel, missingAnswers, questionPrompt, type AnswerQuestion } from "@/lib/visa-answers";
 import { formatDate, formatMoney } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 import {
@@ -50,11 +55,10 @@ import {
   type TravelerDraft,
 } from "./readiness";
 
-const stepOrder: ApplyStepId[] = ["travelers", "documents", "review", "payment"];
-
-const stepLabel: Record<ApplyStepId, "apply.travelers" | "apply.documents" | "apply.review" | "apply.payment"> = {
+const stepLabel: Record<ApplyStepId, "apply.travelers" | "apply.documents" | "apply.answers" | "apply.review" | "apply.payment"> = {
   travelers: "apply.travelers",
   documents: "apply.documents",
+  answers: "apply.answers",
   review: "apply.review",
   payment: "apply.payment",
 };
@@ -144,6 +148,8 @@ export function ApplyWizard({
   today,
   nationalities,
   destinationLabel,
+  questions = [],
+  savedAnswers = [],
 }: {
   locale: string;
   application: Application;
@@ -155,11 +161,19 @@ export function ApplyWizard({
   today: string;
   nationalities: { code: string; name: string }[];
   destinationLabel: string;
+  questions?: AnswerQuestion[];
+  savedAnswers?: { questionId: string | null; answer: string }[];
 }) {
   const [mobile, setMobile] = useState(phone ?? "");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
   const router = useRouter();
-  const [step, setStep] = useState<ApplyStepId>(application.step === "done" ? "review" : application.step);
+  const hasQuestions = questions.length > 0;
+  const stepOrder = useMemo<ApplyStepId[]>(
+    () => (hasQuestions ? ["travelers", "documents", "answers", "review", "payment"] : ["travelers", "documents", "review", "payment"]),
+    [hasQuestions],
+  );
+  const [step, setStep] = useState<ApplyStepId>(application.step === "done" || (application.step === "answers" && !hasQuestions) ? (application.step === "answers" ? "documents" : "review") : application.step);
   const editable = application.status === "draft" || application.status === "payment_pending";
   const backup = useSyncExternalStore(
     subscribeDraftBackup,
@@ -188,11 +202,23 @@ export function ApplyWizard({
   const travelersReady = drafts.length > 0 && drafts.every((draft) => !travelerBlocks(draft, application.departureDate, today));
   const samePeople = travelers.length > 0 && drafts.length === travelers.length && drafts.every((draft) => draft.id);
   const documentsReady = travelersReady && samePeople && gaps.length === 0;
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(savedAnswers.flatMap((answer) => (answer.questionId ? [[answer.questionId, answer.answer]] : []))),
+  );
+  const arabic = locale.toLowerCase().startsWith("ar");
+  const answersReady = !hasQuestions || missingAnswers(questions, answerDrafts).length === 0;
+  const ready = { travelers: travelersReady, documents: documentsReady, answers: answersReady };
   const docSlots = Math.max(travelers.length, drafts.length) * required.length;
   const readyDocs = documents.filter(
     (doc) => doc.status !== "rejected" && required.includes(doc.kind) && travelers.some((person) => person.id === doc.travelerId),
   ).length;
   const fees = feePreview(application, drafts.length || application.travelerCount, countLocked);
+  const couponRule: CouponRule | null =
+    application.couponKind && application.couponValue != null && application.couponAppliesTo
+      ? { kind: application.couponKind, value: application.couponValue, appliesTo: application.couponAppliesTo }
+      : null;
+  const discount = editable && couponRule ? discountAmount({ govFee: fees.gov, serviceFee: fees.service }, couponRule) : application.discountAmount;
+  const payable = editable ? fees.gov + fees.service - discount : application.totalAmount;
   const feesChanged = !countLocked && drafts.length > 0 && drafts.length !== application.travelerCount;
   const money = (amount: number) => formatMoney(amount, application.currency, locale);
   const names = drafts
@@ -234,7 +260,7 @@ export function ApplyWizard({
       }
       return;
     }
-    if (!forwardUnlocked(next, { travelers: travelersReady, documents: documentsReady })) {
+    if (!forwardUnlocked(next, ready)) {
       setShowIssues(true);
       revealInvalid();
       return;
@@ -255,10 +281,38 @@ export function ApplyWizard({
           setStep("documents");
           return;
         }
-        const moved = await goToStepAction(locale, application.id, "review");
+        const target: ApplyStepId = hasQuestions && !answersReady ? "answers" : next === "payment" ? "payment" : hasQuestions && next === "answers" ? "answers" : "review";
+        const moved = await goToStepAction(locale, application.id, target === "payment" ? "review" : target);
         if (!moved.ok) {
           setError(moved.error);
           setStep("documents");
+          return;
+        }
+        setStep(target);
+      });
+      return;
+    }
+    if (step === "documents" && next === "answers") {
+      start(async () => {
+        setError(null);
+        const moved = await goToStepAction(locale, application.id, "answers");
+        if (!moved.ok) setError(moved.error);
+        else setStep("answers");
+      });
+      return;
+    }
+    if (step === "answers") {
+      start(async () => {
+        setError(null);
+        const saved = await saveAnswersAction(locale, application.id, answerDrafts);
+        if (!saved.ok) {
+          setError(saved.error);
+          setShowIssues(true);
+          return;
+        }
+        const moved = await goToStepAction(locale, application.id, "review");
+        if (!moved.ok) {
+          setError(moved.error);
           return;
         }
         setStep(next === "payment" ? "payment" : "review");
@@ -271,6 +325,15 @@ export function ApplyWizard({
     }
     start(async () => {
       setError(null);
+      if (hasQuestions) {
+        const saved = await saveAnswersAction(locale, application.id, answerDrafts);
+        if (!saved.ok) {
+          setError(saved.error);
+          setShowIssues(true);
+          setStep("answers");
+          return;
+        }
+      }
       const moved = await goToStepAction(locale, application.id, "review");
       if (!moved.ok) {
         setError(moved.error);
@@ -293,9 +356,24 @@ export function ApplyWizard({
       setStep("documents");
       return;
     }
+    if (!answersReady) {
+      setError(t(locale, "err.answers"));
+      setShowIssues(true);
+      setStep("answers");
+      return;
+    }
     start(async () => {
       setError(null);
-      track("add_payment_info", { item_id: application.destinationSlug, value: application.totalAmount });
+      if (hasQuestions) {
+        const saved = await saveAnswersAction(locale, application.id, answerDrafts);
+        if (!saved.ok) {
+          setError(saved.error);
+          setShowIssues(true);
+          setStep("answers");
+          return;
+        }
+      }
+      track("add_payment_info", { item_id: application.destinationSlug, value: payable });
       const result = await startPaymentAction(locale, application.id, mobile, acceptedTerms);
       if (result && !result.ok) setError(result.error);
     });
@@ -319,13 +397,15 @@ export function ApplyWizard({
 
   const checklist = [
     { id: "travelers", step: "travelers" as const, done: travelersReady, pay: false, label: t(locale, "apply.travelers") },
-    {
-      id: "documents",
+    { id: "documents",
       step: "documents" as const,
       done: documentsReady,
       pay: false,
       label: docSlots ? say(locale, `Documents · ${readyDocs}/${docSlots}`, `المستندات · ${readyDocs}/${docSlots}`) : t(locale, "apply.documents"),
     },
+    ...(hasQuestions
+      ? [{ id: "answers", step: "answers" as const, done: answersReady, pay: false, label: t(locale, "apply.answers") }]
+      : []),
     { id: "phone", step: "review" as const, done: phoneOk(mobile), pay: true, label: t(locale, "apply.phone") },
     { id: "terms", step: "review" as const, done: acceptedTerms, pay: true, label: say(locale, "Terms accepted", "الموافقة على الشروط") },
   ];
@@ -342,10 +422,10 @@ export function ApplyWizard({
           <Card className="sm:p-6">
             <TitleBlock locale={locale} application={application} destinationLabel={destinationLabel} />
             {editable ? (
-              <ol className="mt-6 grid grid-cols-4 gap-2" aria-label={say(locale, "Application steps", "خطوات الطلب")}>
+              <ol className={cn("mt-6 grid gap-2", stepOrder.length > 4 ? "grid-cols-5" : "grid-cols-4")} aria-label={say(locale, "Application steps", "خطوات الطلب")}>
                 {stepOrder.map((id, index) => {
                   const current = stepOrder.indexOf(step);
-                  const open = index <= current || forwardUnlocked(id, { travelers: travelersReady, documents: documentsReady });
+                  const open = index <= current || forwardUnlocked(id, ready);
                   const active = id === step;
                   return (
                     <li key={id} className="min-w-0">
@@ -382,7 +462,7 @@ export function ApplyWizard({
               <Fact label={t(locale, "account.travelers")} value={String(editable ? drafts.length : Math.max(travelers.length, application.travelerCount))} sub={names || undefined} />
               <Fact
                 label={t(locale, "account.total")}
-                value={money(editable ? fees.total : application.totalAmount)}
+                value={money(payable)}
                 sub={
                   !editable
                     ? application.paidAt
@@ -507,6 +587,72 @@ export function ApplyWizard({
                       pending={pending}
                       pendingLabel={say(locale, "Please wait…", "لحظات…")}
                       note={showIssues && !documentsReady ? t(locale, "apply.missingDocs") : null}
+                      label={hasQuestions ? t(locale, "apply.continueAnswers") : t(locale, "apply.continueReview")}
+                      onClick={() => go(hasQuestions ? "answers" : "review")}
+                    />
+                  </div>
+                ) : null}
+
+                {step === "answers" ? (
+                  <div className="space-y-4">
+                    <Card>
+                      <SectionTitle
+                        title={t(locale, "apply.answers")}
+                        hint={say(locale, "A few short answers for this visa type.", "إجابات قصيرة خاصة بنوع التأشيرة.")}
+                      />
+                      <div className="mt-4 space-y-5">
+                        {questions.map((question) => {
+                          const value = answerDrafts[question.id] ?? "";
+                          const problem = showIssues ? missingAnswers([question], answerDrafts).length > 0 : false;
+                          return (
+                            <fieldset key={question.id} data-apply-invalid={problem ? "" : undefined} className="min-w-0">
+                              <legend className="text-sm font-semibold text-[#16182b]">
+                                {questionPrompt(question, arabic)}
+                                {question.required ? <span className="text-rose-600"> *</span> : null}
+                              </legend>
+                              {question.kind === "text" || question.kind === "date" ? (
+                                <input
+                                  type={question.kind === "date" ? "date" : "text"}
+                                  dir={question.kind === "date" ? "ltr" : undefined}
+                                  value={value}
+                                  maxLength={question.kind === "date" ? 10 : 200}
+                                  onChange={(event) => setAnswerDrafts((current) => ({ ...current, [question.id]: event.target.value }))}
+                                  className={cn(inputClass, "mt-2", problem && "border-rose-300")}
+                                />
+                              ) : (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {(question.kind === "yes_no"
+                                    ? [
+                                        { value: "yes", label: arabic ? "نعم" : "Yes" },
+                                        { value: "no", label: arabic ? "لا" : "No" },
+                                      ]
+                                    : question.choices.map((choice) => ({ value: choice.en, label: choiceLabel(choice, arabic) }))
+                                  ).map((choice) => (
+                                    <button
+                                      key={choice.value}
+                                      type="button"
+                                      aria-pressed={value === choice.value}
+                                      onClick={() => setAnswerDrafts((current) => ({ ...current, [question.id]: choice.value }))}
+                                      className={cn(
+                                        "h-10 rounded-full border px-4 text-sm font-semibold",
+                                        value === choice.value ? "border-[#16182b] bg-[#16182b] text-white" : "border-[#e3e5f2] bg-white text-[#16182b]",
+                                        problem && value !== choice.value && "border-rose-300",
+                                      )}
+                                    >
+                                      {choice.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </fieldset>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                    <ActionBar
+                      pending={pending}
+                      pendingLabel={say(locale, "Please wait…", "لحظات…")}
+                      note={showIssues && !answersReady ? t(locale, "err.answers") : null}
                       label={t(locale, "apply.continueReview")}
                       onClick={() => go("review")}
                     />
@@ -545,6 +691,21 @@ export function ApplyWizard({
                             {say(locale, "Edit", "تعديل")}
                           </button>
                         </div>
+                        {hasQuestions ? (
+                          <ul className="mt-2 divide-y divide-[#eef0f6] border-t border-[#eef0f6]">
+                            {questions.map((question) => (
+                              <li key={question.id} className="flex items-start justify-between gap-3 py-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-[#16182b]">{questionPrompt(question, arabic)}</p>
+                                  <p className="mt-0.5 text-xs text-muted-ink">{answerLabel(question.kind, answerDrafts[question.id] ?? "", question.choices, arabic) || "—"}</p>
+                                </div>
+                                <button type="button" onClick={() => go("answers")} className={quietButton}>
+                                  {say(locale, "Edit", "تعديل")}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </Card>
                     ) : (
                       <Card>
@@ -560,7 +721,7 @@ export function ApplyWizard({
                       acceptedTerms={acceptedTerms}
                       showIssues={showPayIssues}
                       pending={pending}
-                      total={money(fees.total)}
+                      total={money(payable)}
                       onPhone={setMobile}
                       onTerms={(checked) => {
                         setAcceptedTerms(checked);
@@ -579,8 +740,8 @@ export function ApplyWizard({
           {editable ? (
             <Card>
               <div className="flex items-center gap-3">
-                <Ring percent={Math.round((checklistDone / checklist.length) * 100)} size={52} label={say(locale, `${checklistDone} of 4 ready to pay`, `${checklistDone} من 4 قبل الدفع`)} />
-                <SectionTitle title={say(locale, "Before you pay", "قبل الدفع")} hint={say(locale, `${checklistDone} of 4 done`, `أنجزت ${checklistDone} من 4`)} />
+                <Ring percent={Math.round((checklistDone / checklist.length) * 100)} size={52} label={say(locale, `${checklistDone} of ${checklist.length} ready to pay`, `${checklistDone} من ${checklist.length} قبل الدفع`)} />
+                <SectionTitle title={say(locale, "Before you pay", "قبل الدفع")} hint={say(locale, `${checklistDone} of ${checklist.length} done`, `أنجزت ${checklistDone} من ${checklist.length}`)} />
               </div>
               <ul className="mt-4 space-y-1">
                 {checklist.map((item) => (
@@ -611,8 +772,54 @@ export function ApplyWizard({
             <dl className="mt-4 space-y-2 text-sm">
               <PriceRow label={t(locale, "apply.govFee")} value={money(editable ? fees.gov : application.govFee)} />
               <PriceRow label={t(locale, "apply.serviceFee")} value={money(editable ? fees.service : application.serviceFee)} />
-              <PriceRow label={t(locale, "apply.total")} value={money(editable ? fees.total : application.totalAmount)} strong />
+              {discount > 0 ? <PriceRow label={application.couponCode ? `${t(locale, "apply.discount")} · ${application.couponCode}` : t(locale, "apply.discount")} value={`− ${money(discount)}`} /> : null}
+              <PriceRow label={t(locale, "apply.total")} value={money(payable)} strong />
             </dl>
+            {editable ? (
+              <form
+                className="mt-4 flex gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  start(async () => {
+                    setError(null);
+                    const result = await applyCouponAction(locale, application.id, couponCode);
+                    if (!result.ok) setError(result.error);
+                    else {
+                      setCouponCode("");
+                      router.refresh();
+                    }
+                  });
+                }}
+              >
+                <input
+                  value={couponCode}
+                  onChange={(event) => setCouponCode(event.target.value)}
+                  placeholder={say(locale, "Discount code", "رمز الخصم")}
+                  dir="ltr"
+                  className={inputClass}
+                  aria-label={say(locale, "Discount code", "رمز الخصم")}
+                />
+                <button type="submit" disabled={pending || !couponCode.trim()} className="h-12 shrink-0 rounded-full border border-[#e3e5f2] px-4 text-sm font-semibold text-[#16182b] disabled:opacity-50">
+                  {say(locale, "Apply", "تطبيق")}
+                </button>
+              </form>
+            ) : null}
+            {editable && application.couponCode ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    const result = await clearCouponAction(locale, application.id);
+                    if (!result.ok) setError(result.error);
+                    else router.refresh();
+                  })
+                }
+                className="mt-2 text-xs font-semibold text-brand-700"
+              >
+                {say(locale, `Remove ${application.couponCode}`, `إزالة ${application.couponCode}`)}
+              </button>
+            ) : null}
             <p className="mt-4 text-xs leading-relaxed text-muted-ink">{say(locale, "Passport copies stay on this website.", "صور الجواز تبقى محفوظة على هذا الموقع.")}</p>
           </Card>
         </aside>

@@ -187,6 +187,7 @@ export type VisaOptionInput = {
   isDefault: boolean;
   isActive: boolean;
   sortOrder: number;
+  questions?: import("@/lib/visa-answers").QuestionInput[];
 };
 
 export type ApplicationStatus =
@@ -200,7 +201,7 @@ export type ApplicationStatus =
   | "cancelled"
   | "refunded";
 
-export type ApplicationStep = "travelers" | "documents" | "review" | "payment" | "done";
+export type ApplicationStep = "travelers" | "documents" | "answers" | "review" | "payment" | "done";
 
 export type Application = {
   id: string;
@@ -227,6 +228,11 @@ export type Application = {
   travelerCount: number;
   govFee: number;
   serviceFee: number;
+  discountAmount: number;
+  couponCode: string | null;
+  couponKind: "percent" | "fixed" | null;
+  couponValue: number | null;
+  couponAppliesTo: "service" | "total" | null;
   totalAmount: number;
   currency: string;
   paidAt: string | null;

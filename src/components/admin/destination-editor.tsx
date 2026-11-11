@@ -16,6 +16,7 @@ import type { DestinationInput } from "@/lib/data/catalog";
 import { portOptions, regionOptions, visaTypeOptions, withCurrent } from "@/lib/destination-fields";
 import { visaHref } from "@/lib/href";
 import type { Destination, VisaOption } from "@/lib/types";
+import type { QuestionKind } from "@/lib/visa-answers";
 import { cn } from "@/lib/utils";
 
 type Tab = "basics" | "options" | "media" | "sources";
@@ -170,6 +171,7 @@ export function DestinationEditor({
   storedMedia = [],
   options = [],
   optionCounts = {},
+  questionsByOption = {},
   today,
   canEdit = true,
   canDelete = true,
@@ -179,6 +181,7 @@ export function DestinationEditor({
   storedMedia?: { destination_id: string; kind: string }[];
   options?: VisaOption[];
   optionCounts?: Record<string, number>;
+  questionsByOption?: Record<string, { id?: string; prompt: string; promptAr: string; kind: QuestionKind; choices: { en: string; ar: string }[]; required: boolean; active: boolean }[]>;
   today: string;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -292,6 +295,7 @@ export function DestinationEditor({
           isNew={selected === NEW}
           options={current ? options.filter((option) => option.destinationId === current.id) : []}
           optionCounts={optionCounts}
+          questionsByOption={questionsByOption}
           missing={missingMediaKinds(current, stored)}
           gaps={current ? gapMap.get(current.id) ?? [] : []}
           today={today}
@@ -394,6 +398,7 @@ function DestinationForm({
   isNew,
   options,
   optionCounts,
+  questionsByOption,
   missing,
   gaps,
   today,
@@ -415,6 +420,7 @@ function DestinationForm({
   isNew: boolean;
   options: VisaOption[];
   optionCounts: Record<string, number>;
+  questionsByOption: Record<string, { id?: string; prompt: string; promptAr: string; kind: QuestionKind; choices: { en: string; ar: string }[]; required: boolean; active: boolean }[]>;
   missing: Set<string>;
   gaps: Gap[];
   today: string;
@@ -622,7 +628,7 @@ function DestinationForm({
           </div>
 
           <div className={tab === "options" ? "" : "hidden"}>
-            <VisaOptionsEditor locale={locale} destinationSlug={current?.slug ?? ""} options={options} counts={optionCounts} onDirty={onDirty} />
+            <VisaOptionsEditor locale={locale} destinationSlug={current?.slug ?? ""} options={options} counts={optionCounts} questionsByOption={questionsByOption} onDirty={onDirty} />
           </div>
 
           <div className={tab === "media" ? "" : "hidden"}>

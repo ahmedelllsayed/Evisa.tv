@@ -3,7 +3,7 @@ import type { DocGap } from "@/lib/application-rules";
 import type { Application, ApplicationStatus } from "@/lib/types";
 import type { Sla } from "./model";
 
-export type DetailTab = "documents" | "travelers" | "payment" | "issued" | "activity";
+export type DetailTab = "documents" | "travelers" | "answers" | "payment" | "issued" | "activity";
 
 export type StepAction =
   | { kind: "tab"; tab: DetailTab; label: string }

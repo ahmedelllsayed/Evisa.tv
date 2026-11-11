@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { sql } from "@/lib/data/db";
 import { getSiteSettings } from "@/lib/data/settings";
+import { prepareCouponCheckout } from "@/lib/data/coupons";
 import { addEvent, createPayment, failPendingPayments, findPendingPayment, getApplication, getPaymentByMerchantOrder, getPaymentByProviderRef, listPayments, markPaid, markRefunded } from "@/lib/data/applications";
 import { getCurrentUser } from "@/lib/auth";
 import { env, serverEnv } from "@/lib/env";
@@ -36,6 +37,10 @@ export async function createCheckout(application: Application, locale: string, c
     if (url) return { ok: true as const, url };
     await failPendingPayments(fresh.id, false);
   }
+  const priced = await prepareCouponCheckout(fresh.id, locale);
+  if (!priced.ok) return priced;
+  const payable = (await getApplication(fresh.id)) ?? fresh;
+  fresh.totalAmount = payable.totalAmount;
   const settings = await getSiteSettings();
   const integrationOverride = settings.extras.paymobIntegrationId ? [settings.extras.paymobIntegrationId] : undefined;
   const success = `${env.siteUrl}/${locale}/payment/success?app=${fresh.id}`;

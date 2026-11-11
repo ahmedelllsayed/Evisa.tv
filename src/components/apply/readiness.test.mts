@@ -58,6 +58,9 @@ test("phone and later steps stay closed until the earlier ones are done", () => 
   assert.equal(forwardUnlocked("documents", { travelers: true, documents: false }), true);
   assert.equal(forwardUnlocked("review", { travelers: true, documents: false }), false);
   assert.equal(forwardUnlocked("payment", { travelers: true, documents: true }), true);
+  assert.equal(forwardUnlocked("answers", { travelers: true, documents: false }), false);
+  assert.equal(forwardUnlocked("review", { travelers: true, documents: true, answers: false }), false);
+  assert.equal(forwardUnlocked("payment", { travelers: true, documents: true, answers: true }), true);
 });
 
 test("the fee preview follows the traveller count until a payment locks it", () => {

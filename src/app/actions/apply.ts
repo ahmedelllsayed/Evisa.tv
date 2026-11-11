@@ -16,11 +16,14 @@ import {
   setStep,
   type TravelerInput,
 } from "@/lib/data/applications";
+import { applyCouponToApplication, clearCouponFromApplication } from "@/lib/data/coupons";
+import { listActiveQuestions, listAnswers, saveApplicationAnswers } from "@/lib/data/questions";
 import { attachProfileDocuments, getProfileDocumentByPath, getProfileVault, saveProfileDocument } from "@/lib/data/profile-vault";
 import { createCheckout } from "@/lib/payments";
 import { sql } from "@/lib/data/db";
 import { acceptedUpload } from "@/lib/uploads";
 import { copyStoredFile, removeFile, storeFile } from "@/lib/storage";
+import { missingAnswers } from "@/lib/visa-answers";
 import type { Application, ApplicationStep } from "@/lib/types";
 
 function canEdit(status: string) {
@@ -180,8 +183,37 @@ export async function startPaymentAction(locale: string, applicationId: string, 
   if (!travelers.length || documentGaps(required, travelers, documents).length) {
     return { ok: false as const, error: t(locale, "err.docsBeforePay") };
   }
+  const questions = await listActiveQuestions(app.visaOptionId);
+  const saved = await listAnswers(app.id);
+  const byId = Object.fromEntries(saved.map((answer) => [answer.questionId ?? "", answer.answer]));
+  if (missingAnswers(questions, byId).length) return { ok: false as const, error: t(locale, "err.answers") };
   await setStep(app.id, "payment");
   const checkout = await createCheckout(app, locale, user);
   if (!checkout.ok) return checkout;
   redirect(checkout.url);
+}
+
+export async function saveAnswersAction(locale: string, applicationId: string, answers: Record<string, string>) {
+  const { app } = await owned(locale, applicationId);
+  const locked = lockedResult(app, locale);
+  if (locked) return locked;
+  const questions = await listActiveQuestions(app.visaOptionId);
+  if (!questions.length) return { ok: true as const };
+  const saved = await saveApplicationAnswers(applicationId, questions, answers);
+  if (!saved.ok) return { ok: false as const, error: t(locale, "err.answers") };
+  return { ok: true as const };
+}
+
+export async function applyCouponAction(locale: string, applicationId: string, code: string) {
+  const { user, app } = await owned(locale, applicationId);
+  const locked = lockedResult(app, locale);
+  if (locked) return locked;
+  return applyCouponToApplication(app.id, user.id, code, locale);
+}
+
+export async function clearCouponAction(locale: string, applicationId: string) {
+  const { user, app } = await owned(locale, applicationId);
+  const locked = lockedResult(app, locale);
+  if (locked) return locked;
+  return clearCouponFromApplication(app.id, user.id, locale);
 }

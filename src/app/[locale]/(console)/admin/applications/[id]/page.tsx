@@ -3,6 +3,7 @@ import { AdminApplicationDetail } from "@/components/admin/application-detail";
 import { requireAdmin } from "@/lib/auth";
 import { applicationCustomer, databaseNow } from "@/lib/data/admin-applications";
 import { getApplication, listDocuments, listEvents, listPayments, listStatusHistory, listTravelers } from "@/lib/data/applications";
+import { listAnswers } from "@/lib/data/questions";
 import { getRefundRequest } from "@/lib/data/inbox";
 import { listUsers } from "@/lib/data/users";
 import { isStaffRole } from "@/lib/rbac-constants";
@@ -21,7 +22,7 @@ export default async function AdminApplicationPage({ params }: Page<{ locale: st
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const app = await getApplication(id);
   if (!app) notFound();
-  const [events, travelers, documents, payments, users, refund, history, customer, now] = await Promise.all([
+  const [events, travelers, documents, payments, users, refund, history, customer, answers, now] = await Promise.all([
     listEvents(id),
     listTravelers(id),
     listDocuments(id),
@@ -30,6 +31,7 @@ export default async function AdminApplicationPage({ params }: Page<{ locale: st
     getRefundRequest(id),
     listStatusHistory(id),
     applicationCustomer(app.userId),
+    listAnswers(id),
     databaseNow(),
   ]);
   return (
@@ -44,6 +46,7 @@ export default async function AdminApplicationPage({ params }: Page<{ locale: st
       refundRequest={refund ? { status: refund.status, reason: refund.reason } : null}
       history={history}
       customer={customer}
+      answers={answers}
       now={now}
       currentUserId={user.id}
     />

@@ -26,6 +26,7 @@ import { formatAt, formatMoney, governmentFeeCharged, acceptedDeparture, guarant
 import { getDestinationById } from "./catalog";
 import { getActiveVisaOption, getDefaultVisaOption, snapshotVisaOption } from "./visa-options";
 import { day, getDb, iso, isoOrNull, json, num, numOrNull, one, sql } from "./db";
+import { consumeCoupon, releaseCouponHold, repriceApplication, repriceWithCoupon } from "./coupons";
 
 type Row = Record<string, unknown>;
 
@@ -38,12 +39,14 @@ const requiredDocsSql = `
 const APP_SELECT = `
   select a.*, d.name as destination_name, d.name_ar as destination_name_ar, d.code as destination_code, d.slug as destination_slug, d.flag as destination_flag,
          d.image as destination_image, ${requiredDocsSql} as destination_documents, p.email as user_email,
-         assignee.email as assignee_email
+         assignee.email as assignee_email,
+         cp.code as coupon_code, cp.kind as coupon_kind, cp.value as coupon_value, cp.applies_to as coupon_applies_to
   from applications a
   join destinations d on d.id = a.destination_id
   join profiles p on p.id = a.user_id
   left join profiles assignee on assignee.id = a.assignee_id
-  left join visa_options vo on vo.id = a.visa_option_id`;
+  left join visa_options vo on vo.id = a.visa_option_id
+  left join coupons cp on cp.id = a.coupon_id`;
 
 function lockedDocuments(r: Row) {
   const locked = json<string[] | null>(r.requirements_locked, null);
@@ -86,6 +89,11 @@ function toApplication(r: Row): Application {
     travelerCount: num(r.traveler_count),
     govFee: num(r.gov_fee),
     serviceFee: num(r.service_fee),
+    discountAmount: num(r.discount_amount),
+    couponCode: (r.coupon_code as string) ?? null,
+    couponKind: r.coupon_kind === "percent" || r.coupon_kind === "fixed" ? r.coupon_kind : null,
+    couponValue: r.coupon_value == null ? null : num(r.coupon_value),
+    couponAppliesTo: r.coupon_applies_to === "service" || r.coupon_applies_to === "total" ? r.coupon_applies_to : null,
     totalAmount: num(r.total_amount),
     currency: String(r.currency).trim(),
     paidAt: isoOrNull(r.paid_at),
@@ -181,6 +189,11 @@ export async function changeApplicationOption(id: string, optionId: string, expr
     [id, option.id, option.label, option.labelAr, JSON.stringify(snapshotVisaOption(option)), express, guaranteedDate(hours).toISOString(), govFee, serviceFee],
   );
   if (!row) return { ok: false as const, error: "لا يمكن تغيير نوع تأشيرة مدفوعة." };
+  if (option.id !== app.visaOptionId) {
+    await sql("delete from application_answers where application_id = $1", [id]);
+    await sql("update applications set step = 'documents', updated_at = now() where id = $1 and step = 'answers'", [id]);
+  }
+  await repriceApplication(id);
   await addEvent(id, { status: app.status, title: "تغيير نوع التأشيرة", description: option.labelAr || option.label });
   return { ok: true as const };
 }
@@ -831,6 +844,7 @@ export async function saveTravelers(
         `update applications set traveler_count = $2, gov_fee = $3, service_fee = $4, total_amount = $3::numeric + $4::numeric, updated_at = now() where id = $1`,
         [applicationId, count, perTravelerGov * count, perTravelerService * count],
       );
+      await repriceWithCoupon(tx, applicationId);
     }
     return { ok: true as const };
   });
@@ -920,6 +934,8 @@ export async function failPendingPayments(applicationId: string, onlyStale: bool
        and ($2::boolean = false or created_at < now() - interval '30 minutes')`,
     [applicationId, onlyStale],
   );
+  const pending = await one("select 1 from payments where application_id = $1 and status = 'pending' limit 1", [applicationId]);
+  if (!pending) await releaseCouponHold(applicationId);
 }
 
 export async function deleteDocument(id: string, opts?: { allowIssuedVisa?: boolean }) {
@@ -1086,6 +1102,7 @@ export async function markPaid(provider: string, providerRef: string, expectedAm
     );
     if (!claimed.length) return true;
     await tx.query("update payments set status = 'paid', processed_at = now() where id = $1 and status = 'pending'", [payment.id]);
+    await consumeCoupon(tx, payment.applicationId);
     await tx.query(
       `update applications set status = 'submitted', step = 'done', paid_at = now(), updated_at = now(), ${resetGuaranteeSql}, ${lockPaidSnapshotSql}
        where id = $1 and status in ('draft', 'payment_pending')`,
@@ -1202,6 +1219,7 @@ export async function applyPaymobCallback(input: {
         "update payments set status = 'failed', transaction_id = $2, method = coalesce($3, method), processed_at = now() where id = $1 and status = 'pending'",
         [payment.id, input.transactionId, input.method],
       );
+      await tx.query("update coupon_redemptions set status = 'released', updated_at = now() where application_id = $1 and status = 'held'", [payment.applicationId]);
       return { ok: true as const, reason: "failed" as const };
     }
     const [app] = await tx.query<Row>("select status from applications where id = $1", [payment.applicationId]);
@@ -1220,6 +1238,7 @@ export async function applyPaymobCallback(input: {
       [payment.id, input.transactionId, input.paymobOrderId, input.method],
     );
     if (!paidRows.length) return { ok: true as const, reason: "ignored" as const };
+    await consumeCoupon(tx, payment.applicationId);
     await tx.query(
       `update applications set status = 'submitted', step = 'done', paid_at = coalesce(paid_at, now()), updated_at = now(), ${resetGuaranteeSql}, ${lockPaidSnapshotSql}
        where id = $1 and status in ('draft', 'payment_pending')`,

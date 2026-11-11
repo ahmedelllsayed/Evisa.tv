@@ -10,6 +10,7 @@ import { DocumentReview } from "@/components/admin/applications/document-review"
 import { IssuedVisaPanel } from "@/components/admin/applications/issued-visa";
 import { slaFor } from "@/components/admin/applications/model";
 import { nextStep, type DetailTab, type NextStep, type StepAction } from "@/components/admin/applications/next-step";
+import { answerLabel, type QuestionKind } from "@/lib/visa-answers";
 import { DocCounts, Flag, SlaText } from "@/components/admin/applications/parts";
 import { PaymentPanel } from "@/components/admin/applications/payment-panel";
 import { TravelerPanel } from "@/components/admin/applications/traveler-panel";
@@ -60,6 +61,7 @@ export function AdminApplicationDetail({
   refundRequest = null,
   history = [],
   customer = null,
+  answers = [],
   now,
   currentUserId = "",
 }: {
@@ -73,6 +75,7 @@ export function AdminApplicationDetail({
   refundRequest?: { status: "open" | "approved" | "declined"; reason: string } | null;
   history?: HistoryRow[];
   customer?: DetailCustomer | null;
+  answers?: { prompt: string; promptAr: string | null; kind: QuestionKind; answer: string }[];
   now: string;
   currentUserId?: string;
 }) {
@@ -114,6 +117,7 @@ export function AdminApplicationDetail({
   const tabs: { id: DetailTab; label: string; badge?: { value: string; tone: Tone } }[] = [
     { id: "documents", label: "المستندات", badge: waitingReview ? { value: String(waitingReview), tone: "warning" } : { value: String(reviewDocs.length), tone: "neutral" } },
     { id: "travelers", label: "المسافرون", badge: { value: String(travelers.length), tone: "neutral" } },
+    { id: "answers", label: "الإجابات", badge: answers.length ? { value: String(answers.length), tone: "neutral" } : undefined },
     {
       id: "payment",
       label: "الدفع",
@@ -268,6 +272,20 @@ export function AdminApplicationDetail({
             <DocumentReview locale={locale} applicationId={application.id} documents={reviewDocs} travelers={travelers} required={application.documentsRequired} now={now} />
           ) : null}
           {tab === "travelers" ? <TravelerPanel locale={locale} travelers={travelers} today={today} departureDate={application.departureDate} /> : null}
+          {tab === "answers" ? (
+            <AdminPanel title="إجابات العميل">
+              {answers.length === 0 ? <p className="text-sm text-muted-foreground">لا توجد إجابات محفوظة.</p> : (
+                <dl className="space-y-3">
+                  {answers.map((answer, index) => (
+                    <div key={`${answer.prompt}-${index}`}>
+                      <dt className="text-sm font-medium">{answer.promptAr || answer.prompt}</dt>
+                      <dd className="mt-1 text-sm text-muted-foreground">{answerLabel(answer.kind, answer.answer, [], true)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </AdminPanel>
+          ) : null}
           {tab === "payment" ? <PaymentPanel locale={locale} application={application} payments={payments} refundRequest={refundRequest} reviews={reviews} /> : null}
           {tab === "issued" ? <IssuedVisaPanel locale={locale} application={application} issued={issued} /> : null}
           {tab === "activity" ? <ActivityPanel locale={locale} applicationId={application.id} events={events} history={history} now={now} /> : null}
