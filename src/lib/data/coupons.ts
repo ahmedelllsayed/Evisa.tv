@@ -5,6 +5,8 @@ import {
   couponError,
   couponWindowOpen,
   discountAmount,
+  marketBound,
+  marketDay,
   normalizeCouponCode,
   type CouponAppliesTo,
   type CouponDraft,
@@ -12,17 +14,17 @@ import {
   type CouponRecord,
   type CouponReject,
 } from "@/lib/coupon-math";
-import { getDb, isoOrNull, num, numOrNull, one, sql } from "./db";
+import { getDb, num, numOrNull, one, sql } from "./db";
 
 type Row = Record<string, unknown>;
 type Queryable = Pick<Db, "query">;
 
 function dayStart(day: string | null) {
-  return day ? `${day}T00:00:00.000Z` : null;
+  return day ? marketBound(day, "start") : null;
 }
 
 function dayEnd(day: string | null) {
-  return day ? `${day}T23:59:59.999Z` : null;
+  return day ? marketBound(day, "end") : null;
 }
 
 function toCoupon(row: Row): CouponRecord {
@@ -35,8 +37,8 @@ function toCoupon(row: Row): CouponRecord {
     destinationId: (row.destination_id as string) ?? null,
     destinationName: (row.destination_name as string) ?? null,
     active: Boolean(row.active),
-    startsAt: isoOrNull(row.starts_at),
-    endsAt: isoOrNull(row.ends_at),
+    startsAt: row.starts_at ? marketDay(new Date(String(row.starts_at))) : null,
+    endsAt: row.ends_at ? marketDay(new Date(String(row.ends_at))) : null,
     maxUses: numOrNull(row.max_uses),
     usedCount: num(row.used_count),
     heldCount: num(row.held_count),

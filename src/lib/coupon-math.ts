@@ -57,10 +57,42 @@ export function discountAmount(fees: { govFee: number; serviceFee: number }, cou
   return Math.min(base, Math.max(0, Math.round(raw)));
 }
 
+const marketTimeZone = "Africa/Cairo";
+
+/** Calendar day in the market timezone, as YYYY-MM-DD. */
+export function marketDay(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: marketTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/** Start or end of a calendar day in the market timezone. */
+export function marketBound(day: string, edge: "start" | "end") {
+  const wall = edge === "start" ? `${day}T00:00:00.000Z` : `${day}T23:59:59.999Z`;
+  const labeled = new Date(wall);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: marketTimeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(labeled);
+  const value = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+  const shown = Date.UTC(value("year"), value("month") - 1, value("day"), value("hour"), value("minute"), value("second"));
+  return new Date(labeled.getTime() - (shown - labeled.getTime())).toISOString();
+}
+
 export function couponWindowOpen(input: { active: boolean; startsAt: Date | null; endsAt: Date | null }, now: Date) {
   if (!input.active) return "inactive" as const;
-  if (input.startsAt && now < input.startsAt) return "early" as const;
-  if (input.endsAt && now > input.endsAt) return "expired" as const;
+  const today = marketDay(now);
+  if (input.startsAt && today < marketDay(input.startsAt)) return "early" as const;
+  if (input.endsAt && today > marketDay(input.endsAt)) return "expired" as const;
   return null;
 }
 
