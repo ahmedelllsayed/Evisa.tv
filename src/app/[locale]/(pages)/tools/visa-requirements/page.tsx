@@ -10,7 +10,7 @@ import { getCitizenship } from "@/lib/preferences";
 import type { Destination } from "@/lib/types";
 import { visaHref } from "@/lib/href";
 import { isArabicLocale } from "@/lib/i18n";
-import { formatMoney, processingLabel, totalFee, visaTypeLabel } from "@/lib/visa";
+import { formatMoney, processingLabel, totalFee, visaTypeName } from "@/lib/visa";
 
 function copy(ar: boolean) {
   if (!ar) {
@@ -155,7 +155,7 @@ export default async function VisaRequirementsPage({ params, searchParams }: Pag
       name,
       search: `${name} ${destination.name} ${destination.code}`.toLowerCase(),
       visaRequired: destination.visaRequired,
-      typeLabel: visaTypeLabel(destination.visaType, locale),
+      typeLabel: visaTypeName(destination, locale),
       processing: processingLabel(destination.processingHours, locale),
       fee: formatMoney(totalFee(destination), destination.currency, locale),
       documents: destination.documents.map((kind) => docLabel(kind, locale)),
@@ -211,7 +211,7 @@ export default async function VisaRequirementsPage({ params, searchParams }: Pag
           {destinations.slice(0, 12).map((destination) => (
             <a key={destination.id} href={`?to=${destination.slug}#checker`} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-white px-4 py-3 hover:bg-brand-50">
               <span className="min-w-0 font-medium">{localizedDestinationName(destination, locale)}</span>
-              <span className="text-xs tracking-wide text-muted-ink uppercase">{visaTypeLabel(destination.visaType, locale)}</span>
+              <span className="text-xs tracking-wide text-muted-ink uppercase">{visaTypeName(destination, locale)}</span>
             </a>
           ))}
         </div>
@@ -242,7 +242,7 @@ export default async function VisaRequirementsPage({ params, searchParams }: Pag
             const source = destination.sources.find((item) => /^https?:\/\//.test(item.url));
             return (
               <li key={destination.id} className="rounded-2xl bg-white p-4">
-                <p className="text-xs text-muted-ink">{visaTypeLabel(destination.visaType, locale)} · {localizedDestinationName(destination, locale)}</p>
+                <p className="text-xs text-muted-ink">{visaTypeName(destination, locale)} · {localizedDestinationName(destination, locale)}</p>
                 {source ? (
                   <a href={source.url} target="_blank" rel="noreferrer" className="mt-1 block text-sm text-brand">
                     {source.label}

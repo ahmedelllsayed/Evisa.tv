@@ -19,6 +19,8 @@ function toDestination(r: Row): Destination {
     region: (r.region as string) ?? null,
     visaRequired: Boolean(r.visa_required),
     visaType: r.visa_type as VisaType,
+    typeLabel: (r.type_label as string) ?? null,
+    typeLabelAr: (r.type_label_ar as string) ?? null,
     validity: (r.validity as string) ?? null,
     validityAr: (r.validity_ar as string) ?? null,
     stay: (r.stay as string) ?? null,
@@ -294,6 +296,8 @@ export type DestinationInput = {
   region: string | null;
   visaRequired: boolean;
   visaType: VisaType;
+  typeLabel: string | null;
+  typeLabelAr: string | null;
   validity: string | null;
   validityAr: string | null;
   stay: string | null;
@@ -329,7 +333,7 @@ function destinationParams(id: string, input: DestinationInput) {
     input.entry, input.entryAr, input.acceptedAt, input.method, input.methodAr, input.govFee, input.serviceFee, input.processingHours, input.expressHours,
     input.expressFee, JSON.stringify(input.documents), input.image, input.heroImage, input.flag,
     JSON.stringify(input.cities), JSON.stringify(input.rejectionReasons), JSON.stringify(input.sources), input.sortOrder, input.isActive,
-    input.videoUrl, input.embassyVisit, input.sourceUrl ?? null, input.reviewedOn || null,
+    input.videoUrl, input.embassyVisit, input.sourceUrl ?? null, input.reviewedOn || null, input.typeLabel, input.typeLabelAr,
   ];
 }
 
@@ -337,7 +341,8 @@ const DESTINATION_UPDATE = `update destinations set name=$2, name_ar=$3, slug=$4
        entry=$13, entry_ar=$14, accepted_at=$15, method=$16, method_ar=$17, gov_fee=$18, service_fee=$19, processing_hours=$20, express_hours=$21,
        express_fee=$22, documents=$23::jsonb, image=$24, hero_image=$25, flag=$26, cities=$27::jsonb,
        rejection_reasons=$28::jsonb, sources=$29::jsonb, sort_order=$30, is_active=$31, video_url=$32, embassy_visit=$33,
-       source_url=$34, reviewed_at=case when $35::text is null or $35::text = '' then reviewed_at else $35::timestamptz end, updated_at=now()
+       source_url=$34, reviewed_at=case when $35::text is null or $35::text = '' then reviewed_at else $35::timestamptz end,
+       type_label=$36, type_label_ar=$37, updated_at=now()
      where id=$1`;
 
 async function writeDestination(tx: Pick<Db, "query">, id: string, input: DestinationInput) {

@@ -7,6 +7,8 @@ export type SearchHit = {
   code: string;
   visaRequired: boolean;
   visaType: Destination["visaType"];
+  typeLabel?: string | null;
+  typeLabelAr?: string | null;
   processingHours: number | null;
   govFee: number;
   serviceFee: number;
@@ -25,6 +27,8 @@ export function toSearchHit(d: Destination): SearchHit {
     code: d.code,
     visaRequired: d.visaRequired,
     visaType: d.visaType,
+    typeLabel: d.typeLabel,
+    typeLabelAr: d.typeLabelAr,
     processingHours: d.processingHours,
     govFee: d.govFee,
     serviceFee: d.serviceFee,

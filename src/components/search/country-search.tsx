@@ -9,7 +9,7 @@ import { href, visaHref } from "@/lib/href";
 import { t, tf } from "@/lib/i18n";
 import { localizedDestinationName } from "@/lib/localize";
 import { matchHits, type SearchHit } from "@/lib/search";
-import { formatDate, formatMoney, guaranteedDate, totalFee, visaTypeLabel } from "@/lib/visa";
+import { formatDate, formatMoney, guaranteedDate, totalFee, visaTypeName } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
 export function CountrySearchOverlay({
@@ -137,7 +137,7 @@ function SearchRow({
         {available ? (
           <div className="mt-2 flex flex-wrap gap-x-8 gap-y-2">
             <Detail label={t(locale, "search.guaranteed")} value={formatDate(guaranteedDate(hit.processingHours ?? 72), locale)} />
-            <Detail label={t(locale, "card.type")} value={visaTypeLabel(hit.visaType, locale)} />
+            <Detail label={t(locale, "card.type")} value={visaTypeName(hit, locale)} />
             <Detail label={t(locale, "card.fees")} value={formatMoney(totalFee(hit), hit.currency, locale)} />
           </div>
         ) : (

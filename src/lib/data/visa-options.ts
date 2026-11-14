@@ -19,6 +19,8 @@ export function toVisaOption(r: Row): VisaOption {
     label: String(r.label),
     labelAr: (r.label_ar as string) ?? null,
     visaType: r.visa_type as VisaType,
+    typeLabel: (r.type_label as string) ?? null,
+    typeLabelAr: (r.type_label_ar as string) ?? null,
     embassyVisit: Boolean(r.embassy_visit),
     method: (r.method as string) ?? null,
     methodAr: (r.method_ar as string) ?? null,
@@ -50,6 +52,8 @@ export function snapshotVisaOption(option: VisaOption): VisaDetails {
     entry: option.entry,
     entryAr: option.entryAr,
     visaType: option.visaType,
+    typeLabel: option.typeLabel,
+    typeLabelAr: option.typeLabelAr,
     method: option.method,
     methodAr: option.methodAr,
     embassyVisit: option.embassyVisit,
@@ -120,6 +124,8 @@ export async function saveVisaOptions(tx: Pick<Db, "query">, destinationId: stri
       input.isDefault,
       input.isActive,
       input.sortOrder,
+      input.typeLabel,
+      input.typeLabelAr,
     ];
     if (id) {
       kept.add(id);
@@ -136,8 +142,8 @@ export async function saveVisaOptions(tx: Pick<Db, "query">, destinationId: stri
         `update visa_options set label=$2, label_ar=$3, visa_type=$4, embassy_visit=$5, method=$6, method_ar=$7,
            validity=$8, validity_ar=$9, stay=$10, stay_ar=$11, entry=$12, entry_ar=$13, gov_fee=$14, service_fee=$15,
            processing_hours=$16, express_hours=$17, express_fee=$18, documents=$19::jsonb, is_default=$20, is_active=$21,
-           sort_order=$22, updated_at=now()
-         where id=$1 and destination_id=$23`,
+           sort_order=$22, type_label=$23, type_label_ar=$24, updated_at=now()
+         where id=$1 and destination_id=$25`,
         [id, ...params, destinationId],
       );
       if (oldTotal !== newTotal) {
@@ -151,8 +157,8 @@ export async function saveVisaOptions(tx: Pick<Db, "query">, destinationId: stri
         `insert into visa_options (
            destination_id, label, label_ar, visa_type, embassy_visit, method, method_ar,
            validity, validity_ar, stay, stay_ar, entry, entry_ar, gov_fee, service_fee,
-           processing_hours, express_hours, express_fee, documents, is_default, is_active, sort_order
-         ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21,$22)
+           processing_hours, express_hours, express_fee, documents, is_default, is_active, sort_order, type_label, type_label_ar
+         ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21,$22,$23,$24)
          returning id`,
         [destinationId, ...params],
       );

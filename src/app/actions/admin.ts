@@ -317,11 +317,15 @@ function parseVisaOptions(fd: FormData): { ok: true; options: VisaOptionInput[] 
   const defaultKey = String(fd.get("defaultOption") || "");
   const options: VisaOptionInput[] = [];
   for (const [index, key] of keys.entries()) {
-    const kind = optionField(fd, key, "kind");
-    const embassy = kind === "sticker";
-    const visaType: VisaType = kind === "eta" ? "eta" : embassy ? "sticker" : "e-visa";
-    const method = embassy ? "Embassy" : kind === "eta" ? "e-Visa portal" : "Paperless";
-    const methodAr = embassy ? "عبر السفارة" : kind === "eta" ? "بوابة التأشيرة" : "بدون ورق";
+    const kinds = new Set(["e-visa", "eta", "sticker", "e-voa", "mdac", "visa-free", "custom"]);
+    const kind = kinds.has(optionField(fd, key, "kind")) ? (optionField(fd, key, "kind") as VisaType) : "e-visa";
+    const serviceOnly = kind === "sticker" || (kind === "custom" && optionField(fd, key, "serviceOnly") === "on");
+    const embassy = serviceOnly;
+    const visaType = kind;
+    const typeLabel = kind === "custom" ? optionField(fd, key, "typeLabel").trim() || null : null;
+    const typeLabelAr = kind === "custom" ? optionField(fd, key, "typeLabelAr").trim() || null : null;
+    const method = embassy ? "Embassy" : kind === "eta" ? "e-Visa portal" : kind === "e-voa" ? "e-VOA" : kind === "mdac" ? "MDAC" : kind === "visa-free" ? "Visa-free" : kind === "custom" ? typeLabel || "Paperless" : "Paperless";
+    const methodAr = embassy ? "عبر السفارة" : kind === "eta" ? "بوابة التأشيرة" : kind === "e-voa" ? "e-VOA" : kind === "mdac" ? "MDAC" : kind === "visa-free" ? "بدون تأشيرة" : kind === "custom" ? typeLabelAr || "بدون ورق" : "بدون ورق";
     const stay = optionField(fd, key, "stay").trim() || null;
     const stayAr = optionField(fd, key, "stayAr").trim() || null;
     const entry = optionField(fd, key, "entry").trim() || null;
@@ -349,6 +353,7 @@ function parseVisaOptions(fd: FormData): { ok: true; options: VisaOptionInput[] 
     if (expressHours != null && expressHours >= processingHours) {
       return { ok: false, error: `وقت السرعة في «${label}» يجب أن يكون أقصر من الوقت العادي.` };
     }
+    if (kind === "custom" && !typeLabel && !typeLabelAr) return { ok: false, error: `اكتب اسم النوع المخصص لـ «${label}».` };
     if (custom && !documents?.length) return { ok: false, error: `اختر مستندات «${label}» أو أعدها لمستندات الدولة.` };
     const questions = parseQuestionList(optionField(fd, key, "questions"));
     if (!questions.ok) return { ok: false, error: `«${label}»: ${questions.error}` };
@@ -357,6 +362,8 @@ function parseVisaOptions(fd: FormData): { ok: true; options: VisaOptionInput[] 
       label,
       labelAr: labelAr || null,
       visaType,
+      typeLabel,
+      typeLabelAr,
       embassyVisit: embassy,
       method,
       methodAr,
@@ -387,6 +394,8 @@ function parseVisaOptions(fd: FormData): { ok: true; options: VisaOptionInput[] 
 
 function mirrorOption(input: DestinationInput, option: VisaOptionInput) {
   input.visaType = option.visaType;
+  input.typeLabel = option.typeLabel;
+  input.typeLabelAr = option.typeLabelAr;
   input.embassyVisit = option.embassyVisit;
   input.method = option.method;
   input.methodAr = option.methodAr;
@@ -464,6 +473,8 @@ export async function adminSaveDestinationForm(locale: string, id: string | null
     region: optional("region"),
     visaRequired: fd.get("visaRequired") === "on",
     visaType: String(fd.get("visaType") || "e-visa") as DestinationInput["visaType"],
+    typeLabel: optional("typeLabel"),
+    typeLabelAr: optional("typeLabelAr"),
     validity: optional("validity"),
     validityAr: optional("validityAr"),
     stay: optional("stay"),

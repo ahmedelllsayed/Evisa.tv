@@ -5,7 +5,7 @@ import { isArabicLocale } from "@/lib/i18n";
 import { localizedDestinationName } from "@/lib/localize";
 import { say } from "@/lib/say";
 import type { Destination, TravelEvent } from "@/lib/types";
-import { processingLabel, visaTypeLabel } from "@/lib/visa";
+import { processingLabel, visaTypeName } from "@/lib/visa";
 import { addDays, daysBetween, relativeDays } from "./format";
 
 /** Extra days on top of the usual processing time when suggesting an "apply by" date. */
@@ -122,7 +122,7 @@ export function buildEvents(events: TravelEvent[], destinations: Destination[], 
           ? {
               status: "required",
               label: say(locale, "Egyptian passport: visa needed", "جواز مصري: تحتاج تأشيرة"),
-              type: visaTypeLabel(dest.visaType, locale),
+              type: visaTypeName(dest, locale),
               href: visaHref(dest.slug, locale),
               linkLabel: say(locale, `Get the ${country} visa`, `تأشيرة ${country}`),
             }

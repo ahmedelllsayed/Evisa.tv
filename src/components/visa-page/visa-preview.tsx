@@ -16,7 +16,7 @@ import {
   optionHours,
   optionTotal,
   processingLabel,
-  visaTypeLabel,
+  visaTypeName,
 } from "@/lib/visa";
 import { ApplyDialog } from "./apply-dialog";
 import { FaqSection, HowItWorks, NearbyStrip, Rejections, Reveal, ReviewsCarousel, SectionTabs, SectionTitle, SourcesPanel, TrustBand, stepIcons } from "./content";
@@ -91,7 +91,7 @@ export function VisaPreview({
   const due = guaranteedDate(hours, now);
   const fee = optionTotal(option, express);
   const country = localizedDestinationName(destination, locale);
-  const typeName = visaTypeLabel(option.visaType, locale);
+  const typeName = visaTypeName(option, locale);
   const documents = option.documents?.length ? option.documents : destination.documents;
   const resume = Boolean(existingId && existingOptionId === option.id && Boolean(existingExpress) === express);
   const standardDue = guaranteedDate(option.processingHours ?? 72, now);

@@ -6,7 +6,7 @@ import { visaHref } from "@/lib/href";
 import { tf, t } from "@/lib/i18n";
 import { docLabel, localizedDestinationName, localizedPhrase } from "@/lib/localize";
 import type { Destination } from "@/lib/types";
-import { formatDate, formatMoney, guaranteedDate, totalFee, visaTypeLabel } from "@/lib/visa";
+import { formatDate, formatMoney, guaranteedDate, totalFee, visaTypeName } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
 function docsLabel(docs: string[], locale: string) {
@@ -41,7 +41,7 @@ export function DestinationCard({ d, locale }: { d: Destination; locale: string 
               <div className="mt-2 flex w-full items-center justify-between border-t border-white/10 pt-3 text-[9px] leading-[14px] font-bold tracking-[1.1px] uppercase lg:mt-4 lg:pt-4 lg:text-[11px]">
                 <div className="flex flex-col items-start gap-0.5 lg:gap-1">
                   <p className="opacity-45">{t(locale, "card.type")}</p>
-                  <p>{visaTypeLabel(d.visaType, locale)}</p>
+                  <p>{visaTypeName(d, locale)}</p>
                 </div>
                 <div className="flex flex-col items-end gap-0.5 lg:items-center lg:gap-1">
                   <p className="opacity-45">{t(locale, "card.valid")}</p>

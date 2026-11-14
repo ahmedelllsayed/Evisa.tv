@@ -41,6 +41,10 @@ const typeKeys: Record<(typeof typeFilters)[number]["id"], MessageKey> = {
   "e-visa": "filter.evisa",
   sticker: "filter.sticker",
   eta: "filter.eta",
+  "e-voa": "filter.evoa",
+  mdac: "filter.mdac",
+  "visa-free": "filter.free",
+  custom: "filter.custom",
 };
 const docKeys: Record<(typeof documentFilters)[number]["id"], MessageKey> = {
   any: "filter.anyDocs",

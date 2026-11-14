@@ -9,12 +9,12 @@ import { Badge } from "@/components/admin/content/fields";
 import { DocumentChecklist } from "@/components/admin/document-checklist";
 import { entryOptions, withCurrent } from "@/lib/destination-fields";
 import { href } from "@/lib/href";
-import type { VisaOption, VisaType } from "@/lib/types";
+import type { VisaOption } from "@/lib/types";
 import type { QuestionChoice, QuestionKind } from "@/lib/visa-answers";
 import { governmentFeeCharged, processingLabel } from "@/lib/visa";
 import { cn } from "@/lib/utils";
 
-type Kind = "e-visa" | "eta" | "sticker";
+type Kind = "e-visa" | "eta" | "sticker" | "e-voa" | "mdac" | "visa-free" | "custom";
 
 type QuestionDraft = {
   id?: string;
@@ -32,6 +32,9 @@ type Draft = {
   labelAr: string;
   touched: boolean;
   kind: Kind;
+  typeLabel: string;
+  typeLabelAr: string;
+  serviceOnly: boolean;
   entry: string | null;
   govFee: string;
   serviceFee: string;
@@ -50,12 +53,20 @@ type Draft = {
   questions: QuestionDraft[];
 };
 
-const kindLabels: Record<Kind, string> = { "e-visa": "إلكترونية", eta: "تصريح إلكتروني", sticker: "ملصق سفارة" };
+const kindLabels: Record<Kind, string> = {
+  "e-visa": "إلكترونية",
+  eta: "تصريح إلكتروني",
+  sticker: "ملصق سفارة",
+  "e-voa": "e-VOA",
+  mdac: "MDAC",
+  "visa-free": "بدون تأشيرة",
+  custom: "مخصص",
+};
+
+const knownKinds = new Set<Kind>(["e-visa", "eta", "sticker", "e-voa", "mdac", "visa-free", "custom"]);
 
 function kindOf(option: VisaOption): Kind {
-  if (option.embassyVisit || option.visaType === "sticker") return "sticker";
-  if (option.visaType === "eta") return "eta";
-  return "e-visa";
+  return knownKinds.has(option.visaType as Kind) ? (option.visaType as Kind) : "e-visa";
 }
 
 function blankQuestion(): QuestionDraft {
@@ -69,6 +80,9 @@ function fromOption(option: VisaOption, open: boolean, questions: QuestionDraft[
     labelAr: option.labelAr ?? "",
     touched: true,
     kind: kindOf(option),
+    typeLabel: option.typeLabel ?? "",
+    typeLabelAr: option.typeLabelAr ?? "",
+    serviceOnly: option.visaType === "custom" && option.embassyVisit,
     entry: option.entry,
     govFee: String(option.govFee),
     serviceFee: String(option.serviceFee),
@@ -95,6 +109,9 @@ function blank(key: string): Draft {
     labelAr: "عادية",
     touched: false,
     kind: "e-visa",
+    typeLabel: "",
+    typeLabelAr: "",
+    serviceOnly: false,
     entry: "Single",
     govFee: "0",
     serviceFee: "0",
@@ -198,10 +215,10 @@ export function VisaOptionsEditor({
         <Pill tone={shown ? "success" : "danger"}>{shown} ظاهر من {drafts.length}</Pill>
       </div>
       {drafts.map((draft, index) => {
-        const embassy = draft.kind === "sticker";
+        const embassy = draft.kind === "sticker" || (draft.kind === "custom" && draft.serviceOnly);
         const charged = governmentFeeCharged({
           govFee: Number(draft.govFee) || 0,
-          visaType: (embassy ? "sticker" : draft.kind) as VisaType,
+          visaType: draft.kind,
           embassyVisit: embassy,
         });
         const total = charged + (Number(draft.serviceFee) || 0);
@@ -210,6 +227,9 @@ export function VisaOptionsEditor({
           <section key={draft.key} className={cn("rounded-xl border bg-background/40", draft.key === defaultKey && "border-primary/40", !draft.active && "opacity-75")}>
             <input type="hidden" name="optionKey" value={draft.key} />
             <input type="hidden" name={`${prefix}.kind`} value={draft.kind} />
+            <input type="hidden" name={`${prefix}.typeLabel`} value={draft.typeLabel} />
+            <input type="hidden" name={`${prefix}.typeLabelAr`} value={draft.typeLabelAr} />
+            <input type="hidden" name={`${prefix}.serviceOnly`} value={draft.serviceOnly ? "on" : ""} />
             <input type="hidden" name={`${prefix}.active`} value={draft.active ? "on" : ""} />
             <input type="hidden" name={`${prefix}.expressOn`} value={draft.expressOn ? "on" : ""} />
             <input type="hidden" name={`${prefix}.documentsMode`} value={draft.customDocs ? "custom" : "shared"} />
@@ -262,10 +282,30 @@ export function VisaOptionsEditor({
                 <label className="block text-sm sm:col-span-2">
                   <Label>طريقة الإصدار والتحصيل</Label>
                   <select value={draft.kind} onChange={(event) => patch(draft.key, (item) => ({ ...item, kind: event.target.value as Kind }))} className={adminSelectClass}>
-                    <option value="e-visa">إلكترونية: الرسوم الحكومية + رسوم المعالجة</option>
-                    <option value="eta">تصريح إلكتروني: الرسوم الحكومية + رسوم المعالجة</option>
-                    <option value="sticker">ملصق سفارة: رسوم المعالجة فقط</option>
+                    <option value="e-visa">e-Visa: الرسوم الحكومية + رسوم المعالجة</option>
+                    <option value="eta">ETA: الرسوم الحكومية + رسوم المعالجة</option>
+                    <option value="sticker">Sticker: رسوم المعالجة فقط</option>
+                    <option value="e-voa">e-VOA: الرسوم الحكومية + رسوم المعالجة</option>
+                    <option value="mdac">MDAC: الرسوم الحكومية + رسوم المعالجة</option>
+                    <option value="visa-free">بدون تأشيرة: لا تُحصَّل رسوم حكومية</option>
+                    <option value="custom">نوع مخصص</option>
                   </select>
+                  {draft.kind === "custom" ? (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm">
+                        <Label badge="EN">اسم النوع</Label>
+                        <input name={`${prefix}.typeLabel`} dir="ltr" value={draft.typeLabel} onChange={(event) => patch(draft.key, (item) => ({ ...item, typeLabel: event.target.value }))} className={adminInputClass} placeholder="e-VOA" />
+                      </label>
+                      <label className="block text-sm">
+                        <Label badge="AR">اسم النوع</Label>
+                        <input name={`${prefix}.typeLabelAr`} dir="rtl" value={draft.typeLabelAr} onChange={(event) => patch(draft.key, (item) => ({ ...item, typeLabelAr: event.target.value }))} className={`${adminInputClass} text-right`} placeholder="تأشيرة عند الوصول" />
+                      </label>
+                      <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                        <input type="checkbox" className="accent-[#38bdf8]" checked={draft.serviceOnly} onChange={(event) => patch(draft.key, (item) => ({ ...item, serviceOnly: event.target.checked }))} />
+                        رسوم المعالجة فقط، من غير رسوم حكومية على الموقع
+                      </label>
+                    </div>
+                  ) : null}
                 </label>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">

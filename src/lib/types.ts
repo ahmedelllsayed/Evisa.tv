@@ -1,4 +1,4 @@
-export type VisaType = "e-visa" | "sticker" | "eta" | "visa-free";
+export type VisaType = "e-visa" | "sticker" | "eta" | "visa-free" | "e-voa" | "mdac" | "custom";
 
 // Admin Roles & Permissions
 export type AdminRole = "super_admin" | "admin" | "manager" | "operator" | "support" | "viewer" | "user";
@@ -32,6 +32,8 @@ export type Destination = {
   region: string | null;
   visaRequired: boolean;
   visaType: VisaType;
+  typeLabel?: string | null;
+  typeLabelAr?: string | null;
   validity: string | null;
   validityAr?: string | null;
   stay: string | null;
@@ -130,6 +132,8 @@ export type VisaDetails = {
   entry: string | null;
   entryAr: string | null;
   visaType: VisaType;
+  typeLabel: string | null;
+  typeLabelAr: string | null;
   method: string | null;
   methodAr: string | null;
   embassyVisit: boolean;
@@ -143,6 +147,8 @@ export type VisaOption = {
   label: string;
   labelAr: string | null;
   visaType: VisaType;
+  typeLabel: string | null;
+  typeLabelAr: string | null;
   embassyVisit: boolean;
   method: string | null;
   methodAr: string | null;
@@ -169,6 +175,8 @@ export type VisaOptionInput = {
   label: string;
   labelAr: string | null;
   visaType: VisaType;
+  typeLabel: string | null;
+  typeLabelAr: string | null;
   embassyVisit: boolean;
   method: string | null;
   methodAr: string | null;

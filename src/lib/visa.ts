@@ -22,7 +22,8 @@ export function formatMoney(amount: number, currency: string = market.currency, 
 }
 
 export function governmentFeeCharged(d: { govFee: number; visaType?: VisaType; embassyVisit?: boolean }) {
-  if (d.visaType === "sticker" && d.embassyVisit) return 0;
+  if (d.visaType === "visa-free") return 0;
+  if (d.embassyVisit && (d.visaType === "sticker" || d.visaType === "custom")) return 0;
   return d.govFee;
 }
 
@@ -71,6 +72,8 @@ export function fallbackVisaOption(d: Destination): VisaOption {
     label,
     labelAr,
     visaType: d.visaType,
+    typeLabel: d.typeLabel ?? null,
+    typeLabelAr: d.typeLabelAr ?? null,
     embassyVisit: d.embassyVisit,
     method: d.method,
     methodAr: d.methodAr ?? null,
@@ -184,15 +187,32 @@ export function processingLabel(hours: number | null, locale?: string) {
   return ar ? (days === 1 ? "يوم" : `${days} أيام`) : `${days} day${days === 1 ? "" : "s"}`;
 }
 
-const visaTypeKeys: Record<VisaType, "type.evisa" | "type.sticker" | "type.eta" | "type.free"> = {
+const visaTypeKeys: Record<VisaType, "type.evisa" | "type.sticker" | "type.eta" | "type.free" | "type.evoa" | "type.mdac" | "type.custom"> = {
   "e-visa": "type.evisa",
   sticker: "type.sticker",
   eta: "type.eta",
   "visa-free": "type.free",
+  "e-voa": "type.evoa",
+  mdac: "type.mdac",
+  custom: "type.custom",
 };
 
 export function visaTypeLabel(type: VisaType, locale: string) {
-  return t(locale, visaTypeKeys[type]);
+  const key = visaTypeKeys[type];
+  return key ? t(locale, key) : type;
+}
+
+/** Prefer a name saved on the visa option, then the known translation. */
+export function visaTypeName(
+  source: { visaType: VisaType; typeLabel?: string | null; typeLabelAr?: string | null },
+  locale: string,
+) {
+  const arabic = isArabicLocale(locale);
+  if (source.visaType === "custom") {
+    const saved = arabic ? source.typeLabelAr?.trim() || source.typeLabel?.trim() : source.typeLabel?.trim() || source.typeLabelAr?.trim();
+    if (saved) return saved;
+  }
+  return visaTypeLabel(source.visaType, locale);
 }
 
 export const visaTypeLabels: Record<VisaType, string> = {
@@ -200,6 +220,9 @@ export const visaTypeLabels: Record<VisaType, string> = {
   sticker: "Sticker",
   eta: "ETA",
   "visa-free": "No visa required",
+  "e-voa": "e-VOA",
+  mdac: "MDAC",
+  custom: "Custom",
 };
 
 // ----- Homepage filters -----
@@ -218,6 +241,10 @@ export const typeFilters = [
   { id: "e-visa", label: "e-Visa", test: (t: VisaType) => t === "e-visa" },
   { id: "sticker", label: "Sticker Visa", test: (t: VisaType) => t === "sticker" },
   { id: "eta", label: "ETA", test: (t: VisaType) => t === "eta" },
+  { id: "e-voa", label: "e-VOA", test: (t: VisaType) => t === "e-voa" },
+  { id: "mdac", label: "MDAC", test: (t: VisaType) => t === "mdac" },
+  { id: "visa-free", label: "No visa required", test: (t: VisaType) => t === "visa-free" },
+  { id: "custom", label: "Other", test: (t: VisaType) => t === "custom" },
 ] as const;
 
 const only = (docs: string[], allowed: string[]) => docs.every((d) => allowed.includes(d));
