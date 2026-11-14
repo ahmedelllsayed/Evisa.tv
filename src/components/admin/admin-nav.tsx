@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Mail,
   Map,
+  Send,
   Menu,
   PanelLeft,
   Receipt,
@@ -47,7 +48,10 @@ const groups: { label: string; links: { href: string; label: string; icon: Lucid
   },
   {
     label: "التسويق",
-    links: [{ href: "/admin/coupons", label: "الكوبونات", icon: Ticket }],
+    links: [
+      { href: "/admin/coupons", label: "الكوبونات", icon: Ticket },
+      { href: "/admin/campaigns", label: "البريد", icon: Send },
+    ],
   },
   {
     label: "الإدارة",
