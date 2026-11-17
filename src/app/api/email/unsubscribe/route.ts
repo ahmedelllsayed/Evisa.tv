@@ -1,5 +1,7 @@
-import { suppressMarketingEmail, unsubscribeTokenOk } from "@/lib/data/campaigns";
-import { normalizeEmail } from "@/lib/campaign-mail";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { serverEnv } from "@/lib/env";
+import { suppressAddress } from "@/lib/data/marketing/queue";
+import { normalizeEmail } from "@/lib/marketing/audience";
 
 function page(title: string, message: string) {
   return new Response(
@@ -8,11 +10,19 @@ function page(title: string, message: string) {
   );
 }
 
+/** Links in emails sent before the marketing queue carried an HMAC of the address. */
+function tokenOk(email: string, token: string) {
+  if (!email || !token) return false;
+  const expected = Buffer.from(createHmac("sha256", serverEnv().authSecret).update(email).digest("base64url"));
+  const given = Buffer.from(token);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const email = normalizeEmail(url.searchParams.get("email") ?? "");
   const token = url.searchParams.get("token") ?? "";
-  if (!unsubscribeTokenOk(email, token)) return page("الرابط غير صالح", "تعذر إلغاء الاشتراك من هذا الرابط.");
-  await suppressMarketingEmail(email);
+  if (!tokenOk(email, token)) return page("الرابط غير صالح", "تعذر إلغاء الاشتراك من هذا الرابط.");
+  await suppressAddress("email", email, "unsubscribed");
   return page("تم إلغاء الاشتراك", "لن تصلك رسائل العروض بعد الآن. رسائل الدخول والطلبات لا تتأثر.");
 }

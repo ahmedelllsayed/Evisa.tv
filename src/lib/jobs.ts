@@ -1,12 +1,17 @@
 import "server-only";
 import { failPendingPayments } from "@/lib/data/applications";
 import { sql } from "@/lib/data/db";
+import { processMarketing } from "@/lib/data/marketing/tick";
 import { processOutbox } from "@/lib/data/outbox";
 
 export async function runJob(job: string) {
   if (job === "mail") {
     await processOutbox(25);
     return { ok: true as const, job };
+  }
+  if (job === "marketing") {
+    const result = await processMarketing();
+    return { ok: true as const, job, ...result };
   }
   if (job === "payments") {
     const rows = await sql<{ id: string }>(

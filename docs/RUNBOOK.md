@@ -26,7 +26,7 @@ Download one dump to this computer once a week. That copy is still yours; it is 
 
 ## Mail stopped
 
-Pending mail is retried by `POST /api/cron/mail` with `Authorization: Bearer $CRON_SECRET`. Schedule that call, plus `/api/cron/payments` and `/api/cron/cleanup`, as Coolify scheduled tasks every minute, 15 minutes and one day. Until `CRON_SECRET` is set, those routes refuse the call. The admin alerts poll still retries a few messages when a staff member has the console open.
+Pending mail is retried by `POST /api/cron/mail` with `Authorization: Bearer $CRON_SECRET`. Schedule that call, plus `/api/cron/marketing` (scheduled campaigns, automatic messages, and the marketing queue), `/api/cron/payments` and `/api/cron/cleanup`, as Coolify scheduled tasks every minute, every minute, 15 minutes and one day. Resend bounce and complaint events go to `/api/webhooks/resend` and need `RESEND_WEBHOOK_SECRET`. Until `CRON_SECRET` is set, those routes refuse the call. The admin alerts poll still retries a few messages when a staff member has the console open.
 
 ## Disk full
 

@@ -8,6 +8,7 @@ export async function sendMail(input: {
   text: string;
   html?: string;
   idempotencyKey?: string;
+  headers?: Record<string, string>;
   attachments?: { filename: string; content: Buffer; contentType?: string | null }[];
 }) {
   const key = process.env.RESEND_API_KEY;
@@ -27,6 +28,7 @@ export async function sendMail(input: {
       subject: input.subject,
       text: input.text,
       ...(input.html ? { html: input.html } : {}),
+      ...(input.headers ? { headers: input.headers } : {}),
       ...(input.attachments?.length
         ? {
             attachments: input.attachments.map((file) => ({

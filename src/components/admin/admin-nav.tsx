@@ -12,9 +12,15 @@ import {
   FileText,
   Globe2,
   LayoutDashboard,
+  Filter,
+  Gift,
+  LayoutTemplate,
   Mail,
   Map,
+  RadioTower,
   Send,
+  TrendingUp,
+  Workflow,
   Menu,
   PanelLeft,
   Receipt,
@@ -49,8 +55,14 @@ const groups: { label: string; links: { href: string; label: string; icon: Lucid
   {
     label: "التسويق",
     links: [
-      { href: "/admin/coupons", label: "الكوبونات", icon: Ticket },
-      { href: "/admin/campaigns", label: "البريد", icon: Send },
+      { href: "/admin/marketing", label: "نظرة عامة", icon: TrendingUp },
+      { href: "/admin/marketing/coupons", label: "الكوبونات", icon: Ticket },
+      { href: "/admin/marketing/campaigns", label: "الحملات", icon: Send },
+      { href: "/admin/marketing/segments", label: "الشرائح", icon: Filter },
+      { href: "/admin/marketing/templates", label: "القوالب", icon: LayoutTemplate },
+      { href: "/admin/marketing/automations", label: "التلقائية", icon: Workflow },
+      { href: "/admin/marketing/referrals", label: "الإحالة", icon: Gift },
+      { href: "/admin/marketing/channels", label: "القنوات", icon: RadioTower },
     ],
   },
   {
@@ -206,7 +218,7 @@ function NavLink({
   onNavigate?: () => void;
 }) {
   const bare = pathname.replace(/^\/[^/]+/, "") || "/";
-  const active = path === "/admin" ? bare === "/admin" : bare === path || bare.startsWith(`${path}/`);
+  const active = path === "/admin" || path === "/admin/marketing" ? bare === path : bare === path || bare.startsWith(`${path}/`);
   return (
     <Link
       href={href(path, locale)}

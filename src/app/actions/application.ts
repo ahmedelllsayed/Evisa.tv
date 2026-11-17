@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { createApplication, findOpenApplication, resumeOpenApplication } from "@/lib/data/applications";
@@ -39,6 +40,7 @@ export async function startApplicationAction(input: {
     express: input.express,
     locale: input.locale,
     visaOptionId: input.visaOptionId,
+    campaignId: (await cookies()).get("mkt")?.value ?? null,
   });
   redirect(`/${input.locale}/apply/${id}`);
 }

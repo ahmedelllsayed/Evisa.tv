@@ -27,6 +27,7 @@ import { getDestinationById } from "./catalog";
 import { getActiveVisaOption, getDefaultVisaOption, snapshotVisaOption } from "./visa-options";
 import { day, getDb, iso, isoOrNull, json, num, numOrNull, one, sql } from "./db";
 import { consumeCoupon, releaseCouponHold, repriceApplication, repriceWithCoupon } from "./coupons";
+import { cancelReferralReward, issueReferralReward } from "./marketing/referrals";
 
 type Row = Record<string, unknown>;
 
@@ -40,13 +41,15 @@ const APP_SELECT = `
   select a.*, d.name as destination_name, d.name_ar as destination_name_ar, d.code as destination_code, d.slug as destination_slug, d.flag as destination_flag,
          d.image as destination_image, ${requiredDocsSql} as destination_documents, p.email as user_email,
          assignee.email as assignee_email,
-         cp.code as coupon_code, cp.kind as coupon_kind, cp.value as coupon_value, cp.applies_to as coupon_applies_to
+         coalesce(cc.code, cp.code) as coupon_code, cp.kind as coupon_kind, cp.value as coupon_value, cp.applies_to as coupon_applies_to,
+         cp.max_discount as coupon_max_discount
   from applications a
   join destinations d on d.id = a.destination_id
   join profiles p on p.id = a.user_id
   left join profiles assignee on assignee.id = a.assignee_id
   left join visa_options vo on vo.id = a.visa_option_id
-  left join coupons cp on cp.id = a.coupon_id`;
+  left join coupons cp on cp.id = a.coupon_id
+  left join coupon_codes cc on cc.id = a.coupon_code_id`;
 
 function lockedDocuments(r: Row) {
   const locked = json<string[] | null>(r.requirements_locked, null);
@@ -94,6 +97,7 @@ function toApplication(r: Row): Application {
     couponKind: r.coupon_kind === "percent" || r.coupon_kind === "fixed" ? r.coupon_kind : null,
     couponValue: r.coupon_value == null ? null : num(r.coupon_value),
     couponAppliesTo: r.coupon_applies_to === "service" || r.coupon_applies_to === "total" ? r.coupon_applies_to : null,
+    couponMaxDiscount: numOrNull(r.coupon_max_discount),
     totalAmount: num(r.total_amount),
     currency: String(r.currency).trim(),
     paidAt: isoOrNull(r.paid_at),
@@ -119,6 +123,7 @@ export async function createApplication(input: {
   express: boolean;
   locale?: string;
   visaOptionId?: string | null;
+  campaignId?: string | null;
 }) {
   const d = await getDestinationById(input.destinationId);
   if (!d || !d.isActive || !d.visaRequired) throw new Error("This destination is not available for applications");
@@ -141,6 +146,12 @@ export async function createApplication(input: {
       option.id, option.label, option.labelAr, JSON.stringify(snapshotVisaOption(option)),
     ],
   );
+  if (input.campaignId && /^[0-9a-f-]{36}$/i.test(input.campaignId)) {
+    await sql(
+      "update applications set campaign_id = $2 where id = $1 and exists (select 1 from marketing_campaigns where id = $2)",
+      [row!.id, input.campaignId],
+    );
+  }
   await addEvent(row!.id, { status: "draft", title: "Application started", description: `${d.name} · ${option.label}` });
   return row!.id;
 }
@@ -570,6 +581,7 @@ export async function setStatus(
      values ($1,$2,$3,$4,$5,$6)`,
     [id, current.status, status, options?.actorId ?? null, options?.actorEmail ?? null, event?.description ?? event?.title ?? null],
   );
+  if (status === "refunded") await cancelReferralReward(id).catch(() => undefined);
   if (event) await addEvent(id, { status, ...event });
   if (options?.notify !== false) await deliverStatusNotice(id, status).catch(() => undefined);
   else if (status === "submitted") await recordFunnel("application_submitted", current.locale ?? null, current.destinationSlug).catch(() => undefined);
@@ -1257,13 +1269,17 @@ export async function applyPaymobCallback(input: {
     return { ok: true as const, reason: "paid" as const };
   });
   if (submittedId) await finishPaidApplication(submittedId);
-  else if (refundedId) await deliverStatusNotice(refundedId, "refunded").catch(() => undefined);
+  else if (refundedId) {
+    await cancelReferralReward(refundedId).catch(() => undefined);
+    await deliverStatusNotice(refundedId, "refunded").catch(() => undefined);
+  }
   return outcome;
 }
 
 async function finishPaidApplication(applicationId: string) {
   await assignPaidApplication(applicationId);
   await deliverStatusNotice(applicationId, "submitted").catch(() => undefined);
+  await issueReferralReward(applicationId).catch((error) => console.error("[referral]", error));
 }
 
 export async function markRefunded(applicationId: string, paymentId: string) {

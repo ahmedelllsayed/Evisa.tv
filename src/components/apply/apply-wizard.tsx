@@ -215,7 +215,7 @@ export function ApplyWizard({
   const fees = feePreview(application, drafts.length || application.travelerCount, countLocked);
   const couponRule: CouponRule | null =
     application.couponKind && application.couponValue != null && application.couponAppliesTo
-      ? { kind: application.couponKind, value: application.couponValue, appliesTo: application.couponAppliesTo }
+      ? { kind: application.couponKind, value: application.couponValue, appliesTo: application.couponAppliesTo, maxDiscount: application.couponMaxDiscount }
       : null;
   const discount = editable && couponRule ? discountAmount({ govFee: fees.gov, serviceFee: fees.service }, couponRule) : application.discountAmount;
   const payable = editable ? fees.gov + fees.service - discount : application.totalAmount;

@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { marketToday } from "@/components/account/profile/rules";
 import { ApplyWizard } from "@/components/apply/apply-wizard";
@@ -5,6 +6,7 @@ import { siteConfig } from "@/config/site.config";
 import { requireUser } from "@/lib/auth";
 import { countries, countryName } from "@/lib/countries";
 import { getApplication, listDocuments, listPayments, listTravelers } from "@/lib/data/applications";
+import { autoApplyCoupon } from "@/lib/data/coupons";
 import { listAnswers, listActiveQuestions } from "@/lib/data/questions";
 import { attachProfileDocuments, getProfileVault } from "@/lib/data/profile-vault";
 import { isArabicLocale } from "@/lib/i18n";
@@ -30,8 +32,12 @@ export async function generateMetadata({ params }: Page<{ locale: string; id: st
 export default async function ApplyPage({ params }: Page<{ locale: string; id: string }>) {
   const { locale, id } = await params;
   const user = await requireUser(locale, `/${locale}/apply/${id}`);
-  const application = await getApplication(id);
+  let application = await getApplication(id);
   if (!application || application.userId !== user.id) notFound();
+  if (!application.couponCode && (application.status === "draft" || application.status === "payment_pending")) {
+    const linkCode = (await cookies()).get("coupon")?.value ?? null;
+    if (await autoApplyCoupon(id, user.id, linkCode, locale)) application = (await getApplication(id)) ?? application;
+  }
   const reusable = application.userId === user.id && (application.status === "draft" || application.status === "payment_pending");
   if (reusable) await attachProfileDocuments(user.id, id);
   const [travelers, documents, profile, payments, questions, savedAnswers] = await Promise.all([

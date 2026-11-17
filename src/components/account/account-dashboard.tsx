@@ -20,7 +20,7 @@ import { Files } from "./dashboard/files";
 import { DashboardHeader } from "./dashboard/header";
 import { isTab, needsAction, type OrderFilter, type Tab } from "./dashboard/model";
 import { Orders } from "./dashboard/orders";
-import { Overview } from "./dashboard/overview";
+import { Overview, type ReferralReward } from "./dashboard/overview";
 import { Payments } from "./dashboard/payments";
 import { TabBar, panelId, tabId, type TabBadge } from "./dashboard/tab-bar";
 import { Visas } from "./dashboard/visas";
@@ -40,6 +40,8 @@ export function AccountDashboard({
   notifications,
   profile,
   referralUrl,
+  referralOffer,
+  referralRewards,
 }: {
   locale: string;
   email: string;
@@ -56,6 +58,8 @@ export function AccountDashboard({
   stats: AccountStats;
   profile: AccountProfileSummary;
   referralUrl: string;
+  referralOffer: string | null;
+  referralRewards: ReferralReward[];
 }) {
   const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "overview");
   const [filter, setFilter] = useState<OrderFilter>("all");
@@ -129,6 +133,8 @@ export function AccountDashboard({
               profilePercent={derived.checklist.percent}
               notifications={notifications}
               referralUrl={referralUrl}
+              referralOffer={referralOffer}
+              referralRewards={referralRewards}
               onPick={choose}
             />
           )}

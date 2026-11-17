@@ -241,6 +241,7 @@ export type Application = {
   couponKind: "percent" | "fixed" | null;
   couponValue: number | null;
   couponAppliesTo: "service" | "total" | null;
+  couponMaxDiscount: number | null;
   totalAmount: number;
   currency: string;
   paidAt: string | null;

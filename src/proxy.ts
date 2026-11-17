@@ -55,6 +55,10 @@ export async function proxy(request: NextRequest) {
   if (ref && /^[a-z0-9]{8}$/i.test(ref)) {
     response.cookies.set("ref", ref.toLowerCase(), { path: "/", maxAge: 60 * 60 * 24 * 90, sameSite: "lax" });
   }
+  const coupon = request.nextUrl.searchParams.get("coupon")?.trim().toUpperCase();
+  if (coupon && /^[A-Z0-9][A-Z0-9-]{2,19}$/.test(coupon)) {
+    response.cookies.set("coupon", coupon, { path: "/", maxAge: 60 * 60 * 24 * 30, sameSite: "lax" });
+  }
 
   return response;
 }

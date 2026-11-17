@@ -38,8 +38,6 @@ import { saveDestinationMedia, type DestinationMediaKind } from "@/lib/destinati
 import { saveCitizenshipCodes, saveSiteSettings, getSiteSettings, type SiteSettings } from "@/lib/data/settings";
 import { parseQuestionList } from "@/lib/visa-answers";
 import { one, sql } from "@/lib/data/db";
-import { deleteCoupon, saveCoupon, setCouponActive } from "@/lib/data/coupons";
-import type { CouponDraft } from "@/lib/coupon-math";
 import { getLeastBusyStaff } from "@/lib/data/staff";
 import { canManageUser, currentUserHasPermission, getAssignableRoles } from "@/lib/rbac";
 import { isFullAdmin, parseAdminRole } from "@/lib/rbac-constants";
@@ -988,30 +986,4 @@ export async function adminSaveUserNotes(locale: string, id: string, formData: F
   if (!/^[0-9a-f-]{36}$/i.test(id)) redirect(`/${locale}/admin/users`);
   await sql("update profiles set staff_notes = $2 where id = $1", [id, String(formData.get("notes") ?? "").trim() || null]);
   refresh(locale, `/admin/users/${id}`);
-}
-
-export async function adminSaveCoupon(locale: string, input: CouponDraft) {
-  await guard(locale, "settings", "edit");
-  const saved = await saveCoupon(input);
-  if (!saved.ok) return saved;
-  await recordAudit("coupon.save", input.code);
-  refresh(locale, "/admin/coupons");
-  return { ok: true as const };
-}
-
-export async function adminSetCouponActive(locale: string, id: string, active: boolean) {
-  await guard(locale, "settings", "edit");
-  await setCouponActive(id, active);
-  await recordAudit(active ? "coupon.enable" : "coupon.pause", id);
-  refresh(locale, "/admin/coupons");
-  return { ok: true as const };
-}
-
-export async function adminDeleteCoupon(locale: string, id: string) {
-  await guard(locale, "settings", "edit");
-  const removed = await deleteCoupon(id);
-  if (!removed.ok) return removed;
-  await recordAudit("coupon.delete", id);
-  refresh(locale, "/admin/coupons");
-  return { ok: true as const };
 }

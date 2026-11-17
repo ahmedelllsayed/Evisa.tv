@@ -27,6 +27,8 @@ export function Overview({
   profilePercent,
   notifications,
   referralUrl,
+  referralOffer,
+  referralRewards,
   onPick,
 }: {
   locale: string;
@@ -39,6 +41,8 @@ export function Overview({
   profilePercent: number;
   notifications: AccountNotification[];
   referralUrl: string;
+  referralOffer: string | null;
+  referralRewards: ReferralReward[];
   onPick: (tab: Tab, filter?: OrderFilter) => void;
 }) {
   const byId = new Map(apps.map((app) => [app.id, app]));
@@ -50,7 +54,7 @@ export function Overview({
       </div>
       <div className="grid min-w-0 content-start gap-4">
         <Notifications locale={locale} now={now} notifications={notifications} />
-        {referralUrl ? <InviteCard locale={locale} url={referralUrl} /> : null}
+        {referralUrl ? <InviteCard locale={locale} url={referralUrl} offer={referralOffer} rewards={referralRewards} /> : null}
       </div>
     </div>
   );
@@ -212,7 +216,16 @@ function Notifications({ locale, now, notifications }: { locale: string; now: nu
 
 const noSubscribe = () => () => {};
 
-function InviteCard({ locale, url }: { locale: string; url: string }) {
+export type ReferralReward = { code: string; state: "open" | "used" | "expired" | "cancelled"; expires: string | null };
+
+const rewardState: Record<ReferralReward["state"], [string, string]> = {
+  open: ["Ready to use", "جاهز للاستخدام"],
+  used: ["Used", "استُخدم"],
+  expired: ["Expired", "انتهى"],
+  cancelled: ["Cancelled after a refund", "أُلغي بعد استرداد"],
+};
+
+function InviteCard({ locale, url, offer, rewards }: { locale: string; url: string; offer: string | null; rewards: ReferralReward[] }) {
   const [copied, setCopied] = useState(false);
   const canShare = useSyncExternalStore(
     noSubscribe,
@@ -237,7 +250,7 @@ function InviteCard({ locale, url }: { locale: string; url: string }) {
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-[#16182b]">{say(locale, "Invite a friend", "ادعُ صديقاً")}</h2>
           <p className="mt-0.5 text-sm leading-relaxed text-muted-ink">
-            {say(locale, "Share your personal link with friends who are planning a trip.", "شارك رابطك الخاص مع أصدقائك الذين يخططون للسفر.")}
+            {offer ?? say(locale, "Share your personal link with friends who are planning a trip.", "شارك رابطك الخاص مع أصدقائك الذين يخططون للسفر.")}
           </p>
         </div>
       </div>
@@ -260,6 +273,21 @@ function InviteCard({ locale, url }: { locale: string; url: string }) {
           </button>
         ) : null}
       </div>
+      {rewards.length ? (
+        <ul className="mt-4 space-y-2 border-t border-[#e3e5f2] pt-3">
+          {rewards.map((reward) => (
+            <li key={reward.code} className="flex items-center justify-between gap-3 text-sm">
+              <span dir="ltr" className={cn("font-mono font-semibold text-[#16182b]", reward.state !== "open" && "text-muted-ink line-through")}>
+                {reward.code}
+              </span>
+              <span className="text-xs text-muted-ink">
+                {say(locale, ...rewardState[reward.state])}
+                {reward.state === "open" && reward.expires ? ` · ${say(locale, "until", "حتى")} ${reward.expires}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </Card>
   );
 }
