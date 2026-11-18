@@ -17,14 +17,13 @@ function refFrom(text: string) {
   }
 }
 
-export async function sendEmailMessage(input: { to: string; subject: string; text: string; html: string; key: string; stopUrl: string }): Promise<SendResult> {
+export async function sendEmailMessage(input: { to: string; subject: string; text: string; html: string; key: string }): Promise<SendResult> {
   const result = await sendMail({
     to: input.to,
     subject: input.subject,
     text: input.text,
     html: input.html,
     idempotencyKey: input.key,
-    headers: { "List-Unsubscribe": `<${input.stopUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
   });
   return result.sent ? { ok: true, ref: null } : { ok: false, error: "تعذر الإرسال عبر Resend" };
 }

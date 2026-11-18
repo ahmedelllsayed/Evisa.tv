@@ -25,10 +25,6 @@ export function trackedLink(token: string) {
   return `${siteBase()}/api/m/${token}`;
 }
 
-export function stopLink(token: string) {
-  return `${siteBase()}/api/m/${token}/stop`;
-}
-
 export function inQuietHours(now: Date, start: number, end: number) {
   if (start === end) return false;
   const hour = marketHour(now);
@@ -68,13 +64,12 @@ async function sendOne(
 ): Promise<SendResult> {
   if (channel === "email") {
     senders.brand ??= await brand();
-    const stopUrl = stopLink(input.token);
-    const mail = renderEmail({ content: input.content, locale: input.locale, vars: input.vars, brand: senders.brand.name, address: senders.brand.address, stopUrl });
-    return sendEmailMessage({ to: input.address, subject: mail.subject, text: mail.text, html: mail.html, key: input.key, stopUrl });
+    const mail = renderEmail({ content: input.content, locale: input.locale, vars: input.vars, brand: senders.brand.name, address: senders.brand.address });
+    return sendEmailMessage({ to: input.address, subject: mail.subject, text: mail.text, html: mail.html, key: input.key });
   }
   if (channel === "sms") {
     senders.sms ??= await getSmsChannel();
-    return sendSmsMessage(senders.sms, input.address, renderSms({ content: input.content, locale: input.locale, vars: input.vars, stopUrl: stopLink(input.token) }));
+    return sendSmsMessage(senders.sms, input.address, renderSms({ content: input.content, locale: input.locale, vars: input.vars }));
   }
   senders.whatsapp ??= await getWhatsAppChannel();
   if (senders.whatsapp.config.provider === "gowa") {

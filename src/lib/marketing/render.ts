@@ -89,32 +89,30 @@ function linkify(html: string) {
   return html.replace(/(https?:\/\/[^\s<]+)/g, (url) => `<a href="${url}" style="color:#3f46d6">${url}</a>`);
 }
 
-export function renderEmail(input: { content: MessageContent; locale: string | null; vars: MessageVars; brand: string; address: string | null; stopUrl: string }) {
+export function renderEmail(input: { content: MessageContent; locale: string | null; vars: MessageVars; brand: string; address: string | null }) {
   const chosen = pickLanguage(input.content, input.locale);
   const message = fillVariables(withCode(chosen.body, input.vars.code, chosen.english), input.vars);
   const subject = fillVariables(chosen.subject, input.vars);
-  const stopLabel = chosen.english ? "Unsubscribe" : "إلغاء الاشتراك";
-  const text = [message, "", input.brand, input.address, `${stopLabel}: ${input.stopUrl}`].filter((line) => line != null).join("\n");
+  const text = [message, "", input.brand, input.address].filter((line) => line != null).join("\n");
   const paragraphs = message
     .split(/\n{2,}/)
     .map((part) => `<p style="margin:0 0 12px">${linkify(escapeHtml(part)).replace(/\n/g, "<br>")}</p>`)
     .join("");
   const dir = chosen.english ? "ltr" : "rtl";
   const lang = chosen.english ? "en" : "ar";
-  const html = `<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><title>${escapeHtml(subject)}</title></head><body style="margin:0;padding:24px;font-family:Tahoma,Arial,sans-serif;color:#16182b;line-height:1.6">${paragraphs}<p style="margin-top:24px;color:#5c6570;font-size:12px">${escapeHtml(input.brand)}${input.address ? `<br>${escapeHtml(input.address)}` : ""}<br><a href="${escapeHtml(input.stopUrl)}" style="color:#5c6570">${stopLabel}</a></p></body></html>`;
+  const footer = [escapeHtml(input.brand), input.address ? escapeHtml(input.address) : ""].filter(Boolean).join("<br>");
+  const html = `<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><title>${escapeHtml(subject)}</title></head><body style="margin:0;padding:24px;font-family:Tahoma,Arial,sans-serif;color:#16182b;line-height:1.6">${paragraphs}${footer ? `<p style="margin-top:24px;color:#5c6570;font-size:12px">${footer}</p>` : ""}</body></html>`;
   return { subject, text, html };
 }
 
-export function renderSms(input: { content: MessageContent; locale: string | null; vars: MessageVars; stopUrl: string }) {
-  const chosen = pickLanguage(input.content, input.locale);
-  const message = fillVariables(withCode(chosen.body, input.vars.code, chosen.english), input.vars);
-  return `${message}\n${chosen.english ? "Stop" : "إلغاء"}: ${input.stopUrl}`;
-}
-
-/** WhatsApp text is the message itself. It does not add an unsubscribe line. */
-export function renderWhatsAppText(input: { content: MessageContent; locale: string | null; vars: MessageVars }) {
+export function renderSms(input: { content: MessageContent; locale: string | null; vars: MessageVars }) {
   const chosen = pickLanguage(input.content, input.locale);
   return fillVariables(withCode(chosen.body, input.vars.code, chosen.english), input.vars);
+}
+
+/** WhatsApp text is the same written message, with variables and the discount code filled in. */
+export function renderWhatsAppText(input: { content: MessageContent; locale: string | null; vars: MessageVars }) {
+  return renderSms(input);
 }
 
 export function renderWhatsAppParams(content: MessageContent, vars: MessageVars) {

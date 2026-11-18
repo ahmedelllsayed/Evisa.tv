@@ -50,7 +50,7 @@ export function ContentFields({
       </div>
     );
   }
-  const parts = channel === "sms" ? smsParts(`${content.body}\nإلغاء: https://evisa.tv/api/m/XXXXXXXXXX`) : null;
+  const parts = channel === "sms" ? smsParts(content.body) : null;
   return (
     <div className="space-y-3">
       {whatsappText && channel === "whatsapp" ? (
@@ -68,7 +68,7 @@ export function ContentFields({
       </label>
       {parts ? (
         <p className="text-xs text-muted-foreground">
-          {parts.chars} حرفاً مع رابط الإلغاء · {parts.parts} {parts.parts === 1 ? "جزء" : "أجزاء"} {parts.unicode ? "(نص عربي: 70 حرفاً للجزء)" : "(160 حرفاً للجزء)"}
+          {parts.chars} حرفاً · {parts.parts} {parts.parts === 1 ? "جزء" : "أجزاء"} {parts.unicode ? "(نص عربي: 70 حرفاً للجزء)" : "(160 حرفاً للجزء)"}
         </p>
       ) : null}
       <details className="rounded-lg border p-3 text-sm" open={Boolean(content.bodyEn)}>
@@ -88,7 +88,6 @@ export function ContentFields({
       </details>
       <p className="text-xs text-muted-foreground">
         المتغيرات: {"{{name}}"} الاسم الأول، {"{{code}}"} رمز الخصم، {"{{link}}"} رابط متتبَّع للموقع. إن لم تكتب {"{{code}}"} يُضاف الرمز في آخر الرسالة.
-        {channel === "whatsapp" ? "" : " رابط الإلغاء يُضاف تلقائياً."}
       </p>
     </div>
   );
