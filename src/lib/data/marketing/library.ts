@@ -1,6 +1,7 @@
 import "server-only";
 import { cleanAudienceFilter, emptyFilter, parseContactImport, type AudienceFilter, type Channel } from "@/lib/marketing/audience";
 import { cleanContent, contentProblem, type MessageContent } from "@/lib/marketing/render";
+import { whatsappSendMode } from "./settings";
 import { getDb, iso, json, num, one, sql } from "../db";
 
 type Row = Record<string, unknown>;
@@ -231,7 +232,8 @@ export async function saveTemplate(input: { id?: string | null; name: string; ch
   if (name.length < 2) return { ok: false as const, error: "اكتب اسماً للقالب." };
   if (!["email", "sms", "whatsapp"].includes(input.channel)) return { ok: false as const, error: "اختر القناة." };
   const content = cleanContent(input.content);
-  const problem = contentProblem(input.channel, content);
+  const mode = input.channel === "whatsapp" ? await whatsappSendMode() : "cloud";
+  const problem = contentProblem(input.channel, content, mode);
   if (problem) return { ok: false as const, error: problem };
   const params = [name, input.channel, content.subject, content.subjectEn, content.body, content.bodyEn, content.waName, content.waLanguage, JSON.stringify(content.waParams)];
   if (input.id) {

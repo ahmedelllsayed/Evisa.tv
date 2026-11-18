@@ -6,6 +6,7 @@ import { siteConfig } from "@/config/site.config";
 import { marketingAccess } from "@/lib/data/marketing/access";
 import { listSuppressions } from "@/lib/data/marketing/library";
 import { emailReady, getMarketingSettings, getSmsChannel, getWhatsAppChannel } from "@/lib/data/marketing/settings";
+import { wahaSessionStatus } from "@/lib/data/marketing/send";
 import type { Page } from "@/lib/page";
 
 export const metadata = { title: "القنوات" };
@@ -15,6 +16,7 @@ export default async function MarketingChannelsPage({ params }: Page) {
   const access = await marketingAccess(locale);
   if (!access.full) redirect(`/${locale}/admin/marketing`);
   const [sms, whatsapp, settings, suppressions] = await Promise.all([getSmsChannel(), getWhatsAppChannel(), getMarketingSettings(), listSuppressions()]);
+  const sessionStatus = await wahaSessionStatus(whatsapp);
   const base = siteConfig.url.replace(/\/$/, "");
   const webhook = `${base}/api/webhooks/resend`;
   const cron = `${base}/api/cron/marketing`;
@@ -50,8 +52,8 @@ export default async function MarketingChannelsPage({ params }: Page) {
       <AdminPanel title="الرسائل النصية" hint="أي مزوّد يقبل طلب HTTP: اكتب حقول الطلب كما في توثيقه. الأرقام تُرسل بالصيغة التي تختارها.">
         <SmsForm locale={locale} enabled={sms.enabled} config={sms.config} hasSecret={sms.hasSecret} />
       </AdminPanel>
-      <AdminPanel title="واتساب" hint="WhatsApp Cloud API من Meta.">
-        <WhatsAppForm locale={locale} enabled={whatsapp.enabled} config={whatsapp.config} hasSecret={whatsapp.hasSecret} />
+      <AdminPanel title="واتساب" hint={whatsapp.config.provider === "waha" ? "نص حر عبر WAHA على خادمك." : "WhatsApp Cloud API من Meta."}>
+        <WhatsAppForm locale={locale} enabled={whatsapp.enabled} config={whatsapp.config} hasSecret={whatsapp.hasSecret} sessionStatus={sessionStatus} />
       </AdminPanel>
       <AdminPanel title="حدود الإرسال" hint="تسري على الحملات والرسائل التلقائية معاً.">
         <LimitsForm locale={locale} initial={{ capCount: settings.capCount, capDays: settings.capDays, quietStart: settings.quietStart, quietEnd: settings.quietEnd }} />

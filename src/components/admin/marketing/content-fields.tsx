@@ -5,9 +5,21 @@ import type { Channel } from "@/lib/marketing/audience";
 import { smsParts } from "@/lib/marketing/phone";
 import type { MessageContent } from "@/lib/marketing/render";
 
-export function ContentFields({ channel, content, onChange, disabled }: { channel: Channel; content: MessageContent; onChange: (next: MessageContent) => void; disabled?: boolean }) {
+export function ContentFields({
+  channel,
+  content,
+  onChange,
+  disabled,
+  whatsappText = false,
+}: {
+  channel: Channel;
+  content: MessageContent;
+  onChange: (next: MessageContent) => void;
+  disabled?: boolean;
+  whatsappText?: boolean;
+}) {
   const set = <K extends keyof MessageContent>(key: K, value: MessageContent[K]) => onChange({ ...content, [key]: value });
-  if (channel === "whatsapp") {
+  if (channel === "whatsapp" && !whatsappText) {
     return (
       <div className="space-y-3">
         <p className="text-xs leading-relaxed text-muted-foreground">
@@ -41,6 +53,9 @@ export function ContentFields({ channel, content, onChange, disabled }: { channe
   const parts = channel === "sms" ? smsParts(`${content.body}\nإلغاء: https://evisa.tv/api/m/XXXXXXXXXX`) : null;
   return (
     <div className="space-y-3">
+      {whatsappText && channel === "whatsapp" ? (
+        <p className="text-xs leading-relaxed text-muted-foreground">واتساب عبر WAHA يرسل هذا النص كما هو، من غير قالب Meta. الإرسال الجماعي الكثيف قد يعرّض الرقم للحظر.</p>
+      ) : null}
       {channel === "email" ? (
         <label className="block text-sm">
           الموضوع
@@ -49,7 +64,7 @@ export function ContentFields({ channel, content, onChange, disabled }: { channe
       ) : null}
       <label className="block text-sm">
         النص بالعربية
-        <textarea dir="auto" rows={channel === "sms" ? 4 : 8} disabled={disabled} value={content.body} onChange={(event) => set("body", event.target.value)} className={adminTextareaClass} />
+        <textarea dir="auto" rows={channel === "email" ? 8 : 4} disabled={disabled} value={content.body} onChange={(event) => set("body", event.target.value)} className={adminTextareaClass} />
       </label>
       {parts ? (
         <p className="text-xs text-muted-foreground">
@@ -67,7 +82,7 @@ export function ContentFields({ channel, content, onChange, disabled }: { channe
           ) : null}
           <label className="block text-sm">
             Text
-            <textarea dir="ltr" rows={channel === "sms" ? 3 : 6} disabled={disabled} value={content.bodyEn ?? ""} onChange={(event) => set("bodyEn", event.target.value || null)} className={adminTextareaClass} />
+            <textarea dir="ltr" rows={channel === "email" ? 6 : 3} disabled={disabled} value={content.bodyEn ?? ""} onChange={(event) => set("bodyEn", event.target.value || null)} className={adminTextareaClass} />
           </label>
         </div>
       </details>

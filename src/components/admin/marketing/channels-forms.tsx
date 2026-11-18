@@ -152,12 +152,25 @@ export function SmsForm({ locale, enabled, config, hasSecret }: { locale: string
   );
 }
 
-export function WhatsAppForm({ locale, enabled, config, hasSecret }: { locale: string; enabled: boolean; config: WhatsAppConfig; hasSecret: boolean }) {
+export function WhatsAppForm({
+  locale,
+  enabled,
+  config,
+  hasSecret,
+  sessionStatus,
+}: {
+  locale: string;
+  enabled: boolean;
+  config: WhatsAppConfig;
+  hasSecret: boolean;
+  sessionStatus: { label: string; ok: boolean } | null;
+}) {
   const [draft, setDraft] = useState(config);
   const [on, setOn] = useState(enabled);
   const [secret, setSecret] = useState("");
-  const [test, setTest] = useState({ to: "", name: "hello_world", language: "en_US" });
+  const [test, setTest] = useState({ to: "", name: "hello_world", language: "en_US", text: "مرحبا {{name}}" });
   const { run, pending, messages } = useRunner();
+  const waha = draft.provider === "waha";
   return (
     <form
       className="space-y-3"
@@ -172,35 +185,92 @@ export function WhatsAppForm({ locale, enabled, config, hasSecret }: { locale: s
         <input type="checkbox" checked={on} onChange={(event) => setOn(event.target.checked)} />
         القناة مفعّلة
       </label>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Phone number ID">
-          <input dir="ltr" value={draft.phoneNumberId} onChange={(event) => setDraft({ ...draft, phoneNumberId: event.target.value })} className={adminInputClass} />
-        </Field>
-        <Field label="إصدار الواجهة">
-          <input dir="ltr" value={draft.apiVersion} onChange={(event) => setDraft({ ...draft, apiVersion: event.target.value })} className={adminInputClass} />
-        </Field>
-        <Field label={hasSecret ? "Access token (محفوظ، اتركه فارغاً للإبقاء)" : "Access token"}>
-          <input type="password" dir="ltr" autoComplete="new-password" value={secret} onChange={(event) => setSecret(event.target.value)} className={adminInputClass} />
-        </Field>
+      <div className="flex flex-wrap gap-4 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            name="whatsapp-provider"
+            checked={!waha}
+            onChange={() => setDraft({ ...draft, provider: "cloud" })}
+          />
+          Meta Cloud
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            name="whatsapp-provider"
+            checked={waha}
+            onChange={() => setDraft({ ...draft, provider: "waha", url: draft.url || "https://waha.amail.bar", session: draft.session || "default" })}
+          />
+          WAHA
+        </label>
       </div>
-      <p className="text-xs text-muted-foreground">يُفضّل رمز مستخدم نظام دائم من Meta Business. الرسائل الترويجية تُرسل من قوالب معتمدة فقط، وتُحتسب بسعر Meta.</p>
+      {waha ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="عنوان WAHA">
+            <input dir="ltr" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} placeholder="https://waha.amail.bar" className={adminInputClass} />
+          </Field>
+          <Field label="الجلسة">
+            <input dir="ltr" value={draft.session} onChange={(event) => setDraft({ ...draft, session: event.target.value })} placeholder="default" className={adminInputClass} />
+          </Field>
+          <Field label={hasSecret ? "مفتاح X-Api-Key (محفوظ، اتركه فارغاً للإبقاء)" : "مفتاح X-Api-Key"}>
+            <input type="password" dir="ltr" autoComplete="new-password" value={secret} onChange={(event) => setSecret(event.target.value)} className={adminInputClass} />
+          </Field>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Phone number ID">
+            <input dir="ltr" value={draft.phoneNumberId} onChange={(event) => setDraft({ ...draft, phoneNumberId: event.target.value })} className={adminInputClass} />
+          </Field>
+          <Field label="إصدار الواجهة">
+            <input dir="ltr" value={draft.apiVersion} onChange={(event) => setDraft({ ...draft, apiVersion: event.target.value })} className={adminInputClass} />
+          </Field>
+          <Field label={hasSecret ? "Access token (محفوظ، اتركه فارغاً للإبقاء)" : "Access token"}>
+            <input type="password" dir="ltr" autoComplete="new-password" value={secret} onChange={(event) => setSecret(event.target.value)} className={adminInputClass} />
+          </Field>
+        </div>
+      )}
+      {waha ? (
+        <p className="text-xs text-muted-foreground">
+          الصق مفتاح الإرسال من إعداد WAHA. {sessionStatus ? <span className={sessionStatus.ok ? "text-emerald-300" : "text-amber-300"}>{sessionStatus.label}</span> : "احفظ العنوان والمفتاح لتظهر حالة الجلسة."} الإرسال الجماعي الكثيف عبر هذا الربط قد يؤدي إلى حظر الرقم.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">يُفضّل رمز مستخدم نظام دائم من Meta Business. الرسائل الترويجية تُرسل من قوالب معتمدة فقط، وتُحتسب بسعر Meta.</p>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         <button type="submit" className={adminPrimaryClass} disabled={pending}>حفظ</button>
         <Field label="رقم للتجربة">
           <input dir="ltr" value={test.to} onChange={(event) => setTest({ ...test, to: event.target.value })} placeholder="010…" className={cn(adminInputClass, "w-40")} />
         </Field>
-        <Field label="قالب">
-          <input dir="ltr" value={test.name} onChange={(event) => setTest({ ...test, name: event.target.value })} className={cn(adminInputClass, "w-36")} />
-        </Field>
-        <Field label="لغة">
-          <input dir="ltr" value={test.language} onChange={(event) => setTest({ ...test, language: event.target.value })} className={cn(adminInputClass, "w-24")} />
-        </Field>
+        {waha ? (
+          <Field label="نص التجربة">
+            <input dir="auto" value={test.text} onChange={(event) => setTest({ ...test, text: event.target.value })} className={cn(adminInputClass, "w-64")} />
+          </Field>
+        ) : (
+          <>
+            <Field label="قالب">
+              <input dir="ltr" value={test.name} onChange={(event) => setTest({ ...test, name: event.target.value })} className={cn(adminInputClass, "w-36")} />
+            </Field>
+            <Field label="لغة">
+              <input dir="ltr" value={test.language} onChange={(event) => setTest({ ...test, language: event.target.value })} className={cn(adminInputClass, "w-24")} />
+            </Field>
+          </>
+        )}
         <button
           type="button"
           className={adminGhostClass}
-          disabled={pending || !test.to.trim()}
+          disabled={pending || !test.to.trim() || (waha && test.text.trim().length < 2)}
           onClick={() =>
-            run(() => adminSendTest(locale, { channel: "whatsapp", address: test.to, content: { ...emptyContent, waName: test.name, waLanguage: test.language }, couponCode: null }), "أُرسلت رسالة التجربة.")
+            run(
+              () =>
+                adminSendTest(locale, {
+                  channel: "whatsapp",
+                  address: test.to,
+                  content: waha ? { ...emptyContent, body: test.text } : { ...emptyContent, waName: test.name, waLanguage: test.language },
+                  couponCode: null,
+                }),
+              "أُرسلت رسالة التجربة.",
+            )
           }
         >
           أرسل تجربة بعد الحفظ

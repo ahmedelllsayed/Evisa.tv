@@ -1,6 +1,7 @@
 import "server-only";
 import type { Channel } from "@/lib/marketing/audience";
 import { contentProblem } from "@/lib/marketing/render";
+import { whatsappSendMode } from "./settings";
 import { generateCouponCodes } from "../coupons";
 import { getDb, iso, isoOrNull, num, one, sql } from "../db";
 import { channelAddress } from "./audience";
@@ -121,7 +122,8 @@ export async function setAutomationActive(id: string, active: boolean) {
     const row = await one<{ template_id: string | null }>("select template_id from marketing_automations where id = $1", [id]);
     const template = await getTemplate(row?.template_id ?? null);
     if (!template) return { ok: false as const, error: "القالب المرتبط حُذف. اختر قالباً ثم فعّل القاعدة." };
-    const problem = contentProblem(template.channel, template.content);
+    const mode = template.channel === "whatsapp" ? await whatsappSendMode() : "cloud";
+    const problem = contentProblem(template.channel, template.content, mode);
     if (problem) return { ok: false as const, error: problem };
   }
   await sql("update marketing_automations set active = $2, updated_at = now() where id = $1", [id, active]);

@@ -44,6 +44,7 @@ import {
   getMarketingSettings,
   saveChannel,
   saveMarketingSettings,
+  whatsappSendMode,
   type MarketingSettings,
   type SmsConfig,
   type WhatsAppConfig,
@@ -204,7 +205,8 @@ export async function adminDeleteTemplate(locale: string, id: string) {
 export async function adminSendTest(locale: string, input: { channel: Channel; address: string; content: Partial<MessageContent>; couponCode: string | null }) {
   await guardMarketing(locale, "edit");
   const content = cleanContent(input.content);
-  const problem = contentProblem(input.channel, content) ?? (await channelProblem(input.channel));
+  const mode = input.channel === "whatsapp" ? await whatsappSendMode() : "cloud";
+  const problem = contentProblem(input.channel, content, mode) ?? (await channelProblem(input.channel));
   if (problem) return { ok: false as const, error: problem };
   const address = addressFor(input.channel, input.address);
   if (!address) return { ok: false as const, error: input.channel === "email" ? "اكتب بريداً صالحاً." : "اكتب رقم هاتف صالحاً." };

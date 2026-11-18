@@ -16,7 +16,7 @@ type Draft = { id: string | null; name: string; channel: Channel; content: Messa
 
 const blank: Draft = { id: null, name: "", channel: "email", content: emptyContent };
 
-export function TemplatesBoard({ locale, templates, canEdit }: { locale: string; templates: TemplateRow[]; canEdit: boolean }) {
+export function TemplatesBoard({ locale, templates, canEdit, whatsappText }: { locale: string; templates: TemplateRow[]; canEdit: boolean; whatsappText: boolean }) {
   const [draft, setDraft] = useState<Draft>(blank);
   const [testTo, setTestTo] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export function TemplatesBoard({ locale, templates, canEdit }: { locale: string;
               <span className="font-medium">{template.name}</span>
               <Pill>{channelLabels[template.channel]}</Pill>
             </div>
-            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{template.channel === "whatsapp" ? template.content.waName : template.content.subject ?? template.content.body}</p>
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{template.channel === "whatsapp" && template.content.waName && !template.content.body ? template.content.waName : template.content.subject ?? template.content.body}</p>
           </button>
         ))}
       </div>
@@ -84,7 +84,7 @@ export function TemplatesBoard({ locale, templates, canEdit }: { locale: string;
             </select>
           </label>
         </div>
-        <ContentFields channel={draft.channel} content={draft.content} disabled={!canEdit} onChange={(content) => setDraft({ ...draft, content })} />
+        <ContentFields channel={draft.channel} content={draft.content} disabled={!canEdit} whatsappText={whatsappText} onChange={(content) => setDraft({ ...draft, content })} />
         <div className="flex flex-wrap items-end gap-2 border-t pt-4">
           <button type="submit" className={adminPrimaryClass} disabled={!canEdit || pending}>حفظ</button>
           <label className="block text-sm">

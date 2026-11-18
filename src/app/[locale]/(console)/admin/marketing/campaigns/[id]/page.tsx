@@ -75,7 +75,7 @@ export default async function CampaignPage({ params }: Page<{ locale: string; id
         </div>
       </AdminPanel>
       <AdminPanel title="الرسالة">
-        {campaign.channel === "whatsapp" ? (
+        {campaign.channel === "whatsapp" && campaign.content.waName && !campaign.content.body ? (
           <p className="text-sm" dir="ltr">{campaign.content.waName} · {campaign.content.waLanguage} · {campaign.content.waParams.join(" | ")}</p>
         ) : (
           <>

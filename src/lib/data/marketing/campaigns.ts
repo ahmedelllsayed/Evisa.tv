@@ -7,7 +7,7 @@ import { generateCouponCodes } from "../coupons";
 import { getDb, iso, isoOrNull, json, num, one, sql } from "../db";
 import { resolveAudience, type ReachablePerson } from "./audience";
 import { deliverMessages, newToken } from "./queue";
-import { emailReady, getSmsChannel, getWhatsAppChannel } from "./settings";
+import { emailReady, getSmsChannel, getWhatsAppChannel, whatsappSendMode } from "./settings";
 
 type Row = Record<string, unknown>;
 type Queryable = Pick<Db, "query">;
@@ -167,7 +167,11 @@ export async function channelProblem(channel: Channel) {
     return sms.enabled && sms.config.url ? null : "قناة الرسائل النصية غير مفعّلة. اضبطها من صفحة القنوات.";
   }
   const whatsapp = await getWhatsAppChannel();
-  return whatsapp.enabled && whatsapp.config.phoneNumberId && whatsapp.hasSecret ? null : "قناة واتساب غير مفعّلة. اضبطها من صفحة القنوات.";
+  if (!whatsapp.enabled) return "قناة واتساب غير مفعّلة. اضبطها من صفحة القنوات.";
+  if (whatsapp.config.provider === "waha") {
+    return whatsapp.config.url && whatsapp.config.session && whatsapp.hasSecret ? null : "إعداد WAHA غير مكتمل. اكتب العنوان والجلسة والمفتاح.";
+  }
+  return whatsapp.config.phoneNumberId && whatsapp.hasSecret ? null : "إعداد واتساب كلاود غير مكتمل. اكتب رقم الهاتف ورمز الدخول.";
 }
 
 async function audienceFor(campaign: Campaign, q?: Queryable) {
@@ -192,8 +196,9 @@ export async function previewCampaignAudience(input: { channel: Channel; segment
   return { ok: true as const, total: resolved.people.length, unreachable: resolved.unreachable, suppressed: resolved.suppressed, sample: resolved.people.slice(0, 40) };
 }
 
-function readyProblem(campaign: Campaign) {
-  return contentProblem(campaign.channel, campaign.content);
+async function readyProblem(campaign: Campaign) {
+  const mode = campaign.channel === "whatsapp" ? await whatsappSendMode() : "cloud";
+  return contentProblem(campaign.channel, campaign.content, mode);
 }
 
 async function insertRecipients(tx: Queryable, campaign: Campaign, people: ReachablePerson[]) {
@@ -233,7 +238,7 @@ export async function startCampaign(id: string, deliver: boolean) {
   const campaign = await getCampaign(id);
   if (!campaign) return { ok: false as const, error: "الحملة غير موجودة." };
   if (campaign.status !== "draft" && campaign.status !== "scheduled") return { ok: false as const, error: "الحملة بدأت من قبل." };
-  const problem = readyProblem(campaign) ?? (await channelProblem(campaign.channel));
+  const problem = (await readyProblem(campaign)) ?? (await channelProblem(campaign.channel));
   if (problem) return { ok: false as const, error: problem };
   const db = await getDb();
   const started = await db.transaction(async (tx) => {
@@ -257,7 +262,7 @@ export async function scheduleCampaign(id: string, localTime: string) {
   if (new Date(at).getTime() < Date.now() + 60_000) return { ok: false as const, error: "اختر موعداً في المستقبل." };
   const campaign = await getCampaign(id);
   if (!campaign) return { ok: false as const, error: "الحملة غير موجودة." };
-  const problem = readyProblem(campaign);
+  const problem = await readyProblem(campaign);
   if (problem) return { ok: false as const, error: problem };
   const row = await one("update marketing_campaigns set status = 'scheduled', scheduled_at = $2::timestamptz, updated_at = now() where id = $1 and status in ('draft', 'scheduled') returning id", [id, at]);
   return row ? { ok: true as const } : { ok: false as const, error: "الحملة بدأت من قبل." };

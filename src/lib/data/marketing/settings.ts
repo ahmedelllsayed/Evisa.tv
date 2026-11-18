@@ -95,9 +95,14 @@ export type SmsConfig = {
   successMatch: string;
 };
 
+export type WhatsAppProvider = "cloud" | "waha";
+
 export type WhatsAppConfig = {
+  provider: WhatsAppProvider;
   phoneNumberId: string;
   apiVersion: string;
+  url: string;
+  session: string;
 };
 
 export const defaultSmsConfig: SmsConfig = {
@@ -116,7 +121,13 @@ export const defaultSmsConfig: SmsConfig = {
   successMatch: "",
 };
 
-export const defaultWhatsAppConfig: WhatsAppConfig = { phoneNumberId: "", apiVersion: "v21.0" };
+export const defaultWhatsAppConfig: WhatsAppConfig = {
+  provider: "cloud",
+  phoneNumberId: "",
+  apiVersion: "v21.0",
+  url: "",
+  session: "default",
+};
 
 const field = (value: unknown, fallback: string, max = 200) => (typeof value === "string" ? value.trim().slice(0, max) : fallback);
 
@@ -142,9 +153,14 @@ export function cleanSmsConfig(input: Partial<SmsConfig> | null | undefined): Sm
 export function cleanWhatsAppConfig(input: Partial<WhatsAppConfig> | null | undefined): WhatsAppConfig {
   const raw = { ...defaultWhatsAppConfig, ...(input ?? {}) };
   const version = field(raw.apiVersion, "v21.0", 10);
+  const url = field(raw.url, "", 500).replace(/\/$/, "");
+  const session = field(raw.session, "default", 40);
   return {
+    provider: raw.provider === "waha" ? "waha" : "cloud",
     phoneNumberId: field(raw.phoneNumberId, "", 40).replace(/\D/g, ""),
     apiVersion: /^v\d{1,2}\.\d$/.test(version) ? version : "v21.0",
+    url: /^https:\/\/[^\s]+$/.test(url) ? url : "",
+    session: /^[A-Za-z0-9_-]{1,40}$/.test(session) ? session : "default",
   };
 }
 
@@ -182,6 +198,10 @@ export async function getSmsChannel(): Promise<ChannelState<SmsConfig>> {
 export async function getWhatsAppChannel(): Promise<ChannelState<WhatsAppConfig>> {
   const row = await one<{ enabled: boolean; config: unknown; secret: string | null }>("select enabled, config, secret from marketing_channels where channel = 'whatsapp'");
   return { enabled: Boolean(row?.enabled), config: cleanWhatsAppConfig(json(row?.config, {})), hasSecret: Boolean(row?.secret), secret: decryptSecret(row?.secret ?? null) };
+}
+
+export async function whatsappSendMode() {
+  return (await getWhatsAppChannel()).config.provider;
 }
 
 /** `secret` undefined keeps the stored key, an empty string removes it. */

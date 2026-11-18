@@ -6,7 +6,7 @@ import type { Channel } from "@/lib/marketing/audience";
 import { cleanContent, firstName, renderEmail, renderSms, renderWhatsAppParams, type MessageContent, type MessageVars } from "@/lib/marketing/render";
 import { getSiteSettings } from "../settings";
 import { json, num, one, sql } from "../db";
-import { sendEmailMessage, sendSmsMessage, sendWhatsAppMessage, type SendResult } from "./send";
+import { sendEmailMessage, sendSmsMessage, sendWahaText, sendWhatsAppMessage, type SendResult } from "./send";
 import { getMarketingSettings, getSmsChannel, getWhatsAppChannel, type ChannelState, type SmsConfig, type WhatsAppConfig } from "./settings";
 
 type Row = Record<string, unknown>;
@@ -77,6 +77,9 @@ async function sendOne(
     return sendSmsMessage(senders.sms, input.address, renderSms({ content: input.content, locale: input.locale, vars: input.vars, stopUrl: stopLink(input.token) }));
   }
   senders.whatsapp ??= await getWhatsAppChannel();
+  if (senders.whatsapp.config.provider === "waha") {
+    return sendWahaText(senders.whatsapp, input.address, renderSms({ content: input.content, locale: input.locale, vars: input.vars, stopUrl: stopLink(input.token) }));
+  }
   return sendWhatsAppMessage(senders.whatsapp, input.address, {
     name: input.content.waName ?? "",
     language: input.content.waLanguage ?? "ar",

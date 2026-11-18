@@ -36,6 +36,7 @@ export function CampaignComposer({
   templates,
   coupons,
   channelReady,
+  whatsappText,
   canEdit,
 }: {
   locale: string;
@@ -45,6 +46,7 @@ export function CampaignComposer({
   templates: { id: string; name: string; channel: Channel; content: MessageContent }[];
   coupons: { id: string; code: string; active: boolean }[];
   channelReady: Record<Channel, string | null>;
+  whatsappText: boolean;
   canEdit: boolean;
 }) {
   const [draft, setDraft] = useState<CampaignDraft>(initial);
@@ -180,7 +182,7 @@ export function CampaignComposer({
           </select>
         </label>
         <div className="mt-4">
-          <ContentFields channel={draft.channel} content={draft.content} disabled={!canEdit} onChange={(content) => set("content", content)} />
+          <ContentFields channel={draft.channel} content={draft.content} disabled={!canEdit} whatsappText={whatsappText} onChange={(content) => set("content", content)} />
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">

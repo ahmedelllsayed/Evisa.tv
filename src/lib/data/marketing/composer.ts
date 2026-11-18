@@ -4,10 +4,11 @@ import { listCoupons } from "../coupons";
 import { channelProblem } from "./campaigns";
 import { listSegments, listTemplates } from "./library";
 import { audienceOptions } from "./options";
+import { getWhatsAppChannel } from "./settings";
 
 /** Everything the campaign composer needs besides the campaign itself. */
 export async function composerData() {
-  const [options, segments, templates, coupons, email, sms, whatsapp] = await Promise.all([
+  const [options, segments, templates, coupons, email, sms, whatsapp, whatsappChannel] = await Promise.all([
     audienceOptions(),
     listSegments(),
     listTemplates(),
@@ -15,6 +16,7 @@ export async function composerData() {
     channelProblem("email"),
     channelProblem("sms"),
     channelProblem("whatsapp"),
+    getWhatsAppChannel(),
   ]);
   return {
     options,
@@ -22,6 +24,7 @@ export async function composerData() {
     templates: templates.map((template) => ({ id: template.id, name: template.name, channel: template.channel, content: template.content })),
     coupons: coupons.map((coupon) => ({ id: coupon.id, code: coupon.code, active: coupon.active })),
     channelReady: { email, sms, whatsapp } as Record<Channel, string | null>,
+    whatsappText: whatsappChannel.config.provider === "waha",
   };
 }
 

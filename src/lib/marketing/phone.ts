@@ -23,6 +23,11 @@ export function normalizePhone(raw: string | null | undefined, countryCode = "20
   return full.length >= 10 && full.length <= 15 ? `+${full}` : null;
 }
 
+/** WAHA addresses a private chat as the international digits plus `@c.us`. */
+export function wahaChatId(e164: string) {
+  return `${e164.replace(/\D/g, "")}@c.us`;
+}
+
 export function phoneForProvider(e164: string, format: PhoneFormat, countryCode = "20") {
   const digits = e164.replace(/\D/g, "");
   if (format === "plus") return `+${digits}`;

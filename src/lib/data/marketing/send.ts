@@ -1,6 +1,6 @@
 import "server-only";
 import { sendMail } from "@/lib/email";
-import { phoneForProvider } from "@/lib/marketing/phone";
+import { phoneForProvider, wahaChatId } from "@/lib/marketing/phone";
 import type { ChannelState, SmsConfig, WhatsAppConfig } from "./settings";
 
 export type SendResult = { ok: true; ref: string | null } | { ok: false; error: string };
@@ -87,12 +87,61 @@ function graphError(reply: string) {
   }
 }
 
+/** Free text through the self-hosted WAHA gateway. `linkPreview` stays off so WhatsApp does not fetch the link. */
+export async function sendWahaText(channel: ChannelState<WhatsAppConfig>, to: string, text: string): Promise<SendResult> {
+  const config = channel.config;
+  if (!channel.enabled) return { ok: false, error: "قناة واتساب متوقفة" };
+  if (!config.url || !config.session || !channel.secret) return { ok: false, error: "إعداد WAHA غير مكتمل" };
+  try {
+    const res = await fetch(`${config.url}/api/sendText`, {
+      method: "POST",
+      headers: { "X-Api-Key": channel.secret, "Content-Type": "application/json" },
+      body: JSON.stringify({ session: config.session, chatId: wahaChatId(to), text, linkPreview: false }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const reply = await res.text();
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status} ${reply.slice(0, 160)}`.trim() };
+    return { ok: true, ref: refFrom(reply) };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message.slice(0, 200) : "تعذر الاتصال" };
+  }
+}
+
+export type WahaSessionState = { label: string; ok: boolean };
+
+const wahaStatusLabel: Record<string, WahaSessionState> = {
+  WORKING: { label: "الجلسة تعمل", ok: true },
+  SCAN_QR_CODE: { label: "تنتظر رمز الجوال", ok: false },
+  STARTING: { label: "الجلسة تبدأ", ok: false },
+  FAILED: { label: "الجلسة متوقفة", ok: false },
+  STOPPED: { label: "الجلسة متوقفة", ok: false },
+};
+
+/** Reads one WAHA session so the channels page can say whether the phone is connected. */
+export async function wahaSessionStatus(channel: ChannelState<WhatsAppConfig>): Promise<WahaSessionState | null> {
+  if (channel.config.provider !== "waha" || !channel.config.url || !channel.secret) return null;
+  try {
+    const res = await fetch(`${channel.config.url}/api/sessions/${encodeURIComponent(channel.config.session || "default")}`, {
+      headers: { "X-Api-Key": channel.secret },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.status === 401 || res.status === 403) return { label: "المفتاح غير مقبول", ok: false };
+    if (res.status === 404) return { label: "الجلسة غير موجودة", ok: false };
+    if (!res.ok) return { label: `تعذر قراءة الجلسة (${res.status})`, ok: false };
+    const body = (await res.json()) as { status?: string };
+    return wahaStatusLabel[String(body.status ?? "")] ?? { label: "حالة غير معروفة", ok: false };
+  } catch {
+    return { label: "تعذر الاتصال بـ WAHA", ok: false };
+  }
+}
+
 /** WhatsApp Cloud API. Marketing messages must use a template Meta approved. */
 export async function sendWhatsAppMessage(
   channel: ChannelState<WhatsAppConfig>,
   to: string,
   template: { name: string; language: string; params: string[] },
 ): Promise<SendResult> {
+  if (channel.config.provider === "waha") return { ok: false, error: "هذه الرسالة لقالب Meta، والمزود الحالي هو WAHA" };
   if (!channel.enabled) return { ok: false, error: "قناة واتساب متوقفة" };
   if (!channel.config.phoneNumberId || !channel.secret) return { ok: false, error: "إعداد واتساب غير مكتمل" };
   const components = template.params.length ? [{ type: "body", parameters: template.params.map((text) => ({ type: "text", text })) }] : [];

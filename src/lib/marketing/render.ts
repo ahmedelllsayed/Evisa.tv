@@ -40,8 +40,8 @@ export function cleanContent(input: Partial<MessageContent> | null | undefined):
   };
 }
 
-export function contentProblem(channel: Channel, content: MessageContent) {
-  if (channel === "whatsapp") {
+export function contentProblem(channel: Channel, content: MessageContent, whatsapp: "cloud" | "waha" = "cloud") {
+  if (channel === "whatsapp" && whatsapp === "cloud") {
     if (!content.waName || !/^[a-z0-9_]{1,120}$/.test(content.waName)) return "اكتب اسم قالب واتساب المعتمد بحروف إنجليزية صغيرة وشرطة سفلية.";
     if (!content.waLanguage || !/^[a-z]{2}(_[A-Z]{2})?$/.test(content.waLanguage)) return "اكتب لغة قالب واتساب مثل ar أو en_US.";
     return null;
@@ -49,6 +49,7 @@ export function contentProblem(channel: Channel, content: MessageContent) {
   if (channel === "email" && (!content.subject || content.subject.length < 2)) return "اكتب موضوع الرسالة.";
   if (content.body.length < 2) return "اكتب نص الرسالة.";
   if (channel === "sms" && content.body.length > 1000) return "الرسالة النصية أطول من 1000 حرف.";
+  if (channel === "whatsapp" && content.body.length > 4000) return "رسالة واتساب أطول من 4000 حرف.";
   return null;
 }
 
