@@ -40,7 +40,7 @@ export function cleanContent(input: Partial<MessageContent> | null | undefined):
   };
 }
 
-export function contentProblem(channel: Channel, content: MessageContent, whatsapp: "cloud" | "waha" = "cloud") {
+export function contentProblem(channel: Channel, content: MessageContent, whatsapp: "cloud" | "gowa" = "cloud") {
   if (channel === "whatsapp" && whatsapp === "cloud") {
     if (!content.waName || !/^[a-z0-9_]{1,120}$/.test(content.waName)) return "اكتب اسم قالب واتساب المعتمد بحروف إنجليزية صغيرة وشرطة سفلية.";
     if (!content.waLanguage || !/^[a-z]{2}(_[A-Z]{2})?$/.test(content.waLanguage)) return "اكتب لغة قالب واتساب مثل ar أو en_US.";

@@ -54,7 +54,7 @@ export function ContentFields({
   return (
     <div className="space-y-3">
       {whatsappText && channel === "whatsapp" ? (
-        <p className="text-xs leading-relaxed text-muted-foreground">واتساب عبر WAHA يرسل هذا النص كما هو، من غير قالب Meta. الإرسال الجماعي الكثيف قد يعرّض الرقم للحظر.</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">واتساب عبر GOWA يرسل هذا النص كما هو، من غير قالب Meta. الإرسال الجماعي الكثيف قد يعرّض الرقم للحظر.</p>
       ) : null}
       {channel === "email" ? (
         <label className="block text-sm">

@@ -95,14 +95,15 @@ export type SmsConfig = {
   successMatch: string;
 };
 
-export type WhatsAppProvider = "cloud" | "waha";
+export type WhatsAppProvider = "cloud" | "gowa";
 
 export type WhatsAppConfig = {
   provider: WhatsAppProvider;
   phoneNumberId: string;
   apiVersion: string;
   url: string;
-  session: string;
+  device: string;
+  authUser: string;
 };
 
 export const defaultSmsConfig: SmsConfig = {
@@ -126,7 +127,8 @@ export const defaultWhatsAppConfig: WhatsAppConfig = {
   phoneNumberId: "",
   apiVersion: "v21.0",
   url: "",
-  session: "default",
+  device: "",
+  authUser: "",
 };
 
 const field = (value: unknown, fallback: string, max = 200) => (typeof value === "string" ? value.trim().slice(0, max) : fallback);
@@ -154,13 +156,16 @@ export function cleanWhatsAppConfig(input: Partial<WhatsAppConfig> | null | unde
   const raw = { ...defaultWhatsAppConfig, ...(input ?? {}) };
   const version = field(raw.apiVersion, "v21.0", 10);
   const url = field(raw.url, "", 500).replace(/\/$/, "");
-  const session = field(raw.session, "default", 40);
+  const device = field(raw.device, "", 80);
+  const authUser = field(raw.authUser, "", 80);
+  const named = String((input as { provider?: string } | null | undefined)?.provider ?? "");
   return {
-    provider: raw.provider === "waha" ? "waha" : "cloud",
+    provider: named === "gowa" || named === "waha" ? "gowa" : "cloud",
     phoneNumberId: field(raw.phoneNumberId, "", 40).replace(/\D/g, ""),
     apiVersion: /^v\d{1,2}\.\d$/.test(version) ? version : "v21.0",
     url: /^https:\/\/[^\s]+$/.test(url) ? url : "",
-    session: /^[A-Za-z0-9_-]{1,40}$/.test(session) ? session : "default",
+    device: /^[A-Za-z0-9_-]{1,80}$/.test(device) ? device : "",
+    authUser: /^[A-Za-z0-9._@-]{1,80}$/.test(authUser) ? authUser : "",
   };
 }
 

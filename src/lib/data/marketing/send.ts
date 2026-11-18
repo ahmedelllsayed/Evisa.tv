@@ -1,6 +1,6 @@
 import "server-only";
 import { sendMail } from "@/lib/email";
-import { phoneForProvider, wahaChatId } from "@/lib/marketing/phone";
+import { gowaPhone, phoneForProvider } from "@/lib/marketing/phone";
 import type { ChannelState, SmsConfig, WhatsAppConfig } from "./settings";
 
 export type SendResult = { ok: true; ref: string | null } | { ok: false; error: string };
@@ -9,7 +9,8 @@ function refFrom(text: string) {
   try {
     const body = JSON.parse(text) as Record<string, unknown>;
     const nested = Array.isArray(body.messages) ? (body.messages[0] as Record<string, unknown> | undefined) : undefined;
-    const value = body.id ?? body.sid ?? body.message_id ?? body.messageId ?? nested?.id ?? null;
+    const results = body.results && typeof body.results === "object" ? (body.results as Record<string, unknown>) : undefined;
+    const value = body.id ?? body.sid ?? body.message_id ?? body.messageId ?? results?.message_id ?? nested?.id ?? null;
     return value == null ? null : String(value).slice(0, 120);
   } catch {
     return null;
@@ -87,16 +88,25 @@ function graphError(reply: string) {
   }
 }
 
-/** Free text through the self-hosted WAHA gateway. `linkPreview` stays off so WhatsApp does not fetch the link. */
-export async function sendWahaText(channel: ChannelState<WhatsAppConfig>, to: string, text: string): Promise<SendResult> {
+function basicAuth(user: string, password: string) {
+  return `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`;
+}
+
+/** Free text through the self-hosted GOWA gateway. */
+export async function sendGowaText(channel: ChannelState<WhatsAppConfig>, to: string, text: string): Promise<SendResult> {
   const config = channel.config;
   if (!channel.enabled) return { ok: false, error: "قناة واتساب متوقفة" };
-  if (!config.url || !config.session || !channel.secret) return { ok: false, error: "إعداد WAHA غير مكتمل" };
+  if (!config.url || !config.authUser || !channel.secret) return { ok: false, error: "إعداد GOWA غير مكتمل" };
+  const headers: Record<string, string> = {
+    Authorization: basicAuth(config.authUser, channel.secret),
+    "Content-Type": "application/json",
+  };
+  if (config.device) headers["X-Device-Id"] = config.device;
   try {
-    const res = await fetch(`${config.url}/api/sendText`, {
+    const res = await fetch(`${config.url}/send/message`, {
       method: "POST",
-      headers: { "X-Api-Key": channel.secret, "Content-Type": "application/json" },
-      body: JSON.stringify({ session: config.session, chatId: wahaChatId(to), text, linkPreview: false }),
+      headers,
+      body: JSON.stringify({ phone: gowaPhone(to), message: text }),
       signal: AbortSignal.timeout(15000),
     });
     const reply = await res.text();
@@ -107,31 +117,35 @@ export async function sendWahaText(channel: ChannelState<WhatsAppConfig>, to: st
   }
 }
 
-export type WahaSessionState = { label: string; ok: boolean };
+export type GowaDeviceState = { label: string; ok: boolean };
 
-const wahaStatusLabel: Record<string, WahaSessionState> = {
-  WORKING: { label: "الجلسة تعمل", ok: true },
-  SCAN_QR_CODE: { label: "تنتظر رمز الجوال", ok: false },
-  STARTING: { label: "الجلسة تبدأ", ok: false },
-  FAILED: { label: "الجلسة متوقفة", ok: false },
-  STOPPED: { label: "الجلسة متوقفة", ok: false },
-};
+type GowaDevice = { id?: string; state?: string };
 
-/** Reads one WAHA session so the channels page can say whether the phone is connected. */
-export async function wahaSessionStatus(channel: ChannelState<WhatsAppConfig>): Promise<WahaSessionState | null> {
-  if (channel.config.provider !== "waha" || !channel.config.url || !channel.secret) return null;
+/** Reads GOWA devices so the channels page can say whether the phone is linked. */
+export async function gowaDeviceStatus(channel: ChannelState<WhatsAppConfig>): Promise<GowaDeviceState | null> {
+  if (channel.config.provider !== "gowa" || !channel.config.url || !channel.config.authUser || !channel.secret) return null;
   try {
-    const res = await fetch(`${channel.config.url}/api/sessions/${encodeURIComponent(channel.config.session || "default")}`, {
-      headers: { "X-Api-Key": channel.secret },
+    const res = await fetch(`${channel.config.url}/devices`, {
+      headers: { Authorization: basicAuth(channel.config.authUser, channel.secret) },
       signal: AbortSignal.timeout(8000),
     });
-    if (res.status === 401 || res.status === 403) return { label: "المفتاح غير مقبول", ok: false };
-    if (res.status === 404) return { label: "الجلسة غير موجودة", ok: false };
-    if (!res.ok) return { label: `تعذر قراءة الجلسة (${res.status})`, ok: false };
-    const body = (await res.json()) as { status?: string };
-    return wahaStatusLabel[String(body.status ?? "")] ?? { label: "حالة غير معروفة", ok: false };
+    if (res.status === 401 || res.status === 403) return { label: "بيانات الدخول غير مقبولة", ok: false };
+    if (!res.ok) return { label: `تعذر قراءة الأجهزة (${res.status})`, ok: false };
+    const body = (await res.json()) as { results?: GowaDevice[] };
+    const devices = Array.isArray(body.results) ? body.results : [];
+    const chosen = channel.config.device ? devices.find((item) => item.id === channel.config.device) : devices.length === 1 ? devices[0] : undefined;
+    if (channel.config.device && !chosen) return { label: "الجهاز غير موجود", ok: false };
+    if (!chosen) {
+      return devices.length === 0
+        ? { label: "لا يوجد جهاز. أنشئه من لوحة GOWA وامسح الرمز.", ok: false }
+        : { label: "أكثر من جهاز. اكتب معرّف الجهاز.", ok: false };
+    }
+    if (chosen.state === "logged_in") return { label: "الجهاز يعمل", ok: true };
+    if (chosen.state === "connected" || chosen.state === "connecting") return { label: "الجهاز يتصل", ok: false };
+    if (chosen.state === "disconnected") return { label: "ينتظر رمز الجوال", ok: false };
+    return { label: "حالة غير معروفة", ok: false };
   } catch {
-    return { label: "تعذر الاتصال بـ WAHA", ok: false };
+    return { label: "تعذر الاتصال بـ GOWA", ok: false };
   }
 }
 
@@ -141,7 +155,7 @@ export async function sendWhatsAppMessage(
   to: string,
   template: { name: string; language: string; params: string[] },
 ): Promise<SendResult> {
-  if (channel.config.provider === "waha") return { ok: false, error: "هذه الرسالة لقالب Meta، والمزود الحالي هو WAHA" };
+  if (channel.config.provider === "gowa") return { ok: false, error: "هذه الرسالة لقالب Meta، والمزود الحالي هو GOWA" };
   if (!channel.enabled) return { ok: false, error: "قناة واتساب متوقفة" };
   if (!channel.config.phoneNumberId || !channel.secret) return { ok: false, error: "إعداد واتساب غير مكتمل" };
   const components = template.params.length ? [{ type: "body", parameters: template.params.map((text) => ({ type: "text", text })) }] : [];

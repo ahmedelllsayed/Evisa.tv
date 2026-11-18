@@ -24,7 +24,7 @@ export async function composerData() {
     templates: templates.map((template) => ({ id: template.id, name: template.name, channel: template.channel, content: template.content })),
     coupons: coupons.map((coupon) => ({ id: coupon.id, code: coupon.code, active: coupon.active })),
     channelReady: { email, sms, whatsapp } as Record<Channel, string | null>,
-    whatsappText: whatsappChannel.config.provider === "waha",
+    whatsappText: whatsappChannel.config.provider === "gowa",
   };
 }
 

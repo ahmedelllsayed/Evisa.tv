@@ -170,7 +170,8 @@ export function WhatsAppForm({
   const [secret, setSecret] = useState("");
   const [test, setTest] = useState({ to: "", name: "hello_world", language: "en_US", text: "مرحبا {{name}}" });
   const { run, pending, messages } = useRunner();
-  const waha = draft.provider === "waha";
+  const gowa = draft.provider === "gowa";
+  const gowaUrl = !draft.url || draft.url === "https://waha.amail.bar" ? "https://gowa.amail.bar" : draft.url;
   return (
     <form
       className="space-y-3"
@@ -190,7 +191,7 @@ export function WhatsAppForm({
           <input
             type="radio"
             name="whatsapp-provider"
-            checked={!waha}
+            checked={!gowa}
             onChange={() => setDraft({ ...draft, provider: "cloud" })}
           />
           Meta Cloud
@@ -199,21 +200,24 @@ export function WhatsAppForm({
           <input
             type="radio"
             name="whatsapp-provider"
-            checked={waha}
-            onChange={() => setDraft({ ...draft, provider: "waha", url: draft.url || "https://waha.amail.bar", session: draft.session || "default" })}
+            checked={gowa}
+            onChange={() => setDraft({ ...draft, provider: "gowa", url: gowaUrl })}
           />
-          WAHA
+          GOWA
         </label>
       </div>
-      {waha ? (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="عنوان WAHA">
-            <input dir="ltr" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} placeholder="https://waha.amail.bar" className={adminInputClass} />
+      {gowa ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="عنوان GOWA">
+            <input dir="ltr" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} placeholder="https://gowa.amail.bar" className={adminInputClass} />
           </Field>
-          <Field label="الجلسة">
-            <input dir="ltr" value={draft.session} onChange={(event) => setDraft({ ...draft, session: event.target.value })} placeholder="default" className={adminInputClass} />
+          <Field label="معرّف الجهاز">
+            <input dir="ltr" value={draft.device} onChange={(event) => setDraft({ ...draft, device: event.target.value })} placeholder="اتركه فارغاً إن كان جهازاً واحداً" className={adminInputClass} />
           </Field>
-          <Field label={hasSecret ? "مفتاح X-Api-Key (محفوظ، اتركه فارغاً للإبقاء)" : "مفتاح X-Api-Key"}>
+          <Field label="اسم المستخدم">
+            <input dir="ltr" autoComplete="off" value={draft.authUser} onChange={(event) => setDraft({ ...draft, authUser: event.target.value })} className={adminInputClass} />
+          </Field>
+          <Field label={hasSecret ? "كلمة المرور (محفوظة، اتركها فارغة للإبقاء)" : "كلمة المرور"}>
             <input type="password" dir="ltr" autoComplete="new-password" value={secret} onChange={(event) => setSecret(event.target.value)} className={adminInputClass} />
           </Field>
         </div>
@@ -230,9 +234,9 @@ export function WhatsAppForm({
           </Field>
         </div>
       )}
-      {waha ? (
+      {gowa ? (
         <p className="text-xs text-muted-foreground">
-          الصق مفتاح الإرسال من إعداد WAHA. {sessionStatus ? <span className={sessionStatus.ok ? "text-emerald-300" : "text-amber-300"}>{sessionStatus.label}</span> : "احفظ العنوان والمفتاح لتظهر حالة الجلسة."} الإرسال الجماعي الكثيف عبر هذا الربط قد يؤدي إلى حظر الرقم.
+          اسم المستخدم وكلمة المرور هما دخول لوحة GOWA. كلمة المرور تُحفظ مشفّرة ولا تُعرض بعد الحفظ. {sessionStatus ? <span className={sessionStatus.ok ? "text-emerald-300" : "text-amber-300"}>{sessionStatus.label}</span> : "احفظ العنوان وبيانات الدخول لتظهر حالة الجهاز."} الإرسال الجماعي الكثيف عبر هذا الربط قد يؤدي إلى حظر الرقم.
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">يُفضّل رمز مستخدم نظام دائم من Meta Business. الرسائل الترويجية تُرسل من قوالب معتمدة فقط، وتُحتسب بسعر Meta.</p>
@@ -242,7 +246,7 @@ export function WhatsAppForm({
         <Field label="رقم للتجربة">
           <input dir="ltr" value={test.to} onChange={(event) => setTest({ ...test, to: event.target.value })} placeholder="010…" className={cn(adminInputClass, "w-40")} />
         </Field>
-        {waha ? (
+        {gowa ? (
           <Field label="نص التجربة">
             <input dir="auto" value={test.text} onChange={(event) => setTest({ ...test, text: event.target.value })} className={cn(adminInputClass, "w-64")} />
           </Field>
@@ -259,14 +263,14 @@ export function WhatsAppForm({
         <button
           type="button"
           className={adminGhostClass}
-          disabled={pending || !test.to.trim() || (waha && test.text.trim().length < 2)}
+          disabled={pending || !test.to.trim() || (gowa && test.text.trim().length < 2)}
           onClick={() =>
             run(
               () =>
                 adminSendTest(locale, {
                   channel: "whatsapp",
                   address: test.to,
-                  content: waha ? { ...emptyContent, body: test.text } : { ...emptyContent, waName: test.name, waLanguage: test.language },
+                  content: gowa ? { ...emptyContent, body: test.text } : { ...emptyContent, waName: test.name, waLanguage: test.language },
                   couponCode: null,
                 }),
               "أُرسلت رسالة التجربة.",

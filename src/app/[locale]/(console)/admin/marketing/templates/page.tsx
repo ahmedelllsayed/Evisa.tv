@@ -16,7 +16,7 @@ export default async function MarketingTemplatesPage({ params }: Page) {
       <TemplatesBoard
         locale={locale}
         canEdit={access.canEdit}
-        whatsappText={whatsapp.config.provider === "waha"}
+        whatsappText={whatsapp.config.provider === "gowa"}
         templates={templates.map((template) => ({ id: template.id, name: template.name, channel: template.channel, content: template.content }))}
       />
     </AdminPage>

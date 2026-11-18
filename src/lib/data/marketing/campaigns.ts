@@ -168,8 +168,8 @@ export async function channelProblem(channel: Channel) {
   }
   const whatsapp = await getWhatsAppChannel();
   if (!whatsapp.enabled) return "قناة واتساب غير مفعّلة. اضبطها من صفحة القنوات.";
-  if (whatsapp.config.provider === "waha") {
-    return whatsapp.config.url && whatsapp.config.session && whatsapp.hasSecret ? null : "إعداد WAHA غير مكتمل. اكتب العنوان والجلسة والمفتاح.";
+  if (whatsapp.config.provider === "gowa") {
+    return whatsapp.config.url && whatsapp.config.authUser && whatsapp.hasSecret ? null : "إعداد GOWA غير مكتمل. اكتب العنوان واسم المستخدم وكلمة المرور.";
   }
   return whatsapp.config.phoneNumberId && whatsapp.hasSecret ? null : "إعداد واتساب كلاود غير مكتمل. اكتب رقم الهاتف ورمز الدخول.";
 }

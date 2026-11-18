@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { cleanAudienceFilter, describeFilter, emptyFilter, normalizeSex, parseContactImport } from "./audience.ts";
-import { normalizePhone, phoneForProvider, smsParts, wahaChatId } from "./phone.ts";
+import { gowaPhone, normalizePhone, phoneForProvider, smsParts } from "./phone.ts";
 import { cleanContent, contentProblem, fillVariables, pickLanguage, renderEmail, renderSms, withCode } from "./render.ts";
 
 test("pasted contacts accept email, phone, and name in any order", () => {
@@ -21,7 +21,7 @@ test("Egyptian numbers become international and providers get their format", () 
   assert.equal(normalizePhone("0212345678"), null);
   assert.equal(phoneForProvider("+201012345678", "digits"), "201012345678");
   assert.equal(phoneForProvider("+201012345678", "local"), "01012345678");
-  assert.equal(wahaChatId("+201012345678"), "201012345678@c.us");
+  assert.equal(gowaPhone("+201012345678"), "201012345678@s.whatsapp.net");
 });
 
 test("Arabic text messages use the shorter parts", () => {
@@ -62,6 +62,6 @@ test("messages place the code once and switch to English only when it exists", (
   assert.match(mail.text, /رمز الخصم: SAVE/);
   assert.equal(contentProblem("email", cleanContent({ body: "نص" })), "اكتب موضوع الرسالة.");
   assert.equal(contentProblem("whatsapp", cleanContent({ waName: "spring_offer", waLanguage: "ar" })), null);
-  assert.equal(contentProblem("whatsapp", cleanContent({ body: "مرحبا بك" }), "waha"), null);
-  assert.equal(contentProblem("whatsapp", cleanContent({ body: "x" }), "waha")?.includes("نص"), true);
+  assert.equal(contentProblem("whatsapp", cleanContent({ body: "مرحبا بك" }), "gowa"), null);
+  assert.equal(contentProblem("whatsapp", cleanContent({ body: "x" }), "gowa")?.includes("نص"), true);
 });
