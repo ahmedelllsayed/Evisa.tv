@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { cleanAudienceFilter, describeFilter, emptyFilter, normalizeSex, parseContactImport } from "./audience.ts";
 import { gowaPhone, normalizePhone, phoneForProvider, smsParts } from "./phone.ts";
-import { cleanContent, contentProblem, fillVariables, pickLanguage, renderEmail, renderSms, withCode } from "./render.ts";
+import { cleanContent, contentProblem, fillVariables, pickLanguage, renderEmail, renderSms, renderWhatsAppText, withCode } from "./render.ts";
 
 test("pasted contacts accept email, phone, and name in any order", () => {
   const parsed = parseContactImport("email,name\nAda <ada@example.com>\nbad-line\n01012345678, منى\nmona@example.com, Mona, +971501234567\nADA@example.com");
@@ -56,6 +56,7 @@ test("messages place the code once and switch to English only when it exists", (
   assert.equal(fillVariables("{{name}} {{code}}", { name: "منى", code: "SAVE", link: "x" }), "منى SAVE");
   const sms = renderSms({ content, locale: "ar-EG", vars: { name: "منى", code: null, link: "https://e.tv/m" }, stopUrl: "https://e.tv/s" });
   assert.equal(sms, "أهلاً منى، افتح https://e.tv/m\nإلغاء: https://e.tv/s");
+  assert.equal(renderWhatsAppText({ content, locale: "ar-EG", vars: { name: "منى", code: null, link: "https://e.tv/m" } }), "أهلاً منى، افتح https://e.tv/m");
   const mail = renderEmail({ content, locale: "ar-EG", vars: { name: "منى", code: "SAVE", link: "https://e.tv/m" }, brand: "Evisa", address: null, stopUrl: "https://e.tv/s" });
   assert.equal(mail.subject, "عرض");
   assert.match(mail.html, /dir="rtl"/);

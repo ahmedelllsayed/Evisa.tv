@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { siteConfig } from "@/config/site.config";
 import { marketHour } from "@/lib/coupon-math";
 import type { Channel } from "@/lib/marketing/audience";
-import { cleanContent, firstName, renderEmail, renderSms, renderWhatsAppParams, type MessageContent, type MessageVars } from "@/lib/marketing/render";
+import { cleanContent, firstName, renderEmail, renderSms, renderWhatsAppParams, renderWhatsAppText, type MessageContent, type MessageVars } from "@/lib/marketing/render";
 import { getSiteSettings } from "../settings";
 import { json, num, one, sql } from "../db";
 import { sendEmailMessage, sendGowaText, sendSmsMessage, sendWhatsAppMessage, type SendResult } from "./send";
@@ -78,7 +78,7 @@ async function sendOne(
   }
   senders.whatsapp ??= await getWhatsAppChannel();
   if (senders.whatsapp.config.provider === "gowa") {
-    return sendGowaText(senders.whatsapp, input.address, renderSms({ content: input.content, locale: input.locale, vars: input.vars, stopUrl: stopLink(input.token) }));
+    return sendGowaText(senders.whatsapp, input.address, renderWhatsAppText({ content: input.content, locale: input.locale, vars: input.vars }));
   }
   return sendWhatsAppMessage(senders.whatsapp, input.address, {
     name: input.content.waName ?? "",

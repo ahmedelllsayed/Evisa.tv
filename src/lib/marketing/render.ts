@@ -111,6 +111,12 @@ export function renderSms(input: { content: MessageContent; locale: string | nul
   return `${message}\n${chosen.english ? "Stop" : "إلغاء"}: ${input.stopUrl}`;
 }
 
+/** WhatsApp text is the message itself. It does not add an unsubscribe line. */
+export function renderWhatsAppText(input: { content: MessageContent; locale: string | null; vars: MessageVars }) {
+  const chosen = pickLanguage(input.content, input.locale);
+  return fillVariables(withCode(chosen.body, input.vars.code, chosen.english), input.vars);
+}
+
 export function renderWhatsAppParams(content: MessageContent, vars: MessageVars) {
   return content.waParams.map((param) => fillVariables(param, vars) || "-");
 }
